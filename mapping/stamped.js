@@ -1,4 +1,4 @@
-// processing/stamped.js
+// mapping/stamped.js
 // -----------------------------------------------------------------------------
 // JS conversion of stamped.py
 // Provides:

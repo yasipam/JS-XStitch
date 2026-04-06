@@ -1,4 +1,4 @@
-// processing/utils.js
+// mapping/utils.js
 // -----------------------------------------------------------------------------
 // JS conversion of utils.py
 // Provides:

@@ -7,7 +7,7 @@
 //   • Stamped OXS (stamped RGB but real DMC codes)
 // -----------------------------------------------------------------------------
 
-import { DMC_RGB } from "../processing/constants.js";
+import { DMC_RGB } from "../mapping/constants.js";
 
 /**
  * Convert [r,g,b] → uppercase hex "RRGGBB"

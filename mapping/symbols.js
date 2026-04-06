@@ -1,4 +1,4 @@
-// processing/symbols.js
+// mapping/symbols.js
 // -----------------------------------------------------------------------------
 // JS conversion of symbols.py
 // Provides:

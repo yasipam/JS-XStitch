@@ -5,9 +5,9 @@
 // This is the JS equivalent of Streamlit's run_pipeline_full().
 // -----------------------------------------------------------------------------
 
-import { buildSymbolMap } from "../processing/symbols.js";
-import { tilePattern } from "../processing/tiling.js";
-import { DMC_RGB } from "../processing/constants.js";
+import { buildSymbolMap } from "../mapping/constants.js";
+import { tilePattern } from "../mapping/tiling.js";
+import { DMC_RGB } from "../mapping/constants.js";
 
 /**
  * Build a complete export data object.

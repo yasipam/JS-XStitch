@@ -1,4 +1,4 @@
-// processing/tiling.js
+//mapping/tiling.js
 // -----------------------------------------------------------------------------
 // JS conversion of tiling.py
 // Provides:

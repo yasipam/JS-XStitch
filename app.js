@@ -11,16 +11,21 @@ import { buildPaletteFromSmall, mergeSimilarPaletteColors } from "./mapping/pale
 import { applyDitherRgb } from "./mapping/dithering.js";
 import { mapFullWithPalette } from "./mapping/mappingEngine.js";
 
-import { adjustBrightnessSaturationContrastAndBias } from "./processing/utils.js";
-import { buildStampedGrid } from "./processing/stamped.js";
-import { buildSymbolMap } from "./processing/symbols.js";
-import { DMC_RGB } from "./processing/constants.js";
+import { adjustBrightnessSaturationContrastAndBias } from "./mapping/utils.js";
+import { buildStampedGrid } from "./mapping/stamped.js";
+import { buildSymbolMap } from "./mapping/symbols.js";
+import { DMC_RGB } from "./mapping/constants.js";
 
 import { buildExportData } from "./export/buildExportData.js";
 import { exportPDF } from "./export/exportPDF.js";
 import { exportOXS, exportOXSStamped } from "./export/exportOXS.js";
 
-let state;
+import { resizeToWidth } from "./mapping/palette.js";
+import { mapImageToDMC } from "./mapping/mapImage.js";
+import { pixelGrid, createEmptyGrid } from "./core/pixelGrid.js";
+import { state } from "./core/state.js";
+import { draw, centerGrid } from "./core/canvasRenderer.js";
+
 let events;
 let currentImage = null;
 let baseRgbGrid = null;
@@ -183,100 +188,33 @@ function renderPalette(palette) {
 // -----------------------------------------------------------------------------
 // MAPPING PIPELINE
 // -----------------------------------------------------------------------------
-function runMapping() {
-    if (!currentImage) return;
+export async function runMapping() {
+    if (!state.image) return;
 
-    imageToBaseGrid(currentImage);
+    // 1. Resize image to maxSizeSlider value
+    const target = parseInt(document.getElementById("maxSizeSlider").value, 10);
+    const resized = resizeToWidth(state.image, target);
 
-    let workingGrid = baseRgbGrid.map(row => row.map(px => [...px]));
+    // 2. Map to DMC palette
+    const mapped = await mapImageToDMC(resized);
 
-    const flat = workingGrid.flat();
-    const paletteRgb = buildPaletteFromSmall(flat, {
-        k: mappingConfig.maxColours,
-        metric: mappingConfig.distanceMethod,
-        brightness: 1 + mappingConfig.brightnessInt / 10,
-        saturation: 1 + mappingConfig.saturationInt / 10,
-        contrast: 1 + mappingConfig.contrastInt / 10,
-        smallWidth: 80
-    });
+    // 3. Convert mapped image → pixelGrid
+    const rows = mapped.length;
+    const cols = mapped[0].length;
 
-    lockedColours.forEach(code => {
-        const entry = DMC_RGB.find(([c]) => String(c) === String(code));
-        if (entry) {
-            const [, , rgb] = entry;
-            if (!paletteRgb.some(p => p[0] === rgb[0] && p[1] === rgb[1] && p[2] === rgb[2])) {
-                paletteRgb.push([...rgb]);
-            }
+    createEmptyGrid(cols, rows);
+
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            const [r8, g8, b8] = mapped[r][c];
+            pixelGrid[r][c] = `rgb(${r8},${g8},${b8})`;
         }
-    });
-
-    const mergedPaletteRgb = mergeSimilarPaletteColors(
-        paletteRgb,
-        0,
-        lockedColours
-    );
-
-    if (mappingConfig.ditherMode !== "None") {
-        const ditheredFlat = applyDitherRgb(
-            workingGrid.flat(),
-            {
-                mode: mappingConfig.ditherMode,
-                strength: mappingConfig.ditherStrength
-            },
-            baseWidth,
-            baseHeight
-        );
-        const ditheredGrid = [];
-        for (let y = 0; y < baseHeight; y++) {
-            ditheredGrid.push(ditheredFlat.slice(y * baseWidth, (y + 1) * baseWidth));
-        }
-        workingGrid = ditheredGrid;
     }
 
-    const adjustedFlat = adjustBrightnessSaturationContrastAndBias(
-        workingGrid.flat(),
-        1 + mappingConfig.brightnessInt / 10,
-        1 + mappingConfig.saturationInt / 10,
-        1 + mappingConfig.contrastInt / 10,
-        mappingConfig.biasGreenMagenta / 100,
-        mappingConfig.biasCyanRed / 100,
-        mappingConfig.biasBlueYellow / 100
-    );
-    const adjustedGrid = [];
-    for (let y = 0; y < baseHeight; y++) {
-        adjustedGrid.push(adjustedFlat.slice(y * baseWidth, (y + 1) * baseWidth));
-    }
-
-    const { rgbGrid, dmcGrid, palette: usedPalette } = mapFullWithPalette(
-        adjustedGrid,
-        {
-            paletteRgb: mergedPaletteRgb,
-            brightness: 1 + mappingConfig.brightnessInt / 10,
-            saturation: 1 + mappingConfig.saturationInt / 10,
-            contrast: 1 + mappingConfig.contrastInt / 10,
-            reduceIsolatedStitches: mappingConfig.reduceIsolatedStitches,
-            minOccurrence: mappingConfig.minOccurrence,
-            biasGreenMagenta: mappingConfig.biasGreenMagenta,
-            biasCyanRed: mappingConfig.biasCyanRed,
-            biasBlueYellow: mappingConfig.biasBlueYellow
-        }
-    );
-
-    currentPalette = usedPalette || DMC_RGB;
-    currentDmcGrid = dmcGrid;
-
-    let displayGrid = rgbGrid;
-    if (mappingConfig.stampedMode) {
-        displayGrid = buildStampedGrid(dmcGrid, rgbGrid, {
-            hueShift: mappingConfig.stampedHueShift
-        });
-    }
-
-    state.loadGrid(displayGrid);
-    state.setMappingResults(rgbGrid, dmcGrid);
-    state.symbolMap = buildSymbolMap(dmcGrid, currentPalette);
-
-    renderPalette(currentPalette);
+    // 4. Update state
+    state.stitchSize = 10;
+    centerGrid();
+    draw();
 }
 
 function updateStampedMode() {

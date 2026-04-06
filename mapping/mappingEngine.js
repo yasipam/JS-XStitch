@@ -1,6 +1,6 @@
 // mapping/mappingEngine.js
 // -----------------------------------------------------------------------------
-// DMC mapping engine (JS conversion of processing/mapping.py)
+// DMC mapping engine (JS conversion of mapping.py)
 // -----------------------------------------------------------------------------
 //
 // Provides:

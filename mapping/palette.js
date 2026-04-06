@@ -243,9 +243,6 @@ export function getDistanceFn(metric, useLab) {
 // Output: same shape, adjusted
 // -----------------------------------------------------------------------------
 
-import { rgbToLab } from "./palette.js";   // from Section 1
-import { labToRgb } from "./palette.js";   // we will add this in Section 3B
-
 // Helper: clamp 0–255
 function clamp(v) {
     return Math.min(255, Math.max(0, v));
@@ -387,65 +384,8 @@ export function labToRgb(lab) {
 }
 
 // -----------------------------------------------------------------------------
-// Resize an image to a target width while preserving aspect ratio.
-// Input: HTMLImageElement or ImageBitmap
-// Output: ImageData
-// -----------------------------------------------------------------------------
-export function resizeToWidth(image, targetWidth) {
-    const w = image.width;
-    const h = image.height;
-
-    if (w === 0) return null;
-
-    const scale = targetWidth / w;
-    const newW = targetWidth;
-    const newH = Math.max(1, Math.floor(h * scale));
-
-    const canvas = document.createElement("canvas");
-    canvas.width = newW;
-    canvas.height = newH;
-
-    const ctx = canvas.getContext("2d");
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-
-    ctx.drawImage(image, 0, 0, newW, newH);
-
-    return ctx.getImageData(0, 0, newW, newH);
-}
-
-// -----------------------------------------------------------------------------
-// Resize an image to a target width while preserving aspect ratio.
-// Input: HTMLImageElement or ImageBitmap
-// Output: ImageData
-// -----------------------------------------------------------------------------
-export function resizeToWidth(image, targetWidth) {
-    const w = image.width;
-    const h = image.height;
-
-    if (w === 0) return null;
-
-    const scale = targetWidth / w;
-    const newW = targetWidth;
-    const newH = Math.max(1, Math.floor(h * scale));
-
-    const canvas = document.createElement("canvas");
-    canvas.width = newW;
-    canvas.height = newH;
-
-    const ctx = canvas.getContext("2d");
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-
-    ctx.drawImage(image, 0, 0, newW, newH);
-
-    return ctx.getImageData(0, 0, newW, newH);
-}
-
-// -----------------------------------------------------------------------------
 // Merge perceptually similar palette colours using CIEDE2000
 // -----------------------------------------------------------------------------
-import { rgbToLab } from "./palette.js";
 import { DMC_RGB } from "./constants.js";
 
 export function mergeSimilarPaletteColors(palette, threshold, lockedCodes) {
