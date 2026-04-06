@@ -1,0 +1,407 @@
+// mapping/mappingEngine.js
+// -----------------------------------------------------------------------------
+// DMC mapping engine (JS conversion of processing/mapping.py)
+// -----------------------------------------------------------------------------
+//
+// Provides:
+// - Nearest‑DMC lookup
+// - Anti‑noise median filtering
+// - Isolated‑stitch cleanup
+// - Minimum‑occurrence cleanup
+// - Full mapping pipeline (palette → DMC grid)
+// -----------------------------------------------------------------------------
+
+import { DMC_RGB } from "./constants.js";
+import { applyDitherRGB } from "./dithering.js";
+import { adjustBSCBias } from "./palette.js";
+
+// -----------------------------------------------------------------------------
+// NEAREST DMC LOOKUP
+// -----------------------------------------------------------------------------
+export function nearestDmcColor([r, g, b]) {
+    let best = null;
+    let bestDist = 1e12;
+
+    for (const [code, name, [dr, dg, db]] of DMC_RGB) {
+        const d =
+            (r - dr) * (r - dr) +
+            (g - dg) * (g - dg) +
+            (b - db) * (b - db);
+
+        if (d < bestDist) {
+            bestDist = d;
+            best = [code, name, [dr, dg, db]];
+        }
+    }
+
+    return best;
+}
+
+// -----------------------------------------------------------------------------
+// ANTI‑NOISE (MEDIAN FILTER)
+// -----------------------------------------------------------------------------
+// JS has no PIL, so we use Canvas-based median filtering.
+// This is a direct functional equivalent, not a new feature.
+export function applyAntiNoise(imageData, strength) {
+    if (strength <= 0) return imageData;
+
+    let data = imageData;
+
+    for (let pass = 0; pass < strength; pass++) {
+        data = medianFilter3x3(data);
+    }
+
+    return data;
+}
+
+// Simple 3×3 median filter for RGB
+function medianFilter3x3(imageData) {
+    const { width, height, data } = imageData;
+    const out = new Uint8ClampedArray(data.length);
+
+    function getPixel(x, y) {
+        const i = (y * width + x) * 4;
+        return [data[i], data[i + 1], data[i + 2]];
+    }
+
+    function setPixel(x, y, [r, g, b]) {
+        const i = (y * width + x) * 4;
+        out[i] = r;
+        out[i + 1] = g;
+        out[i + 2] = b;
+        out[i + 3] = 255;
+    }
+
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const neighbours = [];
+
+            for (let dy = -1; dy <= 1; dy++) {
+                for (let dx = -1; dx <= 1; dx++) {
+                    const nx = x + dx;
+                    const ny = y + dy;
+                    if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                        neighbours.push(getPixel(nx, ny));
+                    }
+                }
+            }
+
+            const r = neighbours.map(p => p[0]).sort((a, b) => a - b)[Math.floor(neighbours.length / 2)];
+            const g = neighbours.map(p => p[1]).sort((a, b) => a - b)[Math.floor(neighbours.length / 2)];
+            const b = neighbours.map(p => p[2]).sort((a, b) => a - b)[Math.floor(neighbours.length / 2)];
+
+            setPixel(x, y, [r, g, b]);
+        }
+    }
+
+    return new ImageData(out, width, height);
+}
+
+// -----------------------------------------------------------------------------
+// REMOVE ISOLATED STITCHES
+// -----------------------------------------------------------------------------
+export function removeIsolatedStitches(dmcGrid, rgbGrid, minSame = 1, rareThreshold = 3) {
+    const h = dmcGrid.length;
+    const w = dmcGrid[0].length;
+
+    const cleaned = dmcGrid.map(row => row.slice());
+
+    // Count global occurrences
+    const globalFreq = {};
+    for (let i = 0; i < h; i++) {
+        for (let j = 0; j < w; j++) {
+            const code = String(dmcGrid[i][j]);
+            globalFreq[code] = (globalFreq[code] || 0) + 1;
+        }
+    }
+
+    for (let i = 0; i < h; i++) {
+        for (let j = 0; j < w; j++) {
+            const center = String(dmcGrid[i][j]);
+
+            // Never modify cloth
+            if (center === "0") continue;
+
+            // Gather neighbours
+            const neighbours = [];
+            for (let di = -1; di <= 1; di++) {
+                for (let dj = -1; dj <= 1; dj++) {
+                    if (di === 0 && dj === 0) continue;
+                    const ni = i + di;
+                    const nj = j + dj;
+                    if (ni >= 0 && ni < h && nj >= 0 && nj < w) {
+                        neighbours.push(String(dmcGrid[ni][nj]));
+                    }
+                }
+            }
+
+            // Edge‑aware protection
+            if (new Set(neighbours).size >= 5) continue;
+
+            // Count matching neighbours
+            const same = neighbours.filter(n => n === center).length;
+            if (same >= minSame) continue;
+
+            // Rare colour handling
+            const isRare = (globalFreq[center] || 0) <= rareThreshold;
+            if (!isRare && same > 0) continue;
+
+            // Replace with most common neighbour
+            const freq = {};
+            for (const n of neighbours) {
+                if (n === "0") continue;
+                freq[n] = (freq[n] || 0) + 1;
+            }
+
+            if (Object.keys(freq).length > 0) {
+                const bestColour = Object.entries(freq).sort((a, b) => b[1] - a[1])[0][0];
+                cleaned[i][j] = bestColour;
+            }
+        }
+    }
+
+    return cleaned;
+}
+
+// -----------------------------------------------------------------------------
+// CLEANUP: MINIMUM OCCURRENCE
+// -----------------------------------------------------------------------------
+export function cleanupMinOccurrence(dmcGrid, minOccurrence, codeToRgb) {
+    if (minOccurrence <= 0) return dmcGrid;
+
+    const h = dmcGrid.length;
+    const w = dmcGrid[0].length;
+
+    // Count occurrences
+    const countMap = {};
+    for (let i = 0; i < h; i++) {
+        for (let j = 0; j < w; j++) {
+            const code = dmcGrid[i][j];
+            countMap[code] = (countMap[code] || 0) + 1;
+        }
+    }
+
+    const toRemove = new Set(
+        Object.entries(countMap)
+            .filter(([code, count]) => count < minOccurrence)
+            .map(([code]) => code)
+    );
+
+    if (toRemove.size === 0) return dmcGrid;
+
+    const remaining = Object.keys(countMap).filter(code => !toRemove.has(code));
+    if (remaining.length === 0) return dmcGrid;
+
+    const remainingRGBs = remaining.map(code => codeToRgb[code]);
+
+    const newGrid = dmcGrid.map(row => row.slice());
+
+    for (let i = 0; i < h; i++) {
+        for (let j = 0; j < w; j++) {
+            const code = dmcGrid[i][j];
+            if (!toRemove.has(code)) continue;
+
+            const orig = codeToRgb[code];
+            let best = null;
+            let bestDist = Infinity;
+
+            for (let k = 0; k < remaining.length; k++) {
+                const rgb = remainingRGBs[k];
+                const d =
+                    (orig[0] - rgb[0]) ** 2 +
+                    (orig[1] - rgb[1]) ** 2 +
+                    (orig[2] - rgb[2]) ** 2;
+
+                if (d < bestDist) {
+                    bestDist = d;
+                    best = remaining[k];
+                }
+            }
+
+            newGrid[i][j] = best;
+        }
+    }
+
+    return newGrid;
+}
+
+// -----------------------------------------------------------------------------
+// FULL MAPPING PIPELINE
+// -----------------------------------------------------------------------------
+export function mapFullWithPalette(
+    image,
+    stitchWidth,
+    palette,
+    brightness,
+    saturation,
+    contrast,
+    doCleanupIsolated,
+    minOccurrence,
+    biasGreenMagenta,
+    biasCyanRed,
+    biasBlueYellow
+) {
+    // Ensure RGBA
+    const canvas = document.createElement("canvas");
+    canvas.width = image.width;
+    canvas.height = image.height;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(image, 0, 0);
+
+    let imgData = ctx.getImageData(0, 0, image.width, image.height);
+
+    // Resize to stitch grid (nearest neighbour)
+    const scale = stitchWidth / image.width;
+    const newW = stitchWidth;
+    const newH = Math.max(1, Math.floor(image.height * scale));
+
+    const canvas2 = document.createElement("canvas");
+    canvas2.width = newW;
+    canvas2.height = newH;
+    const ctx2 = canvas2.getContext("2d");
+    ctx2.imageSmoothingEnabled = false;
+    ctx2.drawImage(canvas, 0, 0, newW, newH);
+
+    const small = ctx2.getImageData(0, 0, newW, newH);
+
+    // Extract RGB + transparency mask
+    const h = newH;
+    const w = newW;
+
+    const arr = [];
+    const transparentMask = [];
+
+    for (let i = 0; i < small.data.length; i += 4) {
+        const r = small.data[i];
+        const g = small.data[i + 1];
+        const b = small.data[i + 2];
+        const a = small.data[i + 3];
+
+        arr.push([r, g, b]);
+        transparentMask.push(a < 128);
+    }
+
+    // Reshape into 2D
+    const rgbGrid = [];
+    const maskGrid = [];
+    for (let y = 0; y < h; y++) {
+        rgbGrid.push(arr.slice(y * w, (y + 1) * w));
+        maskGrid.push(transparentMask.slice(y * w, (y + 1) * w));
+    }
+
+    // Adjustments
+    const adjustedFlat = adjustBSCBias(
+        arr,
+        brightness,
+        saturation,
+        contrast,
+        biasGreenMagenta,
+        biasCyanRed,
+        biasBlueYellow
+    );
+
+    const adjusted = [];
+    for (let y = 0; y < h; y++) {
+        adjusted.push(adjustedFlat.slice(y * w, (y + 1) * w));
+    }
+
+    // Palette array
+    const paletteArr = palette.map(p => p.map(v => v));
+
+    // STEP 1: Map to palette indices
+    const idx = [];
+    for (let y = 0; y < h; y++) {
+        const row = [];
+        for (let x = 0; x < w; x++) {
+            const [r, g, b] = adjusted[y][x];
+
+            let best = 0;
+            let bestDist = Infinity;
+
+            for (let k = 0; k < paletteArr.length; k++) {
+                const [pr, pg, pb] = paletteArr[k];
+                const d =
+                    (r - pr) ** 2 +
+                    (g - pg) ** 2 +
+                    (b - pb) ** 2;
+
+                if (d < bestDist) {
+                    bestDist = d;
+                    best = k;
+                }
+            }
+
+            row.push(best);
+        }
+        idx.push(row);
+    }
+
+    // Build palette RGB grid
+    const paletteRgbGrid = [];
+    for (let y = 0; y < h; y++) {
+        const row = [];
+        for (let x = 0; x < w; x++) {
+            row.push(paletteArr[idx[y][x]]);
+        }
+        paletteRgbGrid.push(row);
+    }
+
+    // STEP 2: Convert palette RGB → nearest DMC
+    const dmcGrid = [];
+    const finalRgbGrid = [];
+
+    const codeToRgb = {};
+    for (const [code, name, rgb] of DMC_RGB) {
+        codeToRgb[String(code)] = rgb;
+    }
+    codeToRgb["0"] = [255, 255, 255];
+
+    for (let y = 0; y < h; y++) {
+        const rowCodes = [];
+        const rowRgb = [];
+
+        for (let x = 0; x < w; x++) {
+            if (maskGrid[y][x]) {
+                rowCodes.push("0");
+                rowRgb.push([255, 255, 255]);
+                continue;
+            }
+
+            const [r, g, b] = paletteRgbGrid[y][x];
+            const [code, name, dmcRgb] = nearestDmcColor([r, g, b]);
+
+            rowCodes.push(String(code));
+            rowRgb.push(dmcRgb);
+        }
+
+        dmcGrid.push(rowCodes);
+        finalRgbGrid.push(rowRgb);
+    }
+
+    // Cleanup isolated stitches
+    if (doCleanupIsolated) {
+        const cleaned = removeIsolatedStitches(dmcGrid, finalRgbGrid);
+        for (let y = 0; y < h; y++) {
+            dmcGrid[y] = cleaned[y];
+        }
+    }
+
+    // Cleanup rare colours
+    const minOcc = parseInt(minOccurrence, 10) || 0;
+    if (minOcc > 0) {
+        const cleaned = cleanupMinOccurrence(dmcGrid, minOcc, codeToRgb);
+        for (let y = 0; y < h; y++) {
+            dmcGrid[y] = cleaned[y];
+        }
+    }
+
+    // Rebuild RGB grid after cleanup
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            const code = String(dmcGrid[y][x]);
+            finalRgbGrid[y][x] = codeToRgb[code];
+        }
+    }
+
+    return [finalRgbGrid, dmcGrid];
+}

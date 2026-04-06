@@ -1,0 +1,288 @@
+/* --- GLOBAL LAYOUT WRAPPER --- */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #fdfdfd;
+  overflow: hidden;
+}
+
+/* --- TOP TOOLBAR --- */
+#topToolbar {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  background: #eee;
+  border-bottom: 1px solid #ccc;
+  align-items: center;
+  justify-content: center; /* centers the toolbar */
+}
+
+/* --- MAIN LAYOUT (SIDEBARS + CANVAS) --- */
+#layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* --- LEFT SIDEBAR (settings) --- */
+#leftSidebar {
+  width: 300px;
+  background: #ffffff;
+  border-right: 1px solid #ccc;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.panel {
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  background: #fafafa;
+  margin-bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.panelTitle {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #6c00f9;
+  border-bottom: 1px solid #ccc;
+  padding-bottom: 4px;
+}
+
+.sliderRow {
+  display: flex;
+  flex-direction: column;
+  width: 100%; /* ensures full width */
+  gap: 6px;
+}
+
+.sliderWithInput {
+  display: flex;
+  align-items: center;
+  width: 100%; /* full width */
+  gap: 10px;
+}
+
+.sliderWithInput input[type="number"] {
+  width: 45px;      /* smaller, compact */
+  padding: 4px;
+  font-size: 14px;
+}
+
+.sliderWithInput input[type="range"] {
+  flex: 1; /* expands to fill leftover space */
+}
+
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.toggle input {
+  display: none;
+}
+
+.toggle .slider {
+  width: 36px;
+  height: 20px;
+  background: #ccc;
+  border-radius: 20px;
+  position: relative;
+  transition: background 0.2s;
+}
+
+.toggle .slider::before {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  background: white;
+  border-radius: 50%;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.2s;
+}
+
+.toggle input:checked + .slider {
+  background: #d54387;
+}
+
+.toggle input:checked + .slider::before {
+  transform: translateX(16px);
+}
+
+#leftSidebar .divider {
+  border: none;
+  border-top: 1px solid #074cef;
+  margin: 12px 0;
+}
+
+
+/* --- RIGHT SIDEBAR (export) --- */
+#rightSidebar {
+  width: 220px;
+  background: #f4f4f4;
+  border-left: 1px solid #ccc;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+#rightSidebar .divider {
+  border: none;
+  border-top: 1px solid #074cef;
+  margin: 12px 0;
+}
+
+/* --- MAIN CANVAS AREA --- */
+#mainArea {
+  flex: 1;
+  min-width: 0;   /* prevents horizontal stretching */
+  min-height: 0;  /* prevents vertical stretching */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+}
+
+#canvas {
+  display: block;
+}
+
+
+/* --- BOTTOM PALETTE BAR --- */
+#bottomPalette {
+  background: #fafafa;
+  border-top: 1px solid #ccc;
+  padding: 10px;
+  overflow-y: auto;
+  box-sizing: border-box;
+
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* --- PALETTE STYLES (unchanged) --- */
+
+#palette {
+  width: 100%;
+  padding: 10px;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+/* Bottom palette bar stays small */
+#bottomPalette {
+  background: #fafafa;
+  border-top: 1px solid #ccc;
+  padding: 10px;
+  box-sizing: border-box;
+
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  /* NEW: fixed height so it never eats canvas space */
+  max-height: 140px;
+  overflow: hidden;
+}
+
+/* Palette container scrolls vertically */
+#palette {
+  width: 100%;
+  padding: 10px;
+  box-sizing: border-box;
+
+  /* NEW: vertical scroll only */
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Palette grid stays the same, but no height explosion */
+#paletteGrid {
+  display: grid;
+  grid-template-columns: repeat(30, 1fr);
+  gap: 3px;
+
+  /* NEW: limit height to ~4 rows */
+  max-height: 4 * 18px;
+  overflow-y: auto;
+}
+
+.palette-swatch {
+  width: 30px;
+  height: 15px;
+  border: 1px solid #888;
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+#toggleList {
+  width: 100%;
+  padding: 6px;
+  margin-bottom: 6px;
+  cursor: pointer;
+}
+
+.palette-row {
+  display: flex;
+  align-items: center;
+  padding: 4px 0;
+  cursor: pointer;
+}
+
+.palette-row .swatch {
+  width: 18px;
+  height: 18px;
+  border: 1px solid #888;
+  margin-right: 8px;
+}
+
+/* BUTTON STYLING */
+
+button {
+  padding: 6px 12px;
+  background: #f4f4f4;
+  border: 1px solid #ccc;
+  border-radius: 10px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+button:hover {
+  background: #d8e999;
+  border-color: #115aae;
+}
+
+button:active {
+  background: #ea9bce;
+  border-color: #aaa;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+button.active {
+  background: #ea732f;
+  border-color: #7ab0ff;
+}

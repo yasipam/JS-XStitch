@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Cross Stitch Editor</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+
+  <body>
+    <h1>Cross Stitch Editor</h1>
+
+    <div id="app">
+
+      <!-- TOP TOOLBAR -->
+      <div id="topToolbar">
+        <input type="file" id="upload">
+
+        <button id="pencilBtn">Pencil</button>
+        <button id="eraserBtn">Eraser</button>
+        <button id="fillBtn">Fill</button>
+        <button id="toolPicker">Picker</button>
+
+        <button id="zoomInBtn">Zoom In</button>
+        <button id="zoomOutBtn">Zoom Out</button>
+        <button id="resetViewBtn">Reset View</button>
+      </div>
+
+
+      <div id="layout">
+
+        <!-- LEFT SIDEBAR -->
+        <aside id="leftSidebar">
+          <h2>Settings</h2>
+
+          <div id="hoverPreview"
+               style="width:24px;height:24px;border:1px solid #000;background:transparent;">
+          </div>
+
+          <!-- MAX SIZE -->
+          <div class="sliderRow">
+            <label>Max Size (longest edge)</label>
+            <div class="sliderWithInput">
+              <input type="range" id="maxSizeSlider" min="4" max="300" value="100">
+              <input type="number" id="maxSizeInput" min="4" max="300" value="100">
+            </div>
+          </div>
+
+          <hr class="divider">
+
+          <!-- MAX COLOURS -->
+          <div class="sliderRow">
+            <label>Maximum No. Colours</label>
+            <div class="sliderWithInput">
+              <input type="range" id="maxColours" min="1" max="60" value="30">
+              <input type="number" id="maxColoursInput" min="1" max="60" value="30">
+            </div>
+          </div>
+
+          <hr class="divider">
+
+          <!-- LEVELS -->
+          <div class="panel">
+            <h3 class="panelTitle">Levels Adjustments</h3>
+
+            <label>Brightness</label>
+            <input type="range" id="brightness" min="-10" max="10" value="0">
+
+            <label>Saturation</label>
+            <input type="range" id="saturation" min="-10" max="10" value="0">
+
+            <label>Contrast</label>
+            <input type="range" id="contrast" min="-10" max="10" value="0">
+          </div>
+
+          <!-- COLOUR DISTANCE -->
+          <div class="panel">
+            <h3 class="panelTitle">Colour Distances</h3>
+
+            <label class="radioRow">
+              <input type="radio" name="colorDistance" value="none" checked>
+              None
+            </label>
+
+            <label class="radioRow">
+              <input type="radio" name="colorDistance" value="euclidean">
+              Euclidean
+            </label>
+
+            <label class="radioRow">
+              <input type="radio" name="colorDistance" value="bt709">
+              BT‑709
+            </label>
+
+            <label class="radioRow">
+              <input type="radio" name="colorDistance" value="ciede2000">
+              CIEDE2000
+            </label>
+
+            <label class="radioRow">
+              <input type="radio" name="colorDistance" value="cie76">
+              CIE76
+            </label>
+
+            <label class="radioRow">
+              <input type="radio" name="colorDistance" value="cie94">
+              CIE94
+            </label>
+          </div>
+
+          <!-- COLOUR BIAS -->
+          <div class="panel">
+            <h3 class="panelTitle">Colour Adjustments</h3>
+
+            <label>Green ➡ Magenta</label>
+            <input type="range" id="greenToMagenta" min="-100" max="100" value="0">
+
+            <label>Cyan ➡ Red</label>
+            <input type="range" id="cyanToRed" min="-100" max="100" value="0">
+
+            <label>Blue ➡ Yellow</label>
+            <input type="range" id="blueToYellow" min="-100" max="100" value="0">
+          </div>
+
+        </aside>
+
+
+        <!-- MAIN CANVAS -->
+        <main id="mainArea">
+          <canvas id="canvas"></canvas>
+        </main>
+
+
+        <!-- RIGHT SIDEBAR -->
+        <aside id="rightSidebar">
+
+          <h2>Export Options</h2>
+
+          <!-- EXPORT MODE -->
+          <div class="panel">
+            <h3 class="panelTitle">Export Mode</h3>
+
+            <select id="exportModeSelect">
+              <option value="cross">Cross Mode</option>
+              <option value="filled">Filled Mode</option>
+              <option value="symbol">Symbol Mode</option>
+              <option value="all">All Modes</option>
+            </select>
+          </div>
+
+          <!-- FABRIC COUNT -->
+          <div class="panel">
+            <h3 class="panelTitle">Fabric Count (Aida)</h3>
+
+            <select id="fabricCountSelect">
+              <option value="6">6</option>
+              <option value="8">8</option>
+              <option value="10">10</option>
+              <option value="11">11</option>
+              <option value="12">12</option>
+              <option value="14" selected>14</option>
+              <option value="16">16</option>
+              <option value="18">18</option>
+              <option value="20">20</option>
+              <option value="22">22</option>
+            </select>
+          </div>
+
+          <!-- EXPORT BUTTONS -->
+          <button id="exportPDFBtn">Export PDF</button>
+          <button id="exportPngBtn">Export PNG</button>
+          <button id="exportJsonBtn">Export JSON</button>
+          <button id="exportOxsBtn">Export OXS</button>
+
+          <hr class="divider">
+
+          <!-- STAMPED MODE -->
+          <div class="panel">
+            <h3 class="panelTitle">Stamped Pattern</h3>
+
+            <label class="toggle">
+              <input type="checkbox" id="stampedMode">
+              <span class="slider"></span>
+              Enable Stamped Mode
+            </label>
+
+            <label>Hue Shift</label>
+            <input type="range" id="stampedHueShift" min="0" max="180" value="0">
+          </div>
+
+        </aside>
+
+      </div>
+
+
+      <!-- BOTTOM PALETTE -->
+      <footer id="bottomPalette">
+        <div id="palette">
+          <div id="paletteGrid"></div>
+
+          <button id="toggleList">Show List ▼</button>
+
+          <div id="paletteListContainer" style="display:none;">
+            <input id="paletteSearch" type="text" placeholder="Search DMC…">
+            <div id="paletteList"></div>
+          </div>
+        </div>
+      </footer>
+
+    </div>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
