@@ -208,12 +208,41 @@ function setupToolButtons() {
 function setupEditHistory() {
     const undoBtn = document.getElementById("undoBtn");
     const redoBtn = document.getElementById("redoBtn");
+    const clearBtn = document.getElementById("clearAllBtn");
 
-    if (undoBtn) {
-        undoBtn.onclick = () => state.undo();
+    if (undoBtn) undoBtn.onclick = () => state.undo();
+    if (redoBtn) redoBtn.onclick = () => state.redo();
+    
+    if (clearBtn) {
+        clearBtn.onclick = () => {
+            if (confirm("Are you sure you want to clear the canvas? This will remove your current work.")) {
+                // 1. Perform the undoable grid wipe
+                state.clearCanvasAction();
+
+                // 2. Clear the global image reference
+                currentImage = null;
+
+                // 3. Reset the file uploader UI
+                const uploader = document.getElementById("upload");
+                if (uploader) {
+                    uploader.value = ""; // This removes the filename from the "Choose File" button
+                }
+                
+                console.log("Canvas cleared and uploader reset.");
+            }
+        };
     }
-    if (redoBtn) {
-        redoBtn.onclick = () => state.redo();
+}
+
+function setupResetControls() {
+    const resetOriginalBtn = document.getElementById("resetOriginalBtn");
+
+    if (resetOriginalBtn) {
+        resetOriginalBtn.onclick = () => {
+            if (confirm("This will remove all manual edits (pencil, eraser, etc.) and restore the original generated pattern. Proceed?")) {
+                state.resetToMappedState();
+            }
+        };
     }
 }
 
@@ -381,6 +410,7 @@ window.addEventListener("load", () => {
     setupUpload();
     setupToolButtons();
     setupEditHistory();
+    setupResetControls();
     setupMappingControls();
     setupExportButtons();
     setupZoomButtons();
@@ -394,6 +424,15 @@ window.addEventListener("load", () => {
         paletteUpdateTimeout = setTimeout(() => {
             updatePaletteHighlights();
         }, 100); 
+    });
+
+    state.on("requestStampedReload", () => {
+        if (state.mappedDmcGrid) {
+            const stamped = buildStampedGrid(state.mappedDmcGrid, { 
+                hueShift: mappingConfig.stampedHueShift 
+            });
+            state.loadGrid(stamped);
+        }
     });
 
     const toggleBtn = document.getElementById("toggleList");
