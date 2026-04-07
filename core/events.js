@@ -45,7 +45,6 @@ export class EditorEvents {
     _onPointerDown(e) {
         e.preventDefault();
         
-        // Right-Click Pan Logic
         if (e.button === 2) {
             this.isPanning = true;
             this.lastPointerX = e.clientX;
@@ -58,11 +57,13 @@ export class EditorEvents {
         const tool = ToolRegistry[this.state.activeTool];
         if (!tool) return;
 
-        // JUST pass raw e.clientX/Y. The renderer does the hard work now.
         const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
+        
+        // Pass the shiftKey status to the tool
+        const options = { shiftKey: e.shiftKey };
 
         this.canvas.setPointerCapture(e.pointerId);
-        tool.onPointerDown(this.state, gx, gy, e.clientX, e.clientY);
+        tool.onPointerDown(this.state, gx, gy, e.clientX, e.clientY, options);
     }
 
     // -------------------------------------------------------------------------

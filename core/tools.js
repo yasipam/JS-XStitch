@@ -19,20 +19,46 @@ export class BaseTool {
 export class PencilTool extends BaseTool {
     cursor = "crosshair";
 
-    onPointerDown(state, gx, gy) {
+    onPointerDown(state, gx, gy, screenX, screenY, options) {
         this.drawing = true;
-        // Paint the first pixel
-        state.setPixel(gx, gy, state.activeColor);
+
+        // If Shift is held and we have a previous point, draw a line
+        if (options?.shiftKey && this.lastGx !== undefined) {
+            this.drawLine(state, this.lastGx, this.lastGy, gx, gy);
+        } else {
+            state.setPixel(gx, gy, state.activeColor);
+        }
+
+        this.lastGx = gx;
+        this.lastGy = gy;
     }
 
     onPointerMove(state, gx, gy) {
         if (!this.drawing) return;
-        // Paint as you move
         state.setPixel(gx, gy, state.activeColor);
+        this.lastGx = gx;
+        this.lastGy = gy;
     }
 
     onPointerUp() {
         this.drawing = false;
+    }
+
+    // Bresenham's Line Algorithm to fill in stitches between two points
+    drawLine(state, x0, y0, x1, y1) {
+        const dx = Math.abs(x1 - x0);
+        const dy = Math.abs(y1 - y0);
+        const sx = (x0 < x1) ? 1 : -1;
+        const sy = (y0 < y1) ? 1 : -1;
+        let err = dx - dy;
+
+        while (true) {
+            state.setPixel(x0, y0, state.activeColor);
+            if (x0 === x1 && y0 === y1) break;
+            const e2 = 2 * err;
+            if (e2 > -dy) { err -= dy; x0 += sx; }
+            if (e2 < dx) { err += dx; y0 += sy; }
+        }
     }
 }
 
