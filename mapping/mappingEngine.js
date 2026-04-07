@@ -270,12 +270,16 @@ export function mapFullWithPalette(
         (biasGreenMagenta || 0) / 10, (biasCyanRed || 0) / 10, (biasBlueYellow || 0) / 10
     );
 
-    // Prepare Distance Function
-    const useLab = distanceMetric.startsWith("cie");
-    const distFn = getDistanceFn(distanceMetric, useLab);
-    
-    // Pre-calculate DMC LAB values if needed for performance
-    const dmcPaletteLab = useLab ? DMC_RGB.map(d => rgbToLab([d[2]])[0]) : null;
+    // Prepare Distance Function with a safe fallback
+    const metric = distanceMetric || "euclidean"; 
+
+    // Check if the metric requires LAB color space
+    // This now includes cie76 and cie94 in addition to ciede2000
+    const useLab = metric.startsWith("cie"); 
+    const distFn = getDistanceFn(metric, useLab); //
+        
+    // Pre-calculate DMC LAB values if using any CIE metric for performance
+    const dmcPaletteLab = useLab ? DMC_RGB.map(d => rgbToLab([d[2]])[0]) : null; //
 
     const dmcGrid = [];
     const finalRgbGrid = [];
