@@ -15,9 +15,9 @@ import { EditorEvents } from "./core/events.js";
 import { ToolRegistry } from "./core/tools.js";
 
 // Mapping Logic
-import { mergeSimilarPaletteColors } from "./mapping/palette.js";
+import { mergeSimilarPaletteColors, buildPaletteFromImage } from "./mapping/palette.js"; 
 import { applyDitherRGB } from "./mapping/dithering.js"; 
-import { mapFullWithPalette } from "./mapping/mappingEngine.js";
+import { mapFullWithPalette, nearestDmcColor } from "./mapping/mappingEngine.js";
 import { resizeToWidth } from "./mapping/utils.js"; 
 import { buildStampedGrid } from "./mapping/stamped.js";
 import { buildSymbolMap } from "./mapping/symbols.js"; 
@@ -60,47 +60,58 @@ const mappingConfig = {
 async function runMapping() {
     if (!currentImage) return;
 
-    // 1. Get the limit from the slider
-    const colourLimit = mappingConfig.maxColours;
+    try {
+        const colourLimit = mappingConfig.maxColours;
 
-    // 2. Create the "Allowed" palette for the engine.
-    // We take the first N colors from the DMC master list.
-    const restrictedPalette = DMC_RGB.slice(0, colourLimit);
+        // 1. Extract colors from image
+        const extractedColors = buildPaletteFromImage(currentImage, colourLimit);
+        
+        // 2. Map to actual DMC threads (Fixes the dullness)
+        // We pass "null" for the distanceFn so nearestDmcColor uses its default perceptual RGB math
+        const restrictedPalette = extractedColors.map(rgb => {
+            const match = nearestDmcColor(rgb, {name: "none"}, null, DMC_RGB);
+            return match; // match is [code, name, [r,g,b]]
+        });
 
-    // 3. Run the engine using ONLY the restricted palette
-    const [rgbGrid, dmcGrid] = mapFullWithPalette(
-        currentImage,
-        mappingConfig.maxSize,
-        restrictedPalette, // <-- PASSING THE RESTRICTED LIST
-        1.0 + (mappingConfig.brightnessInt / 10),
-        1.0 + (mappingConfig.saturationInt / 10),
-        1.0 + (mappingConfig.contrastInt / 10),
-        mappingConfig.reduceIsolatedStitches,
-        mappingConfig.minOccurrence,
-        mappingConfig.biasGreenMagenta,
-        mappingConfig.biasCyanRed,
-        mappingConfig.biasBlueYellow,
-        mappingConfig.distanceMethod
-    );
+        // 3. Run mapping engine
+        const [rgbGrid, dmcGrid] = mapFullWithPalette(
+            currentImage,
+            mappingConfig.maxSize,
+            restrictedPalette, 
+            1.0 + (mappingConfig.brightnessInt / 10),
+            1.0 + (mappingConfig.saturationInt / 10),
+            1.0 + (mappingConfig.contrastInt / 10),
+            mappingConfig.reduceIsolatedStitches,
+            mappingConfig.minOccurrence,
+            mappingConfig.biasGreenMagenta,
+            mappingConfig.biasCyanRed,
+            mappingConfig.biasBlueYellow,
+            mappingConfig.distanceMethod
+        );
 
-    // 4. Update state and UI
-    state.setMappingResults(rgbGrid, dmcGrid);
-    state.loadGrid(rgbGrid);
+        state.setMappingResults(rgbGrid, dmcGrid);
 
-    // If Stamped Mode is active, override the visual grid
-    if (mappingConfig.stampedMode) {
-        const stamped = buildStampedGrid(dmcGrid, { hueShift: mappingConfig.stampedHueShift });
-        state.loadGrid(stamped);
-    } else {
-        state.loadGrid(rgbGrid);
-    
-    // Trigger the Reset View logic immediately so the image is centered
-    document.getElementById("resetViewBtn").click(); 
+        if (mappingConfig.stampedMode) {
+            const stamped = buildStampedGrid(dmcGrid, { hueShift: mappingConfig.stampedHueShift });
+            state.loadGrid(stamped);
+        } else {
+            state.loadGrid(rgbGrid);
+        }
+
+        renderPalette(restrictedPalette);
+        updatePaletteHighlights();
+
+        requestAnimationFrame(() => {
+            const resetBtn = document.getElementById("resetViewBtn");
+            if (resetBtn) {
+                resetBtn.click();
+                console.log("Auto-centered image after mapping.");
+            }
+        });
+
+    } catch (error) {
+        console.error("Mapping failed:", error);
     }
-    // Update the palette highlights in the UI
-    renderPalette(restrictedPalette);
-    updatePaletteHighlights();
-
 }
 
 // -----------------------------------------------------------------------------

@@ -21,17 +21,30 @@ export function nearestDmcColor(pixelRgb, distanceFn, dmcPaletteLab, allowedPale
     let best = null;
     let bestDist = Infinity;
 
-    const isLabMetric = distanceFn.name.includes("CIE");
+    // Fallback for when we don't have a specific distance function (like during palette build)
+    const isLabMetric = distanceFn && distanceFn.name && distanceFn.name.includes("CIE");
     const target = isLabMetric ? rgbToLab([pixelRgb])[0] : pixelRgb;
 
-    // USE allowedPalette instead of the global DMC_RGB
     for (let i = 0; i < allowedPalette.length; i++) {
         const [code, name, dmcRgb] = allowedPalette[i];
-        
-        // If we are using LAB, we need to convert the allowedPalette colors too
-        const comparisonPoint = isLabMetric ? rgbToLab([dmcRgb])[0] : dmcRgb;
-        
-        const dist = distanceFn([target], comparisonPoint)[0];
+        let dist;
+
+        if (isLabMetric) {
+            const comparisonLab = dmcPaletteLab[i];
+            let weightR = 1.0, weightA = 1.0, weightB = 1.0;
+            if (target[1] > 20) { weightA = 0.65; weightB = 0.65; }
+
+            const dL = (target[0] - comparisonLab[0]) * weightR;
+            const dA = (target[1] - comparisonLab[1]) * weightA;
+            const dB = (target[2] - comparisonLab[2]) * weightB;
+            dist = dL*dL + dA*dA + dB*dB;
+        } else {
+            // Perceptual RGB weight (Matches Streamlit defaults)
+            const dr = (target[0] - dmcRgb[0]) * 0.30;
+            const dg = (target[1] - dmcRgb[1]) * 0.59;
+            const db = (target[2] - dmcRgb[2]) * 0.11;
+            dist = dr*dr + dg*dg + db*db;
+        }
 
         if (dist < bestDist) {
             bestDist = dist;
@@ -40,6 +53,7 @@ export function nearestDmcColor(pixelRgb, distanceFn, dmcPaletteLab, allowedPale
     }
     return best;
 }
+
 // -----------------------------------------------------------------------------
 // ANTI‑NOISE (MEDIAN FILTER)
 // -----------------------------------------------------------------------------

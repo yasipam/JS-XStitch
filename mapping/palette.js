@@ -60,6 +60,34 @@ export function rgbToLab(input) {
     return xyzToLab(rgbToXyz(input));
 }
 
+export function buildPaletteFromImage(image, k) {
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    
+    const sampleWidth = 80;
+    const scale = sampleWidth / image.width;
+    canvas.width = sampleWidth;
+    canvas.height = Math.max(1, Math.floor(image.height * scale));
+    
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    
+    const colors = [];
+    for (let i = 0; i < imgData.length; i += 16) {
+        if (imgData[i + 3] > 128) { // Skip transparent
+            colors.push([imgData[i], imgData[i + 1], imgData[i + 2]]);
+        }
+    }
+
+    const sampledPalette = [];
+    const step = Math.max(1, Math.floor(colors.length / k));
+    for (let i = 0; i < colors.length && sampledPalette.length < k; i += step) {
+        sampledPalette.push(colors[i]);
+    }
+    
+    return sampledPalette.length > 0 ? sampledPalette : [[255, 255, 255]];
+}
+
 // -----------------------------------------------------------------------------
 // COLOUR DISTANCE METRICS
 // -----------------------------------------------------------------------------
@@ -235,6 +263,8 @@ export function getDistanceFn(metric, useLab) {
     if (metric === "cie94") return distCIE94;
     return distCIEDE2000;
 }
+
+
 
 // -----------------------------------------------------------------------------
 // IMAGE ADJUSTMENTS (BRIGHTNESS / SATURATION / CONTRAST / LAB BIAS)
