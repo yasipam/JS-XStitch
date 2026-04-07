@@ -29,6 +29,7 @@ export class EditorEvents {
         this.canvas.addEventListener("pointerup", e => this._onPointerUp(e));
         this.canvas.addEventListener("pointerleave", e => this._onPointerUp(e));
         this.canvas.addEventListener("contextmenu", e => e.preventDefault());
+        window.addEventListener("keydown", e => this._onKeyDown(e));
 
         // Wheel zoom
         this.canvas.addEventListener("wheel", e => this._onWheel(e), { passive: false });
@@ -37,6 +38,24 @@ export class EditorEvents {
         new ResizeObserver(() => {
             this.state.renderer.resizeToContainer();
         }).observe(this.canvas);
+    }
+
+    _onKeyDown(e) {
+        // Detect Ctrl+Z or Cmd+Z for Undo
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+            e.preventDefault();
+            if (e.shiftKey) {
+                this.state.redo(); // Ctrl+Shift+Z
+            } else {
+                this.state.undo();
+            }
+        }
+
+        // Detect Ctrl+Y or Cmd+Y for Redo
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
+            e.preventDefault();
+            this.state.redo();
+        }
     }
 
     // -------------------------------------------------------------------------

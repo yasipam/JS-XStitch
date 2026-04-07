@@ -203,6 +203,18 @@ function setupToolButtons() {
     });
 }
 
+function setupEditHistory() {
+    const undoBtn = document.getElementById("undoBtn");
+    const redoBtn = document.getElementById("redoBtn");
+
+    if (undoBtn) {
+        undoBtn.onclick = () => state.undo();
+    }
+    if (redoBtn) {
+        redoBtn.onclick = () => state.redo();
+    }
+}
+
 function setupMappingControls() {
     const controlPairs = [
         ["maxSizeSlider", "maxSizeInput", "maxSize"],
@@ -345,6 +357,7 @@ window.addEventListener("load", () => {
     state.renderer.resizeToContainer();
     setupUpload();
     setupToolButtons();
+    setupEditHistory();
     setupMappingControls();
     setupExportButtons();
     setupZoomButtons();

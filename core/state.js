@@ -127,12 +127,14 @@ export class EditorState {
     }
 
     floodFill(x, y, rgb) {
+        this.pixelGrid.pushUndo(); // Save before filling
         this.pixelGrid.floodFill(x, y, rgb);
         this.renderer.draw();
         this.emit("gridChanged");
     }
 
     fillAll(rgb) {
+        this.pixelGrid.pushUndo(); // Save before wiping
         this.pixelGrid.fillAll(rgb);
         this.renderer.draw();
         this.emit("gridChanged");
@@ -143,7 +145,7 @@ export class EditorState {
     // -------------------------------------------------------------------------
     undo() {
         this.pixelGrid.undo();
-        this.renderer.draw();
+        this.renderer.draw(); // Redraw the whole canvas with the old data
         this.emit("gridChanged");
     }
 

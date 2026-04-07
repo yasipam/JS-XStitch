@@ -20,9 +20,11 @@ export class PencilTool extends BaseTool {
     cursor = "crosshair";
 
     onPointerDown(state, gx, gy, screenX, screenY, options) {
+        // 1. SAVE THE WHOLE GRID ONCE
+        state.pixelGrid.pushUndo(); 
+
         this.drawing = true;
 
-        // If Shift is held and we have a previous point, draw a line
         if (options?.shiftKey && this.lastGx !== undefined) {
             this.drawLine(state, this.lastGx, this.lastGy, gx, gy);
         } else {
@@ -35,6 +37,7 @@ export class PencilTool extends BaseTool {
 
     onPointerMove(state, gx, gy) {
         if (!this.drawing) return;
+        // 2. Just draw pixels, NO UNDO PUSH HERE
         state.setPixel(gx, gy, state.activeColor);
         this.lastGx = gx;
         this.lastGy = gy;

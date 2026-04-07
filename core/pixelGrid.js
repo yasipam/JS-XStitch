@@ -27,9 +27,12 @@ export class PixelGrid {
         return this.grid.map(row => row.map(px => [...px]));
     }
 
-    _pushUndo() {
+    pushUndo() {
+        // Only keep the last 50 actions to save memory
+        if (this.undoStack.length > 50) this.undoStack.shift();
+        
         this.undoStack.push(this._cloneGrid());
-        this.redoStack.length = 0; // clear redo
+        this.redoStack.length = 0; 
     }
 
     // -------------------------------------------------------------------------
@@ -40,26 +43,23 @@ export class PixelGrid {
         return this.grid[y][x];
     }
 
-    set(x, y, rgb, recordUndo = true) {
+    set(x, y, rgb) {
         if (x < 0 || y < 0 || x >= this.width || y >= this.height) return;
-
-        if (recordUndo) this._pushUndo();
         this.grid[y][x] = [...rgb];
     }
 
     // -------------------------------------------------------------------------
     // BULK OPERATIONS
     // -------------------------------------------------------------------------
-    fillAll(rgb, recordUndo = true) {
-        if (recordUndo) this._pushUndo();
-
+    
+    fillAll(rgb) {
         for (let y = 0; y < this.height; y++) {
             for (let x = 0; x < this.width; x++) {
                 this.grid[y][x] = [...rgb];
             }
         }
     }
-
+    
     replaceColor(targetRgb, newRgb, recordUndo = true) {
         if (recordUndo) this._pushUndo();
 
