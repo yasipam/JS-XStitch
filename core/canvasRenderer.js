@@ -127,19 +127,28 @@ export class CanvasRenderer {
     // -------------------------------------------------------------------------
     // CONVERT CANVAS COORDINATES → GRID COORDINATES
     // -------------------------------------------------------------------------
-    screenToGrid(x, y) {
+    screenToGrid(clientX, clientY) {
+        // 1. Find exactly where the canvas is on the screen right now
+        const rect = this.canvas.getBoundingClientRect();
+
+        // 2. Map screen mouse -> local canvas mouse
+        const x = clientX - rect.left;
+        const y = clientY - rect.top;
+
+        // 3. Convert local mouse -> grid coordinates
+        // We use Math.floor so the "hitbox" is the top-left of the stitch
         const gx = Math.floor((x - this.offsetX) / this.zoom);
         const gy = Math.floor((y - this.offsetY) / this.zoom);
+
         return { gx, gy };
     }
 
-    // -------------------------------------------------------------------------
-    // CONVERT GRID COORDINATES → CANVAS PIXELS
-    // -------------------------------------------------------------------------
     gridToScreen(gx, gy) {
+        // This is used for drawing single cells. No rect math needed here
+        // as drawing is always relative to the canvas internal 0,0
         return {
-            x: this.offsetX + gx * this.zoom,
-            y: this.offsetY + gy * this.zoom
+            x: this.offsetX + (gx * this.zoom),
+            y: this.offsetY + (gy * this.zoom)
         };
     }
 

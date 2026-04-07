@@ -45,59 +45,48 @@ export class EditorEvents {
     _onPointerDown(e) {
         e.preventDefault();
         
-        // Check if it's a right-click (button 2)
+        // Right-Click Pan Logic
         if (e.button === 2) {
             this.isPanning = true;
             this.lastPointerX = e.clientX;
             this.lastPointerY = e.clientY;
             this.canvas.setPointerCapture(e.pointerId);
-            return; // Don't trigger the normal tool
+            return;
         }
 
+        this.isPointerDown = true;
         const tool = ToolRegistry[this.state.activeTool];
         if (!tool) return;
 
-        // Convert screen → grid
-        const rect = this.canvas.getBoundingClientRect();
-        const screenX = e.clientX - rect.left;
-        const screenY = e.clientY - rect.top;
+        // JUST pass raw e.clientX/Y. The renderer does the hard work now.
+        const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
 
-        const { gx, gy } = this.state.renderer.screenToGrid(screenX, screenY);
-
-        // Capture pointer for smooth dragging
         this.canvas.setPointerCapture(e.pointerId);
-
-        // Tools may need screen coords (pan tool)
-        tool.onPointerDown(this.state, gx, gy, screenX, screenY);
+        tool.onPointerDown(this.state, gx, gy, e.clientX, e.clientY);
     }
 
     // -------------------------------------------------------------------------
     // POINTER MOVE
     // -------------------------------------------------------------------------
     _onPointerMove(e) {
-        // Handle Right-Click Panning
-        if (this.isPanning) {
-            const dx = e.clientX - this.lastPointerX;
-            const dy = e.clientY - this.lastPointerY;
-            
-            this.state.setPan(this.state.panX + dx, this.state.panY + dy);
-            
-            this.lastPointerX = e.clientX;
-            this.lastPointerY = e.clientY;
-            return;
-        }
-
-        const tool = ToolRegistry[this.state.activeTool];
-        if (!tool) return;
-
-        const rect = this.canvas.getBoundingClientRect();
-        const screenX = e.clientX - rect.left;
-        const screenY = e.clientY - rect.top;
-
-        const { gx, gy } = this.state.renderer.screenToGrid(screenX, screenY);
-
-        tool.onPointerMove(this.state, gx, gy, screenX, screenY);
+    if (this.isPanning) {
+        const dx = e.clientX - this.lastPointerX;
+        const dy = e.clientY - this.lastPointerY;
+        this.state.setPan(this.state.panX + dx, this.state.panY + dy);
+        this.lastPointerX = e.clientX;
+        this.lastPointerY = e.clientY;
+        return;
     }
+
+    if (!this.isPointerDown) return;
+
+    const tool = ToolRegistry[this.state.activeTool];
+    if (!tool) return;
+
+    // Use raw e.clientX/Y again
+    const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
+    tool.onPointerMove(this.state, gx, gy, e.clientX, e.clientY);
+}
 
     // -------------------------------------------------------------------------
     // POINTER UP

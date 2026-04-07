@@ -122,27 +122,26 @@ export class ZoomTool extends BaseTool {
      * Internal helper to zoom at a specific screen coordinate.
      * Keeps the focal point (centerX, centerY) stable while scaling.
      */
-    applyZoom(state, delta, centerX, centerY) {
+    applyZoom(state, delta, clientX, clientY) {
         const oldZoom = state.zoom;
-        // Use a multiplier for smooth scaling
         const zoomFactor = delta < 0 ? 1.1 : 0.9;
         const newZoom = Math.max(0.5, Math.min(oldZoom * zoomFactor, 200));
 
-        // Step A: Find the grid coordinate currently under the cursor
-        const { gx, gy } = state.renderer.screenToGrid(centerX, centerY);
-        const before = state.renderer.gridToScreen(gx, gy);
+        // Get the grid point under the mouse BEFORE the zoom
+        const { gx, gy } = state.renderer.screenToGrid(clientX, clientY);
+        const rect = state.renderer.canvas.getBoundingClientRect();
+        
+        // Save where that mouse was relative to the canvas
+        const mouseX = clientX - rect.left;
+        const mouseY = clientY - rect.top;
 
-        // Step B: Update the zoom level in the state
         state.setZoom(newZoom);
 
-        // Step C: Calculate where that same grid point is now after scaling
-        const after = state.renderer.gridToScreen(gx, gy);
+        // Adjust pan so the grid point (gx, gy) stays under the mouse
+        const newPanX = mouseX - gx * newZoom;
+        const newPanY = mouseY - gy * newZoom;
 
-        // Step D: Shift the Pan (offset) to move the grid back into alignment
-        const dx = before.x - after.x;
-        const dy = before.y - after.y;
-
-        state.setPan(state.panX + dx, state.panY + dy);
+        state.setPan(newPanX, newPanY);
     }
 
     onWheel(state, deltaY, mouseX, mouseY) {
