@@ -31,6 +31,7 @@ const mappingConfig = {
     biasCyanRed: 0,
     biasBlueYellow: 0,
     reduceIsolatedStitches: false,
+    antiNoise: 0,
     minOccurrence: 1,
     stampedMode: false,
     stampedHueShift: 0,
@@ -73,7 +74,8 @@ async function runMapping() {
             mappingConfig.biasGreenMagenta,
             mappingConfig.biasCyanRed,
             mappingConfig.biasBlueYellow,
-            mappingConfig.distanceMethod
+            mappingConfig.distanceMethod,
+            mappingConfig.antiNoise
         );
 
         // 4. Update the actual data state
@@ -273,6 +275,27 @@ function setupMappingControls() {
             };
         }
     });
+
+    // Isolated Stitches Toggle
+    const isolatedToggle = document.getElementById("reduceIsolatedStitches");
+    if (isolatedToggle) {
+        isolatedToggle.onchange = () => {
+            mappingConfig.reduceIsolatedStitches = isolatedToggle.checked;
+            runMapping();
+        };
+    }
+
+    // Anti-Noise Slider
+    const antiNoiseSlider = document.getElementById("antiNoise");
+    const antiNoiseVal = document.getElementById("antiNoiseVal");
+    if (antiNoiseSlider) {
+        antiNoiseSlider.oninput = () => {
+            const val = parseInt(antiNoiseSlider.value, 10);
+            antiNoiseVal.textContent = val;
+            mappingConfig.antiNoise = val;
+            runMapping();
+        };
+    }
 
     const stampedToggle = document.getElementById("stampedMode");
     if (stampedToggle) {

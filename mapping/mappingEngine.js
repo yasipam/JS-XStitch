@@ -72,36 +72,49 @@ function medianFilter3x3(imageData) {
 
     function getPixel(x, y) {
         const i = (y * width + x) * 4;
-        return [data[i], data[i + 1], data[i + 2]];
-    }
-
-    function setPixel(x, y, [r, g, b]) {
-        const i = (y * width + x) * 4;
-        out[i] = r;
-        out[i + 1] = g;
-        out[i + 2] = b;
-        out[i + 3] = 255;
+        // Return R, G, B, and A
+        return [data[i], data[i + 1], data[i + 2], data[i + 3]];
     }
 
     for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
-            const neighbours = [];
+            const i = (y * width + x) * 4;
+            const centerPixel = getPixel(x, y);
+
+            // If the pixel is fully transparent, preserve it and skip smoothing
+            if (centerPixel[3] < 128) {
+                out[i] = centerPixel[0];
+                out[i + 1] = centerPixel[1];
+                out[i + 2] = centerPixel[2];
+                out[i + 3] = centerPixel[3];
+                continue;
+            }
+
+            const rValues = [];
+            const gValues = [];
+            const bValues = [];
 
             for (let dy = -1; dy <= 1; dy++) {
                 for (let dx = -1; dx <= 1; dx++) {
                     const nx = x + dx;
                     const ny = y + dy;
                     if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-                        neighbours.push(getPixel(nx, ny));
+                        const p = getPixel(nx, ny);
+                        // Only include non-transparent neighbors in the smoothing math
+                        if (p[3] >= 128) {
+                            rValues.push(p[0]);
+                            gValues.push(p[1]);
+                            bValues.push(p[2]);
+                        }
                     }
                 }
             }
 
-            const r = neighbours.map(p => p[0]).sort((a, b) => a - b)[Math.floor(neighbours.length / 2)];
-            const g = neighbours.map(p => p[1]).sort((a, b) => a - b)[Math.floor(neighbours.length / 2)];
-            const b = neighbours.map(p => p[2]).sort((a, b) => a - b)[Math.floor(neighbours.length / 2)];
-
-            setPixel(x, y, [r, g, b]);
+            // Fallback to center pixel if no solid neighbors found
+            out[i] = rValues.length > 0 ? rValues.sort((a, b) => a - b)[Math.floor(rValues.length / 2)] : centerPixel[0];
+            out[i + 1] = gValues.length > 0 ? gValues.sort((a, b) => a - b)[Math.floor(gValues.length / 2)] : centerPixel[1];
+            out[i + 2] = bValues.length > 0 ? bValues.sort((a, b) => a - b)[Math.floor(bValues.length / 2)] : centerPixel[2];
+            out[i + 3] = 255; // Keep the smoothed pixel solid
         }
     }
 
@@ -251,7 +264,8 @@ export function mapFullWithPalette(
     biasGreenMagenta,
     biasCyanRed,
     biasBlueYellow,
-    distanceMetric // NEW ARGUMENT
+    distanceMetric,
+    antiNoisePasses
 ) {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
@@ -264,13 +278,23 @@ export function mapFullWithPalette(
     
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(image, 0, 0, newW, newH);
-    const smallData = ctx.getImageData(0, 0, newW, newH);
+
+    // 1. Anti-Noise Smoothing
+    // We must grab the data AFTER smoothing it on the canvas
+    if (antiNoisePasses > 0) {
+        const rawData = ctx.getImageData(0, 0, newW, newH);
+        const smoothedData = applyAntiNoise(rawData, antiNoisePasses);
+        ctx.putImageData(smoothedData, 0, 0);
+    }
+    
+    // Grab the final source data (smoothed or original)
+    const finalSourceData = ctx.getImageData(0, 0, newW, newH);
 
     const rgbFlat = [];
     const maskFlat = [];
-    for (let i = 0; i < smallData.data.length; i += 4) {
-        rgbFlat.push([smallData.data[i], smallData.data[i+1], smallData.data[i+2]]);
-        maskFlat.push(smallData.data[i+3] < 128);
+    for (let i = 0; i < finalSourceData.data.length; i += 4) {
+        rgbFlat.push([finalSourceData.data[i], finalSourceData.data[i+1], finalSourceData.data[i+2]]);
+        maskFlat.push(finalSourceData.data[i+3] < 128);
     }
 
     const adjustedFlat = adjustBSCBias(
@@ -278,41 +302,48 @@ export function mapFullWithPalette(
         (biasGreenMagenta || 0) / 10, (biasCyanRed || 0) / 10, (biasBlueYellow || 0) / 10
     );
 
-    // Prepare Distance Function with a safe fallback
     const metric = distanceMetric || "euclidean"; 
-
-    // Check if the metric requires LAB color space
-    // This now includes cie76 and cie94 in addition to ciede2000
     const useLab = metric.startsWith("cie"); 
-    const distFn = getDistanceFn(metric, useLab); //
-        
-    // Pre-calculate DMC LAB values if using any CIE metric for performance
-    const dmcPaletteLab = useLab ? DMC_RGB.map(d => rgbToLab([d[2]])[0]) : null; //
+    const distFn = getDistanceFn(metric, useLab);
+    const dmcPaletteLab = useLab ? DMC_RGB.map(d => rgbToLab([d[2]])[0]) : null;
 
-    const dmcGrid = [];
-    const finalRgbGrid = [];
+    let dmcGrid = [];
     const codeToRgb = {};
     DMC_RGB.forEach(([code, , rgb]) => { codeToRgb[String(code)] = rgb; });
     codeToRgb["0"] = [255, 255, 255];
 
+    // Initial Mapping Pass
     for (let y = 0; y < newH; y++) {
         const dmcRow = [];
-        const rgbRow = [];
         for (let x = 0; x < newW; x++) {
             const idx = y * newW + x;
             if (maskFlat[idx]) {
                 dmcRow.push("0");
-                rgbRow.push([255, 255, 255]);
             } else {
-                // Pass the distance function into the lookup
-                const [code, , dmcRgb] = nearestDmcColor(adjustedFlat[idx], distFn, dmcPaletteLab, palette);
+                const [code] = nearestDmcColor(adjustedFlat[idx], distFn, dmcPaletteLab, palette);
                 dmcRow.push(String(code));
-                rgbRow.push(dmcRgb);
             }
         }
         dmcGrid.push(dmcRow);
-        finalRgbGrid.push(rgbRow);
     }
 
+    // 2. Reduce Isolated Stitches
+    // We use a temporary RGB grid just for the calculation
+    if (doCleanupIsolated) {
+        const tempRgb = dmcGrid.map(row => row.map(c => codeToRgb[c]));
+        dmcGrid = removeIsolatedStitches(dmcGrid, tempRgb);
+    }
+
+    // 3. Cleanup Rare Colors
+    if (minOccurrence > 1) {
+        dmcGrid = cleanupMinOccurrence(dmcGrid, minOccurrence, codeToRgb);
+    }
+
+    // FINAL SYNC: Rebuild the RGB grid so the canvas actually shows the cleaned version
+    const finalRgbGrid = dmcGrid.map(row => 
+        row.map(code => codeToRgb[String(code)])
+    );
+
+    // RETURN THE CLEANED DATA
     return [finalRgbGrid, dmcGrid];
 }
