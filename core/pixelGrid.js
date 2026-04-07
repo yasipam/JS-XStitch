@@ -61,7 +61,7 @@ export class PixelGrid {
     }
     
     replaceColor(targetRgb, newRgb, recordUndo = true) {
-        if (recordUndo) this._pushUndo();
+        if (recordUndo) this.pushUndo();
 
         const [tr, tg, tb] = targetRgb;
 
@@ -86,7 +86,7 @@ export class PixelGrid {
 
         if (tr === nr && tg === ng && tb === nb) return;
 
-        if (recordUndo) this._pushUndo();
+        if (recordUndo) this.pushUndo();
 
         const stack = [[x, y]];
 
