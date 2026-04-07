@@ -28,6 +28,7 @@ export class EditorEvents {
         this.canvas.addEventListener("pointermove", e => this._onPointerMove(e));
         this.canvas.addEventListener("pointerup", e => this._onPointerUp(e));
         this.canvas.addEventListener("pointerleave", e => this._onPointerUp(e));
+        this.canvas.addEventListener("contextmenu", e => e.preventDefault());
 
         // Wheel zoom
         this.canvas.addEventListener("wheel", e => this._onWheel(e), { passive: false });
@@ -43,7 +44,15 @@ export class EditorEvents {
     // -------------------------------------------------------------------------
     _onPointerDown(e) {
         e.preventDefault();
-        this.isPointerDown = true;
+        
+        // Check if it's a right-click (button 2)
+        if (e.button === 2) {
+            this.isPanning = true;
+            this.lastPointerX = e.clientX;
+            this.lastPointerY = e.clientY;
+            this.canvas.setPointerCapture(e.pointerId);
+            return; // Don't trigger the normal tool
+        }
 
         const tool = ToolRegistry[this.state.activeTool];
         if (!tool) return;
@@ -66,7 +75,17 @@ export class EditorEvents {
     // POINTER MOVE
     // -------------------------------------------------------------------------
     _onPointerMove(e) {
-        if (!this.isPointerDown) return;
+        // Handle Right-Click Panning
+        if (this.isPanning) {
+            const dx = e.clientX - this.lastPointerX;
+            const dy = e.clientY - this.lastPointerY;
+            
+            this.state.setPan(this.state.panX + dx, this.state.panY + dy);
+            
+            this.lastPointerX = e.clientX;
+            this.lastPointerY = e.clientY;
+            return;
+        }
 
         const tool = ToolRegistry[this.state.activeTool];
         if (!tool) return;
@@ -84,7 +103,11 @@ export class EditorEvents {
     // POINTER UP
     // -------------------------------------------------------------------------
     _onPointerUp(e) {
-        if (!this.isPointerDown) return;
+        if (e.button === 2) {
+            this.isPanning = false;
+            this.canvas.releasePointerCapture(e.pointerId);
+            return;
+        }
 
         this.isPointerDown = false;
 
