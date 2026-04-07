@@ -104,21 +104,70 @@ async function runMapping() {
 // -----------------------------------------------------------------------------
 // UI RENDERING: PALETTE
 // -----------------------------------------------------------------------------
-function renderPalette(palette) {
+// app.js
+
+// app.js
+function renderPalette(projectPalette = []) {
     const paletteGrid = document.getElementById("paletteGrid");
     const paletteList = document.getElementById("paletteList");
     if (!paletteGrid || !paletteList) return;
 
+    // Clear existing content once
     paletteGrid.innerHTML = "";
     paletteList.innerHTML = "";
 
-    palette.forEach(([code, name, rgb]) => {
+    // Create a set of codes currently in the project for fast lookup
+    const projectCodes = new Set(projectPalette.map(p => String(p[0])));
+
+    // Render THE FULL DMC LIBRARY
+    DMC_RGB.forEach(([code, name, rgb]) => {
+        const isUsed = projectCodes.has(String(code));
+        const rgbStr = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+        
+        // --- Grid Swatch ---
         const swatch = document.createElement("div");
-        swatch.className = "palette-swatch";
-        swatch.style.backgroundColor = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+        swatch.className = `palette-swatch ${isUsed ? 'used' : ''}`;
+        swatch.dataset.code = code; // CRITICAL: Tagging for the update function
+        swatch.style.backgroundColor = rgbStr;
         swatch.title = `${code}: ${name}`;
-        swatch.onclick = () => state.setColor(rgb);
+        
+        swatch.onclick = () => {
+            state.setColor(rgb);
+            // Visual feedback for selection
+            document.querySelectorAll('.palette-swatch').forEach(s => s.classList.remove('selected'));
+            swatch.classList.add('selected');
+        };
         paletteGrid.appendChild(swatch);
+
+        // --- List Row ---
+        const row = document.createElement("div");
+        row.className = "palette-row";
+        row.dataset.code = code;
+        row.innerHTML = `
+            <div class="swatch" style="background-color: ${rgbStr}"></div>
+            <span><strong>${code}</strong> - ${name} <span class="star">${isUsed ? '★' : ''}</span></span>
+        `;
+        row.onclick = () => state.setColor(rgb);
+        paletteList.appendChild(row);
+    });
+}
+
+function updatePaletteHighlights() {
+    // 1. Get current unique colors from the grid
+    const usedCodes = new Set(state.pixelGrid.toFlatArray().map(rgb => {
+        // Find the DMC code for this RGB (requires a helper or nearestDmcColor)
+        const match = nearestDmcColor(rgb); 
+        return match ? String(match[0]) : null;
+    }));
+
+    // 2. Only update the CSS classes of existing elements
+    document.querySelectorAll('.palette-swatch').forEach(swatch => {
+        const code = swatch.dataset.code;
+        if (usedCodes.has(code)) {
+            swatch.classList.add('used'); // CSS handles the border/scale
+        } else {
+            swatch.classList.remove('used');
+        }
     });
 }
 
@@ -314,37 +363,76 @@ window.addEventListener("load", () => {
     const canvas = document.getElementById("canvas");
     if (!canvas) return;
 
-    // Initialize Global State & Events
+    // 1. Initialize Global State & Events
     state = new EditorState(canvas);
     events = new EditorEvents(canvas, state);
 
-    // Initial Resize
+    // 2. Initial UI setup
     state.renderer.resizeToContainer();
-
-    // Wire up UI
     setupUpload();
     setupToolButtons();
     setupMappingControls();
     setupExportButtons();
     setupZoomButtons();
-    
-    console.log("Cross Stitch Editor Initialized.");
 
-    // SYNC UI TO CONFIG DEFAULTS
+    // 3. PALETTE INITIALIZATION
+    // Render the full library once on load
+    renderPalette([]); 
+
+    // Wire up the reactive highlights (runs when you draw/paint)
+    let paletteUpdateTimeout;
+
+    state.on("pixelChanged", () => {
+        // 1. Clear the timer if it's already running
+        clearTimeout(paletteUpdateTimeout);
+
+        // 2. Set a new timer to update in 100ms
+        // This allows the drawing tool to "breathe" while you drag the mouse
+        paletteUpdateTimeout = setTimeout(() => {
+            updatePaletteHighlights();
+        }, 100); 
+    });
+
+    // Setup the Show/Hide toggle for the list
+    const toggleBtn = document.getElementById("toggleList");
+    const container = document.getElementById("paletteListContainer");
+    if (toggleBtn && container) {
+        container.style.display = "none"; 
+        toggleBtn.onclick = (e) => {
+            e.preventDefault();
+            const isHidden = container.style.display === "none";
+            container.style.display = isHidden ? "block" : "none";
+            toggleBtn.textContent = isHidden ? "Hide List ▲" : "Show List ▼";
+        };
+    }
+
+    // 4. SYNC UI TO CONFIG DEFAULTS
     const maxSizeSlider = document.getElementById("maxSizeSlider");
     const maxSizeInput = document.getElementById("maxSizeInput");
-    
     if (maxSizeSlider && maxSizeInput) {
         maxSizeSlider.value = mappingConfig.maxSize;
         maxSizeInput.value = mappingConfig.maxSize;
     }
 
-    // Do the same for Max Colours if needed
     const maxColoursSlider = document.getElementById("maxColours");
     const maxColoursInput = document.getElementById("maxColoursInput");
-    
     if (maxColoursSlider && maxColoursInput) {
         maxColoursSlider.value = mappingConfig.maxColours;
         maxColoursInput.value = mappingConfig.maxColours;
     }
+
+    // 5. SEARCH LOGIC
+    const paletteSearch = document.getElementById("paletteSearch");
+    if (paletteSearch) {
+        paletteSearch.oninput = () => {
+            const q = paletteSearch.value.toLowerCase();
+            const rows = document.querySelectorAll(".palette-row");
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(q) ? "flex" : "none";
+            });
+        };
+    }
+    
+    console.log("Cross Stitch Editor Initialized.");
 });

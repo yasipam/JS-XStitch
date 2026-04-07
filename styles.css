@@ -220,24 +220,51 @@
 }
 
 /* Palette grid stays the same, but no height explosion */
+/* styles.css */
+
 #paletteGrid {
   display: grid;
-  grid-template-columns: repeat(30, 1fr);
-  gap: 3px;
-
-  /* NEW: limit height to ~4 rows */
-  max-height: 4 * 18px;
+  /* Use auto-fill to make the grid responsive to sidebar width */
+  grid-template-columns: repeat(auto-fill, minmax(25px, 1fr)); 
+  gap: 4px;
+  max-height: 120px;
   overflow-y: auto;
+  padding: 5px;
+  background: #eee;
+  border-radius: 4px;
 }
 
 .palette-swatch {
-  width: 30px;
-  height: 15px;
-  border: 1px solid #888;
+  width: 25px;
+  height: 25px;
+  border: 1px solid #ccc;
   cursor: pointer;
-  border-radius: 8px;
+  transition: transform 0.1s;
 }
 
+.palette-swatch:hover {
+  transform: scale(1.2);
+  z-index: 10;
+  border-color: #000;
+}
+
+/* styles.css */
+.palette-swatch.used {
+    border: 2px solid #000 !important;
+    box-shadow: 0 0 5px rgba(0,0,0,0.3);
+}
+
+.palette-swatch.selected {
+    outline: 3px solid #ea732f;
+    outline-offset: 1px;
+    z-index: 5;
+}
+
+.star {
+    color: #ea732f;
+    font-weight: bold;
+    margin-left: 5px;
+}
 #toggleList {
   width: 100%;
   padding: 6px;
