@@ -5,7 +5,13 @@
 // This is the JS equivalent of Streamlit's run_pipeline_full().
 // -----------------------------------------------------------------------------
 
-import { buildSymbolMap } from "../mapping/constants.js";
+// export/buildExportData.js
+// -----------------------------------------------------------------------------
+// Collects ALL data needed for PDF / OXS / JSON / PNG exports.
+// This bridges the EditorState to the various export renderers.
+// -----------------------------------------------------------------------------
+
+import { buildSymbolMap } from "../mapping/symbols.js"; // FIXED: Was constants.js
 import { tilePattern } from "../mapping/tiling.js";
 import { DMC_RGB } from "../mapping/constants.js";
 
@@ -13,10 +19,11 @@ import { DMC_RGB } from "../mapping/constants.js";
  * Build a complete export data object.
  *
  * @param {EditorState} state
- * @param {Object} mappingConfig - all mapping settings (brightness, biases, etc.)
+ * @param {Object} mappingConfig - all mapping settings
  * @param {Object} options - export options (fabricCount, mode, patternName)
  */
 export function buildExportData(state, mappingConfig, options = {}) {
+    // Check if mapping has been performed yet
     if (!state.mappedRgbGrid || !state.mappedDmcGrid) {
         throw new Error("No mapped grid available. Run mapping first.");
     }
@@ -24,15 +31,17 @@ export function buildExportData(state, mappingConfig, options = {}) {
     // -------------------------------------------------------------------------
     // 1. Extract core data from state
     // -------------------------------------------------------------------------
-    const rgbGrid = state.mappedRgbGrid;     // true mapped RGB grid
-    const dmcGrid = state.mappedDmcGrid;     // DMC code grid
+    const rgbGrid = state.mappedRgbGrid;     
+    const dmcGrid = state.mappedDmcGrid;     
+    
+    // Use existing symbol map or generate a new one using the symbols module
     const symbolMap = state.symbolMap || buildSymbolMap(dmcGrid, DMC_RGB);
 
     const height = dmcGrid.length;
     const width = dmcGrid[0].length;
 
     // -------------------------------------------------------------------------
-    // 2. Palette extraction (unique DMC codes)
+    // 2. Palette extraction (identify unique DMC codes used in the pattern)
     // -------------------------------------------------------------------------
     const usedCodes = new Set();
     for (let y = 0; y < height; y++) {
@@ -50,68 +59,35 @@ export function buildExportData(state, mappingConfig, options = {}) {
     }
 
     // -------------------------------------------------------------------------
-    // 3. Fabric count → physical size
+    // 3. Physical sizing based on fabric count
     // -------------------------------------------------------------------------
-    const fabricCount = options.fabricCount || 14; // default Aida 14
+    const fabricCount = options.fabricCount || 14; 
     const inchesWide = width / fabricCount;
     const inchesHigh = height / fabricCount;
 
     // -------------------------------------------------------------------------
-    // 4. Tiling (multi‑page splitting)
+    // 4. Tiling (Splitting the grid for multi-page PDF output)
     // -------------------------------------------------------------------------
-    // tilePattern() should return an array of tiles:
-    //   [{ grid: <2D array>, x0, y0, w, h }, ...]
-    const tiles = tilePattern(dmcGrid, {
-        maxPageStitches: 80, // you can adjust this later
-    });
+    const tiles = tilePattern(dmcGrid, 50, 70); // Uses standard tile dimensions
 
     // -------------------------------------------------------------------------
-    // 5. Export mode (cross / filled / symbol / all)
-    // -------------------------------------------------------------------------
-    const exportMode = options.mode || "cross";
-
-    // -------------------------------------------------------------------------
-    // 6. Pattern metadata
-    // -------------------------------------------------------------------------
-    const patternName = options.patternName || "Cross Stitch Pattern";
-
-    // -------------------------------------------------------------------------
-    // 7. Stamped mode (for PDF)
-    // -------------------------------------------------------------------------
-    const stampedMode = mappingConfig.stampedMode;
-    const stampedHueShift = mappingConfig.stampedHueShift;
-
-    // -------------------------------------------------------------------------
-    // 8. Build final export object
+    // 5. Build final consolidated export object
     // -------------------------------------------------------------------------
     return {
-        // core grids
         rgbGrid,
         dmcGrid,
         symbolMap,
-
-        // palette
         palette,
-
-        // dimensions
         width,
         height,
         inchesWide,
         inchesHigh,
         fabricCount,
-
-        // tiling
         tiles,
-
-        // modes
-        exportMode,
-        stampedMode,
-        stampedHueShift,
-
-        // metadata
-        patternName,
-
-        // mapping settings (useful for JSON export)
-        mappingConfig: { ...mappingConfig },
+        exportMode: options.mode || "cross",
+        stampedMode: mappingConfig.stampedMode,
+        stampedHueShift: mappingConfig.stampedHueShift,
+        patternName: options.patternName || "Cross Stitch Pattern",
+        mappingConfig: { ...mappingConfig }
     };
 }

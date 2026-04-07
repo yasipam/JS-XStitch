@@ -150,21 +150,25 @@
   margin: 12px 0;
 }
 
-/* --- MAIN CANVAS AREA --- */
 #mainArea {
   flex: 1;
-  min-width: 0;   /* prevents horizontal stretching */
-  min-height: 0;  /* prevents vertical stretching */
+  background: #333; /* Dark background so you can see the white canvas */
   display: flex;
-  justify-content: center;
   align-items: center;
+  justify-content: center;
   overflow: hidden;
+  height: 100%;    /* Important */
+  min-height: 0;   /* Fixes flexbox shrinking issues */
 }
 
 #canvas {
+  background: #ffffff;
   display: block;
+  /* Do not use width: 100% here yet; let the JS handle the resolution */
+  box-shadow: 0 0 20px rgba(0,0,0,0.5);
+  max-width: 95%;
+  max-height: 95%;
 }
-
 
 /* --- BOTTOM PALETTE BAR --- */
 #bottomPalette {

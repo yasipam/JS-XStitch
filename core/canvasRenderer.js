@@ -31,9 +31,17 @@ export class CanvasRenderer {
     // RESIZE CANVAS TO MATCH CSS SIZE
     // -------------------------------------------------------------------------
     resizeToContainer() {
-        const rect = this.canvas.getBoundingClientRect();
-        this.canvas.width = rect.width;
-        this.canvas.height = rect.height;
+        const parent = this.canvas.parentElement;
+        if (!parent) return;
+
+        // Get the available space in the mainArea
+        const w = parent.clientWidth;
+        const h = parent.clientHeight;
+
+        if (w === 0 || h === 0) return;
+
+        this.canvas.width = w;
+        this.canvas.height = h;
         this.ctx.imageSmoothingEnabled = false;
         this.draw();
     }

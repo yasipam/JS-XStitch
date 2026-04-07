@@ -139,6 +139,9 @@ export class ZoomTool extends BaseTool {
 // -----------------------------------------------------------------------------
 // TOOL REGISTRY
 // -----------------------------------------------------------------------------
+// core/tools.js - Registry Export
+// ... (classes go here) ...
+
 export const ToolRegistry = {
     pencil: new PencilTool(),
     eraser: new EraserTool(),
