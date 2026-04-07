@@ -12,28 +12,21 @@
 // -----------------------------------------------------------------------------
 
 import { DMC_RGB } from "./constants.js";
-import { applyDitherRGB } from "./dithering.js";
 import { adjustBSCBias } from "./palette.js";
 
-// -----------------------------------------------------------------------------
-// NEAREST DMC LOOKUP
-// -----------------------------------------------------------------------------
+/**
+ * Finds the nearest DMC thread color for a given RGB pixel.
+ */
 export function nearestDmcColor([r, g, b]) {
     let best = null;
-    let bestDist = 1e12;
-
+    let bestDist = Infinity;
     for (const [code, name, [dr, dg, db]] of DMC_RGB) {
-        const d =
-            (r - dr) * (r - dr) +
-            (g - dg) * (g - dg) +
-            (b - db) * (b - db);
-
+        const d = (r - dr) ** 2 + (g - dg) ** 2 + (b - db) ** 2;
         if (d < bestDist) {
             bestDist = d;
             best = [code, name, [dr, dg, db]];
         }
     }
-
     return best;
 }
 
@@ -237,170 +230,63 @@ export function mapFullWithPalette(
     contrast,
     doCleanupIsolated,
     minOccurrence,
-    biasGreenMagenta,
-    biasCyanRed,
-    biasBlueYellow
+    biasGreenMagenta, // Match app.js exactly
+    biasCyanRed,      // Match app.js exactly
+    biasBlueYellow    // Match app.js exactly
 ) {
-    // Ensure RGBA
     const canvas = document.createElement("canvas");
-    canvas.width = image.width;
-    canvas.height = image.height;
     const ctx = canvas.getContext("2d");
-    ctx.drawImage(image, 0, 0);
-
-    let imgData = ctx.getImageData(0, 0, image.width, image.height);
-
-    // Resize to stitch grid (nearest neighbour)
+    
     const scale = stitchWidth / image.width;
     const newW = stitchWidth;
     const newH = Math.max(1, Math.floor(image.height * scale));
+    canvas.width = newW;
+    canvas.height = newH;
+    
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(image, 0, 0, newW, newH);
+    const smallData = ctx.getImageData(0, 0, newW, newH);
 
-    const canvas2 = document.createElement("canvas");
-    canvas2.width = newW;
-    canvas2.height = newH;
-    const ctx2 = canvas2.getContext("2d");
-    ctx2.imageSmoothingEnabled = false;
-    ctx2.drawImage(canvas, 0, 0, newW, newH);
-
-    const small = ctx2.getImageData(0, 0, newW, newH);
-
-    // Extract RGB + transparency mask
-    const h = newH;
-    const w = newW;
-
-    const arr = [];
-    const transparentMask = [];
-
-    for (let i = 0; i < small.data.length; i += 4) {
-        const r = small.data[i];
-        const g = small.data[i + 1];
-        const b = small.data[i + 2];
-        const a = small.data[i + 3];
-
-        arr.push([r, g, b]);
-        transparentMask.push(a < 128);
+    const rgbFlat = [];
+    const maskFlat = [];
+    for (let i = 0; i < smallData.data.length; i += 4) {
+        rgbFlat.push([smallData.data[i], smallData.data[i+1], smallData.data[i+2]]);
+        maskFlat.push(smallData.data[i+3] < 128);
     }
 
-    // Reshape into 2D
-    const rgbGrid = [];
-    const maskGrid = [];
-    for (let y = 0; y < h; y++) {
-        rgbGrid.push(arr.slice(y * w, (y + 1) * w));
-        maskGrid.push(transparentMask.slice(y * w, (y + 1) * w));
-    }
-
-    // Adjustments
+    // Apply adjustments with scaled-down bias to prevent color collapse
     const adjustedFlat = adjustBSCBias(
-        arr,
-        brightness,
-        saturation,
-        contrast,
-        biasGreenMagenta,
-        biasCyanRed,
-        biasBlueYellow
+        rgbFlat, 
+        brightness, 
+        saturation, 
+        contrast, 
+        (biasGreenMagenta || 0) / 10, 
+        (biasCyanRed || 0) / 10, 
+        (biasBlueYellow || 0) / 10
     );
 
-    const adjusted = [];
-    for (let y = 0; y < h; y++) {
-        adjusted.push(adjustedFlat.slice(y * w, (y + 1) * w));
-    }
-
-    // Palette array
-    const paletteArr = palette.map(p => p.map(v => v));
-
-    // STEP 1: Map to palette indices
-    const idx = [];
-    for (let y = 0; y < h; y++) {
-        const row = [];
-        for (let x = 0; x < w; x++) {
-            const [r, g, b] = adjusted[y][x];
-
-            let best = 0;
-            let bestDist = Infinity;
-
-            for (let k = 0; k < paletteArr.length; k++) {
-                const [pr, pg, pb] = paletteArr[k];
-                const d =
-                    (r - pr) ** 2 +
-                    (g - pg) ** 2 +
-                    (b - pb) ** 2;
-
-                if (d < bestDist) {
-                    bestDist = d;
-                    best = k;
-                }
-            }
-
-            row.push(best);
-        }
-        idx.push(row);
-    }
-
-    // Build palette RGB grid
-    const paletteRgbGrid = [];
-    for (let y = 0; y < h; y++) {
-        const row = [];
-        for (let x = 0; x < w; x++) {
-            row.push(paletteArr[idx[y][x]]);
-        }
-        paletteRgbGrid.push(row);
-    }
-
-    // STEP 2: Convert palette RGB → nearest DMC
     const dmcGrid = [];
     const finalRgbGrid = [];
-
     const codeToRgb = {};
-    for (const [code, name, rgb] of DMC_RGB) {
-        codeToRgb[String(code)] = rgb;
-    }
+    DMC_RGB.forEach(([code, , rgb]) => { codeToRgb[String(code)] = rgb; });
     codeToRgb["0"] = [255, 255, 255];
 
-    for (let y = 0; y < h; y++) {
-        const rowCodes = [];
-        const rowRgb = [];
-
-        for (let x = 0; x < w; x++) {
-            if (maskGrid[y][x]) {
-                rowCodes.push("0");
-                rowRgb.push([255, 255, 255]);
-                continue;
+    for (let y = 0; y < newH; y++) {
+        const dmcRow = [];
+        const rgbRow = [];
+        for (let x = 0; x < newW; x++) {
+            const idx = y * newW + x;
+            if (maskFlat[idx]) {
+                dmcRow.push("0");
+                rgbRow.push([255, 255, 255]);
+            } else {
+                const [code, , dmcRgb] = nearestDmcColor(adjustedFlat[idx]);
+                dmcRow.push(String(code));
+                rgbRow.push(dmcRgb);
             }
-
-            const [r, g, b] = paletteRgbGrid[y][x];
-            const [code, name, dmcRgb] = nearestDmcColor([r, g, b]);
-
-            rowCodes.push(String(code));
-            rowRgb.push(dmcRgb);
         }
-
-        dmcGrid.push(rowCodes);
-        finalRgbGrid.push(rowRgb);
-    }
-
-    // Cleanup isolated stitches
-    if (doCleanupIsolated) {
-        const cleaned = removeIsolatedStitches(dmcGrid, finalRgbGrid);
-        for (let y = 0; y < h; y++) {
-            dmcGrid[y] = cleaned[y];
-        }
-    }
-
-    // Cleanup rare colours
-    const minOcc = parseInt(minOccurrence, 10) || 0;
-    if (minOcc > 0) {
-        const cleaned = cleanupMinOccurrence(dmcGrid, minOcc, codeToRgb);
-        for (let y = 0; y < h; y++) {
-            dmcGrid[y] = cleaned[y];
-        }
-    }
-
-    // Rebuild RGB grid after cleanup
-    for (let y = 0; y < h; y++) {
-        for (let x = 0; x < w; x++) {
-            const code = String(dmcGrid[y][x]);
-            finalRgbGrid[y][x] = codeToRgb[code];
-        }
+        dmcGrid.push(dmcRow);
+        finalRgbGrid.push(rgbRow);
     }
 
     return [finalRgbGrid, dmcGrid];

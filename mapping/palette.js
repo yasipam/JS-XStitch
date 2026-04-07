@@ -248,70 +248,38 @@ function clamp(v) {
     return Math.min(255, Math.max(0, v));
 }
 
-// Apply brightness, saturation, contrast, and optional LAB bias
-export function adjustBSCBias(
-    pixels,
-    brightness = 1.0,
-    saturation = 1.0,
-    contrast = 1.0,
-    biasGreenMagenta = 0,
-    biasCyanRed = 0,
-    biasBlueYellow = 0
-) {
-    // Flatten if 2D
-    const flat = Array.isArray(pixels[0][0])
-        ? pixels.flat()
-        : pixels;
+// mapping/palette.js
 
-    // Step 1 — Brightness + Saturation + Contrast (RGB space)
-    const adjusted = flat.map(([r, g, b]) => {
-        // Brightness
-        let R = r * brightness;
-        let G = g * brightness;
-        let B = b * brightness;
+export function adjustBSCBias(pixels, brightness=1, saturation=1, contrast=1, bGM=0, bCR=0, bBY=0) {
+    return pixels.map(([r, g, b]) => {
+        // 1. Levels
+        let R = r * (brightness || 1);
+        let G = g * (brightness || 1);
+        let B = b * (brightness || 1);
 
-        // Saturation
-        const gray = (R + G + B) / 3;
-        R = gray + (R - gray) * saturation;
-        G = gray + (G - gray) * saturation;
-        B = gray + (B - gray) * saturation;
+        // 2. Saturation
+        const gray = 0.299 * R + 0.587 * G + 0.114 * B;
+        R = gray + (R - gray) * (saturation || 1);
+        G = gray + (G - gray) * (saturation || 1);
+        B = gray + (B - gray) * (saturation || 1);
 
-        // Contrast (pivot around 128)
-        R = (R - 128) * contrast + 128;
-        G = (G - 128) * contrast + 128;
-        B = (B - 128) * contrast + 128;
+        // 3. Contrast
+        R = (R - 128) * (contrast || 1) + 128;
+        G = (G - 128) * (contrast || 1) + 128;
+        B = (B - 128) * (contrast || 1) + 128;
 
-        return [clamp(R), clamp(G), clamp(B)];
+        // 4. Color Bias (bGM, bCR, bBY are already divided by 10 from the caller)
+        G -= (bGM || 0); R += (bGM || 0) / 2; B += (bGM || 0) / 2;
+        R += (bCR || 0); G -= (bCR || 0) / 2; B -= (bCR || 0) / 2;
+        B += (bBY || 0); R -= (bBY || 0) / 2; G -= (bBY || 0) / 2;
+
+        // 5. Final Clamping
+        return [
+            Math.max(0, Math.min(255, Math.round(R))),
+            Math.max(0, Math.min(255, Math.round(G))),
+            Math.max(0, Math.min(255, Math.round(B)))
+        ];
     });
-
-    // Step 2 — LAB bias (only if needed)
-    const biasNeeded =
-        Math.abs(biasGreenMagenta) > 0.001 ||
-        Math.abs(biasCyanRed) > 0.001 ||
-        Math.abs(biasBlueYellow) > 0.001;
-
-    if (!biasNeeded) {
-        return reshape(pixels, adjusted);
-    }
-
-    // Convert to LAB
-    const lab = rgbToLab(adjusted.map(([r, g, b]) => [r, g, b].map(v => v / 255)));
-
-    // Apply biases
-    const scale = 0.2;
-    const biasedLab = lab.map(([L, a, b]) => {
-        const newA = a + (biasGreenMagenta + biasCyanRed) * scale;
-        const newB = b + biasBlueYellow * scale;
-        return [L, newA, newB];
-    });
-
-    // Convert back to RGB
-    const rgb = biasedLab.map(l => {
-        const [r, g, b] = labToRgb(l);
-        return [clamp(r * 255), clamp(g * 255), clamp(b * 255)];
-    });
-
-    return reshape(pixels, rgb);
 }
 
 // Restore original 2D shape if needed

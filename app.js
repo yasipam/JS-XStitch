@@ -158,18 +158,50 @@ function setupToolButtons() {
     });
 }
 
+// -----------------------------------------------------------------------------
+// UI BINDING: Sync Sliders and Number Inputs
+// -----------------------------------------------------------------------------
 function setupMappingControls() {
-    const ids = ["maxSizeSlider", "maxColours", "brightness", "saturation", "contrast"];
-    ids.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.oninput = () => {
-            // Update mappingConfig dynamically based on ID
-            if (id === "brightness") mappingConfig.brightnessInt = parseInt(el.value);
-            if (id === "saturation") mappingConfig.saturationInt = parseInt(el.value);
-            if (id === "contrast") mappingConfig.contrastInt = parseInt(el.value);
-            runMapping();
-        };
+    // Define the pairs of [SliderID, InputID, ConfigKey]
+    const controlPairs = [
+        ["maxSizeSlider", "maxSizeInput", "maxSize"],
+        ["maxColours", "maxColoursInput", "maxColours"]
+    ];
+
+    controlPairs.forEach(([sliderId, inputId, configKey]) => {
+        const slider = document.getElementById(sliderId);
+        const input = document.getElementById(inputId);
+
+        if (slider && input) {
+            // When slider moves -> update input + config
+            slider.oninput = () => {
+                input.value = slider.value;
+                mappingConfig[configKey] = parseInt(slider.value, 10);
+                runMapping();
+            };
+
+            // When number is typed -> update slider + config
+            input.oninput = () => {
+                slider.value = input.value;
+                mappingConfig[configKey] = parseInt(input.value, 10);
+                runMapping();
+            };
+        }
     });
+
+    // Handle Levels Sliders (Brightness, Saturation, Contrast)
+    // These don't have number inputs in your HTML yet, but let's keep them reactive
+    const levels = ["brightness", "saturation", "contrast"];
+    levels.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.oninput = () => {
+                mappingConfig[id + "Int"] = parseInt(el.value, 10);
+                runMapping();
+            };
+        }
+    });
+}
 
     const stampedToggle = document.getElementById("stampedMode");
     if (stampedToggle) {
@@ -178,7 +210,6 @@ function setupMappingControls() {
             runMapping();
         };
     }
-}
 
 function setupExportButtons() {
     document.getElementById("exportPDFBtn").onclick = () => {
@@ -197,7 +228,7 @@ function setupExportButtons() {
     };
 }
 
-// app.js
+
 function setupZoomButtons() {
     const zoomInBtn = document.getElementById("zoomInBtn");
     const zoomOutBtn = document.getElementById("zoomOutBtn");
@@ -243,6 +274,26 @@ function setupZoomButtons() {
             state.setPan(newPanX, newPanY);
         };
     }
+
+    // Add this inside setupMappingControls
+    const biasControls = [
+        ["greenToMagenta", "biasGreenMagenta"],
+        ["cyanToRed", "biasCyanRed"],
+        ["blueToYellow", "biasBlueYellow"]
+    ];
+
+    biasControls.forEach(([id, configKey]) => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.oninput = () => {
+                mappingConfig[configKey] = parseInt(el.value, 10);
+                runMapping();
+            };
+        }
+    });
+
+
+    
 }
 
 // -----------------------------------------------------------------------------
