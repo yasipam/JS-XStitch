@@ -37,7 +37,7 @@ let currentImage = null;
 // MAPPING CONFIGURATION
 // -----------------------------------------------------------------------------
 const mappingConfig = {
-    maxSize: 100,
+    maxSize: 80,
     maxColours: 30,
     brightnessInt: 0,
     saturationInt: 0,
@@ -49,6 +49,7 @@ const mappingConfig = {
     minOccurrence: 1,
     stampedMode: false,
     stampedHueShift: 0,
+    distanceMethod: "euclidean",
     exportFabricCount: 14,
     exportMode: "cross"
 };
@@ -79,7 +80,8 @@ async function runMapping() {
         mappingConfig.minOccurrence,
         mappingConfig.biasGreenMagenta,
         mappingConfig.biasCyanRed,
-        mappingConfig.biasBlueYellow
+        mappingConfig.biasBlueYellow,
+        mappingConfig.distanceMethod // Ensure this matches Argument 12 in the engine
     );
 
     // 4. Update the Application State
@@ -95,7 +97,6 @@ async function runMapping() {
 // Trigger the Reset View logic immediately so the image is centered
     document.getElementById("resetViewBtn").click(); 
 }
-
     // 5. Update UI Palette
     renderPalette(DMC_RGB.slice(0, mappingConfig.maxColours));
 }
@@ -187,6 +188,16 @@ function setupMappingControls() {
                 runMapping();
             };
         }
+    });
+
+    const distanceRadios = document.querySelectorAll("input[name='colorDistance']");
+    distanceRadios.forEach(radio => {
+        radio.onchange = () => {
+            if (radio.checked) {
+                mappingConfig.distanceMethod = radio.value;
+                runMapping();
+            }
+        };
     });
 
     // Handle Levels Sliders (Brightness, Saturation, Contrast)
@@ -293,7 +304,7 @@ function setupZoomButtons() {
     });
 
 
-    
+
 }
 
 // -----------------------------------------------------------------------------
@@ -318,4 +329,22 @@ window.addEventListener("load", () => {
     setupZoomButtons();
     
     console.log("Cross Stitch Editor Initialized.");
+
+    // SYNC UI TO CONFIG DEFAULTS
+    const maxSizeSlider = document.getElementById("maxSizeSlider");
+    const maxSizeInput = document.getElementById("maxSizeInput");
+    
+    if (maxSizeSlider && maxSizeInput) {
+        maxSizeSlider.value = mappingConfig.maxSize;
+        maxSizeInput.value = mappingConfig.maxSize;
+    }
+
+    // Do the same for Max Colours if needed
+    const maxColoursSlider = document.getElementById("maxColours");
+    const maxColoursInput = document.getElementById("maxColoursInput");
+    
+    if (maxColoursSlider && maxColoursInput) {
+        maxColoursSlider.value = mappingConfig.maxColours;
+        maxColoursInput.value = mappingConfig.maxColours;
+    }
 });

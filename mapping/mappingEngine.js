@@ -12,24 +12,34 @@
 // -----------------------------------------------------------------------------
 
 import { DMC_RGB } from "./constants.js";
-import { adjustBSCBias } from "./palette.js";
+import { adjustBSCBias, getDistanceFn, rgbToLab } from "./palette.js";
 
 /**
  * Finds the nearest DMC thread color for a given RGB pixel.
  */
-export function nearestDmcColor([r, g, b]) {
+export function nearestDmcColor(pixelRgb, distanceFn, dmcPaletteLab) {
     let best = null;
     let bestDist = Infinity;
-    for (const [code, name, [dr, dg, db]] of DMC_RGB) {
-        const d = (r - dr) ** 2 + (g - dg) ** 2 + (b - db) ** 2;
-        if (d < bestDist) {
-            bestDist = d;
-            best = [code, name, [dr, dg, db]];
+
+    // If using a LAB-based distance (CIE76, CIE94, CIEDE2000)
+    const isLabMetric = distanceFn.name.includes("CIE");
+    const target = isLabMetric ? rgbToLab([pixelRgb])[0] : pixelRgb;
+
+    for (let i = 0; i < DMC_RGB.length; i++) {
+        const [code, name, dmcRgb] = DMC_RGB[i];
+        const comparisonPoint = isLabMetric ? dmcPaletteLab[i] : dmcRgb;
+        
+        // The distance functions in palette.js expect an array of pixels, 
+        // so we wrap our single point in an array [target].
+        const dist = distanceFn([target], comparisonPoint)[0];
+
+        if (dist < bestDist) {
+            bestDist = dist;
+            best = [code, name, dmcRgb];
         }
     }
     return best;
 }
-
 // -----------------------------------------------------------------------------
 // ANTI‑NOISE (MEDIAN FILTER)
 // -----------------------------------------------------------------------------
@@ -230,9 +240,10 @@ export function mapFullWithPalette(
     contrast,
     doCleanupIsolated,
     minOccurrence,
-    biasGreenMagenta, // Match app.js exactly
-    biasCyanRed,      // Match app.js exactly
-    biasBlueYellow    // Match app.js exactly
+    biasGreenMagenta,
+    biasCyanRed,
+    biasBlueYellow,
+    distanceMetric // NEW ARGUMENT
 ) {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
@@ -254,16 +265,17 @@ export function mapFullWithPalette(
         maskFlat.push(smallData.data[i+3] < 128);
     }
 
-    // Apply adjustments with scaled-down bias to prevent color collapse
     const adjustedFlat = adjustBSCBias(
-        rgbFlat, 
-        brightness, 
-        saturation, 
-        contrast, 
-        (biasGreenMagenta || 0) / 10, 
-        (biasCyanRed || 0) / 10, 
-        (biasBlueYellow || 0) / 10
+        rgbFlat, brightness, saturation, contrast, 
+        (biasGreenMagenta || 0) / 10, (biasCyanRed || 0) / 10, (biasBlueYellow || 0) / 10
     );
+
+    // Prepare Distance Function
+    const useLab = distanceMetric.startsWith("cie");
+    const distFn = getDistanceFn(distanceMetric, useLab);
+    
+    // Pre-calculate DMC LAB values if needed for performance
+    const dmcPaletteLab = useLab ? DMC_RGB.map(d => rgbToLab([d[2]])[0]) : null;
 
     const dmcGrid = [];
     const finalRgbGrid = [];
@@ -280,7 +292,8 @@ export function mapFullWithPalette(
                 dmcRow.push("0");
                 rgbRow.push([255, 255, 255]);
             } else {
-                const [code, , dmcRgb] = nearestDmcColor(adjustedFlat[idx]);
+                // Pass the distance function into the lookup
+                const [code, , dmcRgb] = nearestDmcColor(adjustedFlat[idx], distFn, dmcPaletteLab);
                 dmcRow.push(String(code));
                 rgbRow.push(dmcRgb);
             }
