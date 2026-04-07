@@ -12,6 +12,7 @@
 
 import { EditorState } from "./core/state.js";
 import { EditorEvents } from "./core/events.js";
+import { ToolRegistry } from "./core/tools.js";
 
 // Mapping Logic
 import { mergeSimilarPaletteColors } from "./mapping/palette.js";
@@ -90,7 +91,10 @@ async function runMapping() {
         state.loadGrid(stamped);
     } else {
         state.loadGrid(rgbGrid);
-    }
+    
+// Trigger the Reset View logic immediately so the image is centered
+    document.getElementById("resetViewBtn").click(); 
+}
 
     // 5. Update UI Palette
     renderPalette(DMC_RGB.slice(0, mappingConfig.maxColours));
@@ -193,6 +197,54 @@ function setupExportButtons() {
     };
 }
 
+// app.js
+function setupZoomButtons() {
+    const zoomInBtn = document.getElementById("zoomInBtn");
+    const zoomOutBtn = document.getElementById("zoomOutBtn");
+    const resetViewBtn = document.getElementById("resetViewBtn");
+
+    if (zoomInBtn) {
+        zoomInBtn.onclick = () => {
+            // Use the center of the canvas as the focal point
+            const centerX = state.renderer.canvas.width / 2;
+            const centerY = state.renderer.canvas.height / 2;
+            ToolRegistry.zoom.applyZoom(state, -1, centerX, centerY);
+        };
+    }
+
+    if (zoomOutBtn) {
+        zoomOutBtn.onclick = () => {
+            const centerX = state.renderer.canvas.width / 2;
+            const centerY = state.renderer.canvas.height / 2;
+            ToolRegistry.zoom.applyZoom(state, 1, centerX, centerY);
+        };
+    }
+
+    if (resetViewBtn) {
+        resetViewBtn.onclick = () => {
+            const grid = state.pixelGrid;
+            const padding = 40; // Pixels of space around the image
+            
+            // Calculate which zoom level fits the image perfectly into the canvas
+            const availableW = state.renderer.canvas.width - padding;
+            const availableH = state.renderer.canvas.height - padding;
+            const zoomW = availableW / grid.width;
+            const zoomH = availableH / grid.height;
+            const bestZoom = Math.min(zoomW, zoomH, 20); // Cap zoom at 20x
+
+            state.setZoom(bestZoom);
+
+            // Center the grid by calculating the empty space on the sides
+            const gridPxW = grid.width * bestZoom;
+            const gridPxH = grid.height * bestZoom;
+            const newPanX = (state.renderer.canvas.width - gridPxW) / 2;
+            const newPanY = (state.renderer.canvas.height - gridPxH) / 2;
+
+            state.setPan(newPanX, newPanY);
+        };
+    }
+}
+
 // -----------------------------------------------------------------------------
 // BOOTSTRAP
 // -----------------------------------------------------------------------------
@@ -212,6 +264,7 @@ window.addEventListener("load", () => {
     setupToolButtons();
     setupMappingControls();
     setupExportButtons();
+    setupZoomButtons();
     
     console.log("Cross Stitch Editor Initialized.");
 });

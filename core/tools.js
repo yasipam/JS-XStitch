@@ -112,27 +112,43 @@ export class PanTool extends BaseTool {
 // -----------------------------------------------------------------------------
 // ZOOM TOOL (WHEEL / PINCH)
 // -----------------------------------------------------------------------------
+// core/tools.js
+// -----------------------------------------------------------------------------
+// ZOOM TOOL: Handles both wheel and manual button scaling
+// -----------------------------------------------------------------------------
 export class ZoomTool extends BaseTool {
     cursor = "zoom-in";
 
-    onWheel(state, deltaY, mouseX, mouseY) {
+    /**
+     * Internal helper to zoom at a specific screen coordinate.
+     * Keeps the focal point (centerX, centerY) stable while scaling.
+     */
+    applyZoom(state, delta, centerX, centerY) {
         const oldZoom = state.zoom;
-        const zoomFactor = deltaY < 0 ? 1.1 : 0.9;
-        const newZoom = Math.max(2, Math.min(oldZoom * zoomFactor, 200));
+        // Use a multiplier for smooth scaling
+        const zoomFactor = delta < 0 ? 1.1 : 0.9;
+        const newZoom = Math.max(0.5, Math.min(oldZoom * zoomFactor, 200));
 
-        // Zoom around cursor
-        const { gx, gy } = state.renderer.screenToGrid(mouseX, mouseY);
-
+        // Step A: Find the grid coordinate currently under the cursor
+        const { gx, gy } = state.renderer.screenToGrid(centerX, centerY);
         const before = state.renderer.gridToScreen(gx, gy);
 
+        // Step B: Update the zoom level in the state
         state.setZoom(newZoom);
 
+        // Step C: Calculate where that same grid point is now after scaling
         const after = state.renderer.gridToScreen(gx, gy);
 
+        // Step D: Shift the Pan (offset) to move the grid back into alignment
         const dx = before.x - after.x;
         const dy = before.y - after.y;
 
         state.setPan(state.panX + dx, state.panY + dy);
+    }
+
+    onWheel(state, deltaY, mouseX, mouseY) {
+        // Direct wheel zoom uses the mouse position as the focal point
+        this.applyZoom(state, deltaY, mouseX, mouseY);
     }
 }
 
