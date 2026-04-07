@@ -146,16 +146,27 @@ export class CanvasRenderer {
     // -------------------------------------------------------------------------
     // DRAW ONLY ONE CELL (for fast tool updates)
     // -------------------------------------------------------------------------
-        drawCell(gx, gy, color) {
-            // Safety check: if color is null/undefined, don't try to draw it
-            if (!color || !Array.isArray(color)) return;
+drawCell(gx, gy, color) {
+        // Safety check: if color is null/undefined, don't try to draw it
+        if (!color || !Array.isArray(color)) return;
 
-            const { x, y } = this.gridToScreen(gx, gy);
-            const size = this.state.zoom;
-
-            const [r, g, b] = color;
-            this.ctx.fillStyle = `rgb(${r},${g},${b})`;
-            this.ctx.fillRect(x, y, size, size);
+        // Use the gridToScreen helper already in this class
+        const { x, y } = this.gridToScreen(gx, gy);
         
+        // Fix: Use this.zoom, not this.state.zoom
+        const size = this.zoom;
+
+        const [r, g, b] = color;
+        this.ctx.fillStyle = `rgb(${r},${g},${b})`;
+        
+        // Draw the pixel immediately on the canvas
+        this.ctx.fillRect(x, y, size, size);
+
+        // Optional: If you want gridlines to stay visible over the new pixel
+        if (this.showGrid && this.zoom >= 6) {
+            this.ctx.strokeStyle = this.gridColor;
+            this.ctx.lineWidth = this.gridThickness;
+            this.ctx.strokeRect(x, y, size, size);
+        }
     }
 }

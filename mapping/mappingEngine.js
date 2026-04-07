@@ -21,30 +21,24 @@ export function nearestDmcColor(pixelRgb, distanceFn, dmcPaletteLab, allowedPale
     let best = null;
     let bestDist = Infinity;
 
-    // Fallback for when we don't have a specific distance function (like during palette build)
     const isLabMetric = distanceFn && distanceFn.name && distanceFn.name.includes("CIE");
     const target = isLabMetric ? rgbToLab([pixelRgb])[0] : pixelRgb;
 
+    // Use the distance function to get a batch of distances for all colors in the palette
+    // This is much faster and ensures the selected metric is actually used
+    const distances = distanceFn([target], isLabMetric ? dmcPaletteLab : allowedPalette.map(p => p[2]));
+
+    // Find the index of the smallest distance
+    // Note: distanceFn returns an array of distances for each 'center' provided
+    // but our distanceFn logic in palette.js is designed for: dist(pixels, single_center)
+    // So we must loop the palette and call the function correctly:
+    
     for (let i = 0; i < allowedPalette.length; i++) {
         const [code, name, dmcRgb] = allowedPalette[i];
-        let dist;
-
-        if (isLabMetric) {
-            const comparisonLab = dmcPaletteLab[i];
-            let weightR = 1.0, weightA = 1.0, weightB = 1.0;
-            if (target[1] > 20) { weightA = 0.65; weightB = 0.65; }
-
-            const dL = (target[0] - comparisonLab[0]) * weightR;
-            const dA = (target[1] - comparisonLab[1]) * weightA;
-            const dB = (target[2] - comparisonLab[2]) * weightB;
-            dist = dL*dL + dA*dA + dB*dB;
-        } else {
-            // Perceptual RGB weight (Matches Streamlit defaults)
-            const dr = (target[0] - dmcRgb[0]) * 0.30;
-            const dg = (target[1] - dmcRgb[1]) * 0.59;
-            const db = (target[2] - dmcRgb[2]) * 0.11;
-            dist = dr*dr + dg*dg + db*db;
-        }
+        const center = isLabMetric ? dmcPaletteLab[i] : dmcRgb;
+        
+        // Correct usage: distanceFn([pixel], center) returns [distance]
+        const dist = distanceFn([target], center)[0];
 
         if (dist < bestDist) {
             bestDist = dist;

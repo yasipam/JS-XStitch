@@ -132,13 +132,13 @@ export function distBT709(pixels, center) {
 // 3. CIE76 (with warm‑colour correction)
 // -----------------------------------------------------------------------------
 export function distCIE76(pixelsLab, centerLab) {
-    return pixelsLab.map(([L, a, b]) => {
-        let dL = L - centerLab[0];
-        let da = a - centerLab[1];
-        let db = b - centerLab[2];
+    return pixelsLab.map(([L1, a1, b1]) => {
+        const dL = L1 - centerLab[0];
+        let da = a1 - centerLab[1];
+        let db = b1 - centerLab[2];
 
-        // Warm‑colour correction (matches your Python logic)
-        if (a > 20) {
+        // Apply warmth correction to the difference if the target is "warm"
+        if (a1 > 20) {
             da *= 0.65;
             db *= 0.65;
         }

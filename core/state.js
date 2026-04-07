@@ -119,8 +119,12 @@ export class EditorState {
     // PIXEL OPERATIONS
     // -------------------------------------------------------------------------
     setPixel(x, y, rgb) {
+        // Update the data model
         this.pixelGrid.set(x, y, rgb);
-        this.renderer.drawCell(x, y);
+        
+        // Fix: Pass the rgb color to the renderer so it knows what to draw
+        this.renderer.drawCell(x, y, rgb);
+        
         this.emit("pixelChanged", { x, y, rgb });
     }
 

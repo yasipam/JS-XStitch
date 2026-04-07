@@ -4,7 +4,7 @@ import { EditorEvents } from "./core/events.js";
 import { ToolRegistry } from "./core/tools.js";
 
 // Mapping Logic
-import { buildPaletteFromImage } from "./mapping/palette.js"; 
+import { mergeSimilarPaletteColors, buildPaletteFromImage, getDistanceFn, rgbToLab } from "./mapping/palette.js"; 
 import { mapFullWithPalette, nearestDmcColor } from "./mapping/mappingEngine.js";
 import { buildStampedGrid } from "./mapping/stamped.js";
 import { DMC_RGB } from "./mapping/constants.js";
@@ -48,13 +48,16 @@ async function runMapping() {
     try {
         const colourLimit = mappingConfig.maxColours;
 
-        // 1. Extract colors from image
+        // 1. Setup Distance Metrics
+        const useLab = mappingConfig.distanceMethod.startsWith("cie");
+        const distFn = getDistanceFn(mappingConfig.distanceMethod, useLab);
+        const masterDmcLab = useLab ? DMC_RGB.map(d => rgbToLab(d[2])) : null;
+
+        // 2. Extract colors from image and map to DMC
         const extractedColors = buildPaletteFromImage(currentImage, colourLimit);
         
-        // 2. Map to actual DMC threads using the master DMC_RGB list
         const restrictedPalette = extractedColors.map(rgb => {
-            // We pass a dummy distance object to trigger the default perceptual math
-            return nearestDmcColor(rgb, {name: "none"}, null, DMC_RGB);
+            return nearestDmcColor(rgb, distFn, masterDmcLab, DMC_RGB);
         });
 
         // 3. Run mapping engine
@@ -145,8 +148,13 @@ function renderPalette(projectPalette = []) {
 }
 
 function updatePaletteHighlights() {
+    // Determine metric for the highlight check
+    const useLab = mappingConfig.distanceMethod.startsWith("cie");
+    const distFn = getDistanceFn(mappingConfig.distanceMethod, useLab);
+    const masterDmcLab = useLab ? DMC_RGB.map(d => rgbToLab(d[2])) : null;
+
     const usedCodes = new Set(state.pixelGrid.toFlatArray().map(rgb => {
-        const match = nearestDmcColor(rgb, {name: "none"}, null, DMC_RGB); 
+        const match = nearestDmcColor(rgb, distFn, masterDmcLab, DMC_RGB); 
         return match ? String(match[0]) : null;
     }));
 
@@ -264,19 +272,26 @@ function setupMappingControls() {
 }
 
 function setupExportButtons() {
-    document.getElementById("exportPDFBtn").onclick = () => {
-        const data = buildExportData(state, mappingConfig, {
-            fabricCount: mappingConfig.exportFabricCount,
-            mode: mappingConfig.exportMode
-        });
-        exportPDF(data);
-    };
-    document.getElementById("exportPngBtn").onclick = () => {
-        const link = document.createElement("a");
-        link.download = "pattern.png";
-        link.href = state.renderer.canvas.toDataURL();
-        link.click();
-    };
+    const exportPdfBtn = document.getElementById("exportPDFBtn");
+    if (exportPdfBtn) {
+        exportPdfBtn.onclick = () => {
+            const data = buildExportData(state, mappingConfig, {
+                fabricCount: mappingConfig.exportFabricCount,
+                mode: mappingConfig.exportMode
+            });
+            exportPDF(data);
+        };
+    }
+
+    const exportPngBtn = document.getElementById("exportPngBtn");
+    if (exportPngBtn) {
+        exportPngBtn.onclick = () => {
+            const link = document.createElement("a");
+            link.download = "pattern.png";
+            link.href = state.renderer.canvas.toDataURL();
+            link.click();
+        };
+    }
 }
 
 function setupZoomButtons() {

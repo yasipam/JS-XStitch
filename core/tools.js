@@ -20,12 +20,14 @@ export class PencilTool extends BaseTool {
     cursor = "crosshair";
 
     onPointerDown(state, gx, gy) {
-        state.setPixel(gx, gy, state.activeColor);
         this.drawing = true;
+        // Paint the first pixel
+        state.setPixel(gx, gy, state.activeColor);
     }
 
     onPointerMove(state, gx, gy) {
         if (!this.drawing) return;
+        // Paint as you move
         state.setPixel(gx, gy, state.activeColor);
     }
 
@@ -34,15 +36,12 @@ export class PencilTool extends BaseTool {
     }
 }
 
-// -----------------------------------------------------------------------------
-// ERASER TOOL
-// -----------------------------------------------------------------------------
 export class EraserTool extends BaseTool {
     cursor = "cell";
 
     onPointerDown(state, gx, gy) {
-        state.setPixel(gx, gy, [255, 255, 255]);
         this.erasing = true;
+        state.setPixel(gx, gy, [255, 255, 255]);
     }
 
     onPointerMove(state, gx, gy) {
