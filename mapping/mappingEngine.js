@@ -17,20 +17,20 @@ import { adjustBSCBias, getDistanceFn, rgbToLab } from "./palette.js";
 /**
  * Finds the nearest DMC thread color for a given RGB pixel.
  */
-export function nearestDmcColor(pixelRgb, distanceFn, dmcPaletteLab) {
+export function nearestDmcColor(pixelRgb, distanceFn, dmcPaletteLab, allowedPalette) {
     let best = null;
     let bestDist = Infinity;
 
-    // If using a LAB-based distance (CIE76, CIE94, CIEDE2000)
     const isLabMetric = distanceFn.name.includes("CIE");
     const target = isLabMetric ? rgbToLab([pixelRgb])[0] : pixelRgb;
 
-    for (let i = 0; i < DMC_RGB.length; i++) {
-        const [code, name, dmcRgb] = DMC_RGB[i];
-        const comparisonPoint = isLabMetric ? dmcPaletteLab[i] : dmcRgb;
+    // USE allowedPalette instead of the global DMC_RGB
+    for (let i = 0; i < allowedPalette.length; i++) {
+        const [code, name, dmcRgb] = allowedPalette[i];
         
-        // The distance functions in palette.js expect an array of pixels, 
-        // so we wrap our single point in an array [target].
+        // If we are using LAB, we need to convert the allowedPalette colors too
+        const comparisonPoint = isLabMetric ? rgbToLab([dmcRgb])[0] : dmcRgb;
+        
         const dist = distanceFn([target], comparisonPoint)[0];
 
         if (dist < bestDist) {
@@ -297,7 +297,7 @@ export function mapFullWithPalette(
                 rgbRow.push([255, 255, 255]);
             } else {
                 // Pass the distance function into the lookup
-                const [code, , dmcRgb] = nearestDmcColor(adjustedFlat[idx], distFn, dmcPaletteLab);
+                const [code, , dmcRgb] = nearestDmcColor(adjustedFlat[idx], distFn, dmcPaletteLab, palette);
                 dmcRow.push(String(code));
                 rgbRow.push(dmcRgb);
             }

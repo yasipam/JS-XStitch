@@ -60,19 +60,18 @@ const mappingConfig = {
 async function runMapping() {
     if (!currentImage) return;
 
-    // 1. Sync config from UI sliders
-    mappingConfig.maxSize = parseInt(document.getElementById("maxSizeSlider").value, 10);
-    mappingConfig.maxColours = parseInt(document.getElementById("maxColours").value, 10);
+    // 1. Get the limit from the slider
+    const colourLimit = mappingConfig.maxColours;
 
-    // 2. Prepare Target Palette
-    // For now, we use a slice of the DMC master list based on 'maxColours'
-    const targetPalette = DMC_RGB.slice(0, mappingConfig.maxColours).map(item => item[2]);
+    // 2. Create the "Allowed" palette for the engine.
+    // We take the first N colors from the DMC master list.
+    const restrictedPalette = DMC_RGB.slice(0, colourLimit);
 
-    // 3. Execute the Mapping Engine
+    // 3. Run the engine using ONLY the restricted palette
     const [rgbGrid, dmcGrid] = mapFullWithPalette(
         currentImage,
         mappingConfig.maxSize,
-        targetPalette,
+        restrictedPalette, // <-- PASSING THE RESTRICTED LIST
         1.0 + (mappingConfig.brightnessInt / 10),
         1.0 + (mappingConfig.saturationInt / 10),
         1.0 + (mappingConfig.contrastInt / 10),
@@ -81,12 +80,13 @@ async function runMapping() {
         mappingConfig.biasGreenMagenta,
         mappingConfig.biasCyanRed,
         mappingConfig.biasBlueYellow,
-        mappingConfig.distanceMethod // Ensure this matches Argument 12 in the engine
+        mappingConfig.distanceMethod
     );
 
-    // 4. Update the Application State
+    // 4. Update state and UI
     state.setMappingResults(rgbGrid, dmcGrid);
-    
+    state.loadGrid(rgbGrid);
+
     // If Stamped Mode is active, override the visual grid
     if (mappingConfig.stampedMode) {
         const stamped = buildStampedGrid(dmcGrid, { hueShift: mappingConfig.stampedHueShift });
@@ -94,11 +94,13 @@ async function runMapping() {
     } else {
         state.loadGrid(rgbGrid);
     
-// Trigger the Reset View logic immediately so the image is centered
+    // Trigger the Reset View logic immediately so the image is centered
     document.getElementById("resetViewBtn").click(); 
-}
-    // 5. Update UI Palette
-    renderPalette(DMC_RGB.slice(0, mappingConfig.maxColours));
+    }
+    // Update the palette highlights in the UI
+    renderPalette(restrictedPalette);
+    updatePaletteHighlights();
+
 }
 
 // -----------------------------------------------------------------------------
