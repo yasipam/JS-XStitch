@@ -146,21 +146,16 @@ export class CanvasRenderer {
     // -------------------------------------------------------------------------
     // DRAW ONLY ONE CELL (for fast tool updates)
     // -------------------------------------------------------------------------
-    drawCell(x, y) {
-        const grid = this.pixelGrid;
-        if (!grid) return;
+        drawCell(gx, gy, color) {
+            // Safety check: if color is null/undefined, don't try to draw it
+            if (!color || !Array.isArray(color)) return;
 
-        const [r, g, b] = grid.get(x, y);
-        const px = this.offsetX + x * this.zoom;
-        const py = this.offsetY + y * this.zoom;
+            const { x, y } = this.gridToScreen(gx, gy);
+            const size = this.state.zoom;
 
-        this.ctx.fillStyle = `rgb(${r},${g},${b})`;
-        this.ctx.fillRect(px, py, this.zoom, this.zoom);
-
-        if (this.showGrid && this.zoom >= 6) {
-            this.ctx.strokeStyle = this.gridColor;
-            this.ctx.lineWidth = this.gridThickness;
-            this.ctx.strokeRect(px, py, this.zoom, this.zoom);
-        }
+            const [r, g, b] = color;
+            this.ctx.fillStyle = `rgb(${r},${g},${b})`;
+            this.ctx.fillRect(x, y, size, size);
+        
     }
 }

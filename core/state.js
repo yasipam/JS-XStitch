@@ -9,35 +9,50 @@ import { CanvasRenderer } from "./canvasRenderer.js";
 
 export class EditorState {
     constructor(canvasElement) {
-        // Core components
-        this.pixelGrid = new PixelGrid(50, 50);   // default blank grid
+        // ... Core components
+        this.pixelGrid = new PixelGrid(50, 50);
         this.renderer = new CanvasRenderer(canvasElement, this.pixelGrid);
 
-        // Active tool ("pencil", "eraser", "fill", "picker", "pan", etc.)
         this.activeTool = "pencil";
+        this.activeColor = [0, 0, 0]; // Keep this name consistent
 
-        // Active color (RGB)
-        this.activeColor = [0, 0, 0];
-
-        // Zoom & pan
-        this.zoom = 20; // pixels per stitch
+        // ... Zoom & pan
+        this.zoom = 20; 
         this.panX = 0;
         this.panY = 0;
 
-        // Grid visibility
         this.showGrid = true;
-
-        // Stamped mode toggle (for preview)
         this.stampedMode = false;
-
-        // Mapping results
         this.mappedRgbGrid = null;
         this.mappedDmcGrid = null;
 
-        // Simple event listeners
+        this.history = []; // Added this so clear() doesn't fail
         this.listeners = {};
     }
 
+    // -------------------------------------------------------------------------
+    // RESET STATE
+    // -------------------------------------------------------------------------
+    clear() {
+        // 1. Reset grids
+        this.pixelGrid = new PixelGrid(50, 50); 
+        this.mappedRgbGrid = null;
+        this.mappedDmcGrid = null;
+        
+        // 2. Reset history
+        this.history = [];
+
+        // 3. Reset colors to prevent "null" iterable crashes
+        this.activeColor = [0, 0, 0]; 
+
+        // 4. Update renderer with the new blank grid
+        this.renderer.setPixelGrid(this.pixelGrid);
+        this.renderer.draw();
+
+        // 5. Tell the UI we cleared out (using your .emit system)
+        this.emit("gridLoaded", { width: 50, height: 50 });
+    }
+    
     // -------------------------------------------------------------------------
     // EVENT SYSTEM (simple pub/sub)
     // -------------------------------------------------------------------------
