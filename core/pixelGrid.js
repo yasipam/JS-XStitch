@@ -31,6 +31,7 @@ export class PixelGrid {
         // Only keep the last 50 actions to save memory
         if (this.undoStack.length > 50) this.undoStack.shift();
         
+        // Deep clone current state before changing it
         this.undoStack.push(this._cloneGrid());
         this.redoStack.length = 0; 
     }
@@ -111,7 +112,8 @@ export class PixelGrid {
     // RESIZE GRID
     // -------------------------------------------------------------------------
     resize(newW, newH, fill = [255, 255, 255], recordUndo = true) {
-        if (recordUndo) this._pushUndo();
+        // FIX: Corrected internal helper call to public method
+        if (recordUndo) this.pushUndo();
 
         const newGrid = Array.from({ length: newH }, (_, y) =>
             Array.from({ length: newW }, (_, x) =>
@@ -130,15 +132,23 @@ export class PixelGrid {
     // UNDO / REDO
     // -------------------------------------------------------------------------
     undo() {
-        if (this.undoStack.length === 0) return;
+        if (this.undoStack.length === 0) return null;
+        
+        // Save current state to redo stack before moving back
         this.redoStack.push(this._cloneGrid());
         this.grid = this.undoStack.pop();
+        
+        return this.grid;
     }
 
     redo() {
-        if (this.redoStack.length === 0) return;
+        if (this.redoStack.length === 0) return null;
+        
+        // Save current state back to undo stack before moving forward
         this.undoStack.push(this._cloneGrid());
         this.grid = this.redoStack.pop();
+        
+        return this.grid;
     }
 
     // -------------------------------------------------------------------------

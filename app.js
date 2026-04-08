@@ -231,25 +231,25 @@ function setupToolButtons() {
     });
 }
 
+// app.js
+
 function setupEditHistory() {
     const undoBtn = document.getElementById("undoBtn");
     const redoBtn = document.getElementById("redoBtn");
     const clearBtn = document.getElementById("clearAllBtn");
 
-    if (undoBtn) undoBtn.onclick = () => {
-        state.undo();
-        sendToCanvas('UPDATE_GRID', state.pixelGrid.grid);
-    };
-    if (redoBtn) redoBtn.onclick = () => {
-        state.redo();
-        sendToCanvas('UPDATE_GRID', state.pixelGrid.grid);
-    };
+    if (undoBtn) {
+        undoBtn.onclick = () => sendToCanvas('CMD_UNDO');
+    }
+    
+    if (redoBtn) {
+        redoBtn.onclick = () => sendToCanvas('CMD_REDO');
+    }
 
     if (clearBtn) {
         clearBtn.onclick = () => {
             if (confirm("Are you sure you want to clear the canvas?")) {
-                state.clearCanvasAction();
-                sendToCanvas('UPDATE_GRID', state.pixelGrid.grid);
+                sendToCanvas('CMD_CLEAR');
                 currentImage = null;
                 const uploader = document.getElementById("upload");
                 if (uploader) uploader.value = "";

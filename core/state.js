@@ -152,15 +152,23 @@ export class EditorState {
     // UNDO / REDO
     // -------------------------------------------------------------------------
     undo() {
-        this.pixelGrid.undo();
-        if (this.renderer) this.renderer.draw(); // Safety Guard
-        this.emit("gridChanged");
+        const previousGrid = this.pixelGrid.undo();
+        if (previousGrid && this.renderer) {
+            this.renderer.setPixelGrid(this.pixelGrid);
+            this.renderer.draw();
+            this.emit("gridChanged");
+        }
+        return previousGrid;
     }
 
     redo() {
-        this.pixelGrid.redo();
-        if (this.renderer) this.renderer.draw(); // Safety Guard
-        this.emit("gridChanged");
+        const nextGrid = this.pixelGrid.redo();
+        if (nextGrid && this.renderer) {
+            this.renderer.setPixelGrid(this.pixelGrid);
+            this.renderer.draw();
+            this.emit("gridChanged");
+        }
+        return nextGrid;
     }
 
     // -------------------------------------------------------------------------
