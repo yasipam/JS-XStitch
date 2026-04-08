@@ -290,15 +290,18 @@ function setupMappingControls() {
         }
     });
 
+    // app.js - inside setupMappingControls()
     const biasControls = [
         ["greenToMagenta", "biasGreenMagenta"],
         ["cyanToRed", "biasCyanRed"],
         ["blueToYellow", "biasBlueYellow"]
     ];
+
     biasControls.forEach(([id, configKey]) => {
         const el = document.getElementById(id);
         if (el) {
             el.oninput = () => {
+                // mappingConfig now stores values from -10 to 10
                 mappingConfig[configKey] = parseInt(el.value, 10);
                 runMapping();
             };

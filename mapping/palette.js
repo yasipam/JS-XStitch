@@ -298,16 +298,18 @@ export function adjustBSCBias(pixels, brightness=1, saturation=1, contrast=1, bG
         G = (G - 128) * (contrast || 1) + 128;
         B = (B - 128) * (contrast || 1) + 128;
 
-        // 4. Color Bias (bGM, bCR, bBY are already divided by 10 from the caller)
-        G -= (bGM || 0); R += (bGM || 0) / 2; B += (bGM || 0) / 2;
-        R += (bCR || 0); G -= (bCR || 0) / 2; B -= (bCR || 0) / 2;
-        B += (bBY || 0); R -= (bBY || 0) / 2; G -= (bBY || 0) / 2;
+// Increase the multiplier so that a value of 10 creates a massive shift
+        const factor = 8.0; 
+        
+        // Apply the shifts directly to the channels
+        let R_final = R + (bCR * factor) - (bBY * (factor / 2)) + (bGM * (factor / 2));
+        let G_final = G - (bGM * factor) - (bCR * (factor / 2)) - (bBY * (factor / 2));
+        let B_final = B + (bBY * factor) - (bCR * (factor / 2)) + (bGM * (factor / 2));
 
-        // 5. Final Clamping
         return [
-            Math.max(0, Math.min(255, Math.round(R))),
-            Math.max(0, Math.min(255, Math.round(G))),
-            Math.max(0, Math.min(255, Math.round(B)))
+            Math.max(0, Math.min(255, Math.round(R_final))),
+            Math.max(0, Math.min(255, Math.round(G_final))),
+            Math.max(0, Math.min(255, Math.round(B_final)))
         ];
     });
 }

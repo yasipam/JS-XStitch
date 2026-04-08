@@ -55,69 +55,67 @@ export function nearestDmcColor(pixelRgb, distanceFn, dmcPaletteLab, allowedPale
 // This is a direct functional equivalent, not a new feature.
 export function applyAntiNoise(imageData, strength) {
     if (strength <= 0) return imageData;
-
     let data = imageData;
-
+    // Each pass refines the image further based on the threshold
     for (let pass = 0; pass < strength; pass++) {
         data = medianFilter3x3(data);
     }
-
     return data;
 }
 
 // Simple 3×3 median filter for RGB
+// mapping/mappingEngine.js
 function medianFilter3x3(imageData) {
     const { width, height, data } = imageData;
     const out = new Uint8ClampedArray(data.length);
+    
+    // Threshold: how different a pixel must be to be considered "noise"
+    // Lower = more aggressive smoothing; Higher = preserves more detail
+    const threshold = 100; 
 
     function getPixel(x, y) {
         const i = (y * width + x) * 4;
-        // Return R, G, B, and A
         return [data[i], data[i + 1], data[i + 2], data[i + 3]];
     }
 
     for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
             const i = (y * width + x) * 4;
-            const centerPixel = getPixel(x, y);
+            const [r, g, b, a] = getPixel(x, y);
 
-            // If the pixel is fully transparent, preserve it and skip smoothing
-            if (centerPixel[3] < 128) {
-                out[i] = centerPixel[0];
-                out[i + 1] = centerPixel[1];
-                out[i + 2] = centerPixel[2];
-                out[i + 3] = centerPixel[3];
+            if (a < 128) {
+                out.set([r, g, b, a], i);
                 continue;
             }
 
-            const rValues = [];
-            const gValues = [];
-            const bValues = [];
-
+            const rValues = [], gValues = [], bValues = [];
             for (let dy = -1; dy <= 1; dy++) {
                 for (let dx = -1; dx <= 1; dx++) {
-                    const nx = x + dx;
-                    const ny = y + dy;
+                    const nx = x + dx, ny = y + dy;
                     if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
                         const p = getPixel(nx, ny);
-                        // Only include non-transparent neighbors in the smoothing math
                         if (p[3] >= 128) {
-                            rValues.push(p[0]);
-                            gValues.push(p[1]);
-                            bValues.push(p[2]);
+                            rValues.push(p[0]); gValues.push(p[1]); bValues.push(p[2]);
                         }
                     }
                 }
             }
 
-            // Fallback to center pixel if no solid neighbors found
-            out[i] = rValues.length > 0 ? rValues.sort((a, b) => a - b)[Math.floor(rValues.length / 2)] : centerPixel[0];
-            out[i + 1] = gValues.length > 0 ? gValues.sort((a, b) => a - b)[Math.floor(gValues.length / 2)] : centerPixel[1];
-            out[i + 2] = bValues.length > 0 ? bValues.sort((a, b) => a - b)[Math.floor(bValues.length / 2)] : centerPixel[2];
-            out[i + 3] = 255; // Keep the smoothed pixel solid
+            // Calculate Medians
+            const medR = rValues.sort((a, b) => a - b)[Math.floor(rValues.length / 2)];
+            const medG = gValues.sort((a, b) => a - b)[Math.floor(gValues.length / 2)];
+            const medB = bValues.sort((a, b) => a - b)[Math.floor(bValues.length / 2)];
+
+            // Selective Smoothing: Only apply if the difference is greater than the threshold
+            const diff = Math.abs(r - medR) + Math.abs(g - medG) + Math.abs(b - medB);
+            
+            if (diff > threshold) {
+                out.set([medR, medG, medB, 255], i);
+            } else {
+                out.set([r, g, b, 255], i);
+            }
         }
     }
-
     return new ImageData(out, width, height);
 }
 
@@ -297,9 +295,10 @@ export function mapFullWithPalette(
         maskFlat.push(finalSourceData.data[i+3] < 128);
     }
 
+    // mapping/mappingEngine.js - inside mapFullWithPalette
     const adjustedFlat = adjustBSCBias(
         rgbFlat, brightness, saturation, contrast, 
-        (biasGreenMagenta || 0) / 10, (biasCyanRed || 0) / 10, (biasBlueYellow || 0) / 10
+        biasGreenMagenta, biasCyanRed, biasBlueYellow // Remove the "/ 10" here
     );
 
     const metric = distanceMetric || "euclidean"; 

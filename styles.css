@@ -236,8 +236,9 @@
 
 .palette-swatch {
   width: 25px;
-  height: 25px;
-  border: 1px solid #ccc;
+  height: 15px;
+  border: 1px solid #3f3f3f;
+  border-radius: 10px;
   cursor: pointer;
   transition: transform 0.1s;
 }
