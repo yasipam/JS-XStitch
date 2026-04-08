@@ -66,7 +66,7 @@ function medianFilter3x3(imageData) {
     
     // Threshold: how different a pixel must be to be considered "noise"
     // Lower = more aggressive smoothing; Higher = preserves more detail
-    const threshold = 100; 
+    const threshold = 90; 
 
     function getPixel(x, y) {
         const i = (y * width + x) * 4;
