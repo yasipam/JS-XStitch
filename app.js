@@ -311,6 +311,8 @@ function setupResetControls() {
     }
 }
 
+// app.js
+
 function setupMappingControls() {
     const controlPairs = [
         ["maxSizeSlider", "maxSizeInput", "maxSize"],
@@ -397,6 +399,35 @@ function setupMappingControls() {
             runMapping();
         };
     }
+
+    // NEW: Handle Minimum Occurrence directly in mapping config
+    const minOccurrenceInput = document.getElementById("minOccurrenceInput");
+    if (minOccurrenceInput) {
+        minOccurrenceInput.onchange = () => {
+            const val = parseInt(minOccurrenceInput.value, 10) || 1;
+            mappingConfig.minOccurrence = val;
+            // Option 1: Run a full re-map (Cleanest result)
+            runMapping(); 
+            // Option 2: Just cleanup the current canvas (Faster)
+            // sendToCanvas('CMD_CLEANUP_MIN', val); 
+        };
+    }
+}
+
+// Keep this separate if you want a dedicated "Apply Cleanup" button for the current canvas
+function setupMinOccurrenceControl() {
+    const input = document.getElementById("minOccurrenceInput");
+    const applyBtn = document.getElementById("applyMinBtn");
+
+    if (input && applyBtn) {
+        applyBtn.onclick = () => {
+            const val = parseInt(input.value, 10);
+            if (val >= 1) {
+                console.log(`Parent: Requesting manual cleanup for < ${val} stitches`);
+                sendToCanvas('CMD_CLEANUP_MIN', val);
+            }
+        };
+    }
 }
 
 function setupExportButtons() {
@@ -414,7 +445,9 @@ function setupExportButtons() {
     const exportPngBtn = document.getElementById("exportPngBtn");
     if (exportPngBtn) {
         exportPngBtn.onclick = () => {
-            console.warn("PNG export must be requested from the rendering iframe.");
+            // Updated to be clearer on how to implement this later
+            console.warn("PNG export: Send CMD_EXPORT_PNG to iframe to get dataURL.");
+            sendToCanvas('CMD_EXPORT_PNG'); 
         };
     }
 }

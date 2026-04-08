@@ -104,5 +104,11 @@ window.addEventListener('message', (e) => {
                 });
             }
             break;
+
+        case 'CMD_CLEANUP_MIN':
+        if (state) {
+            state.applyMinOccurrence(payload);
+        }
+        break;
     }
 });
