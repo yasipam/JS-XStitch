@@ -1,455 +1,358 @@
-/* --- GLOBAL LAYOUT WRAPPER --- */
-
-/* styles.css */
-/* 1. Import Jersey 15 (added to your existing stack) */
-@import url('https://fonts.googleapis.com/css2?family=Fira+Mono:wght@400;500;700&family=Gamja+Flower&family=Jersey+15&family=Noto+Sans+Mono:wght@100..900&family=Noto+Sans:ital,wght@0,100..900;1,100..900&family=Ubuntu+Sans+Mono:ital,wght@0,400..700;1,400..700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Fira+Mono:wght@400;500;700&family=Gamja+Flower&family=Jersey+10&family=Jersey+15&family=Noto+Sans+Mono:wght@100..900&family=Noto+Sans:ital,wght@0,100..900;1,100..900&family=Tiny5&family=Ubuntu+Sans+Mono:ital,wght@0,400..700;1,400..700&display=swap');
+/* ==========================================================================
+   1. FONTS & VARIABLES
+   ========================================================================== */
+@import url('https://fonts.googleapis.com/css2?family=Jersey+15&family=Noto+Sans:ital,wght@0,100..900;1,100..900&family=Tiny5&display=swap');
 
 :root {
-    /* 2. Set Jersey 15 as the brand/header font */
+    /* Fonts */
     --font-brand: 'Jersey 15', serif;
-
-    /* 3. Keep a cleaner font for small UI text and inputs */
     --font-main: 'Tiny5', sans-serif;
+    
+    /* Brand Colors */
+    --color-orange: #f96e03;
+    --color-blue: #7e005e;
+    --color-purple: #c10054;
+    --color-pink: #d54387;
+    --color-label: #3d008e;
+    --color-bg: #f0f2f5;
+    
+    /* Borders & UI */
+    --border-light: #ccc;
+    --border-panel: #ddd;
+    --bg-panel: #fafafa;
+    --bg-sidebar: #ffffff;
+    --bg-sidebar-alt: #f4f4f4;
+}
+
+/* ==========================================================================
+   2. GLOBAL RESET & BASE
+   ========================================================================== */
+* {
+    box-sizing: border-box;
 }
 
 body {
+    margin: 0;
     font-family: var(--font-main);
     color: #333;
     line-height: 1.5;
-    background-color: #f0f2f5; /* Slightly softer background */
+    background-color: var(--color-bg);
+    overscroll-behavior: none;
 }
 
+#app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* ==========================================================================
+   3. TYPOGRAPHY (GRANULAR)
+   ========================================================================== */
 h1 {
     font-family: var(--font-brand);
     font-size: 3rem;
-    color: #f96e03;
+    color: var(--color-orange);
     margin: 10px 0;
     text-align: center;
 }
 
-h2, h3 {
-    font-weight: 600;
-    color: #074cef;
-    letter-spacing: -0.02em;
+h2 {
+    font-family: var(--font-brand);
+    font-size: 1.8rem;
+    color: var(--color-blue);
     margin-bottom: 8px;
 }
 
-/* Update sidebar labels for better legibility */
+h3 {
+    font-family: var(--font-brand);
+    font-size: 1.4rem;
+    color: var(--color-blue);
+    margin-bottom: 8px;
+}
+
 label {
-    font-size: 1rem;
+    font-size: 1rem; /* Increased for Tiny5 readability */
     font-weight: 500;
-    color: #2f006c;
+    color: var(--color-label);
     margin-bottom: 4px;
+    display: block;
+    line-height: 1.2;
 }
 
-/* Make the thread table look cleaner */
-#threadsTable {
-    font-family: var(--font-main);
-}
-
-#threadsTable th {
-    text-transform: uppercase;
-    font-size: 0.7rem;
-    color: #888;
-    letter-spacing: 0.05em;
-}
-
-#app {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  background: #fdfdfd;
-  overflow: hidden;
-}
-
-/* --- TOP TOOLBAR --- */
+/* ==========================================================================
+   4. LAYOUT COMPONENTS
+   ========================================================================== */
 #topToolbar {
-  display: flex;
-  gap: 8px;
-  padding: 8px;
-  background: #eee;
-  border-bottom: 1px solid #ccc;
-  align-items: center;
-  justify-content: center; /* centers the toolbar */
+    display: flex;
+    gap: 8px;
+    padding: 8px;
+    background: #eee;
+    border-bottom: 1px solid var(--border-light);
+    align-items: center;
+    justify-content: center;
 }
 
-/* --- MAIN LAYOUT (SIDEBARS + CANVAS) --- */
 #layout {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-}
-
-/* --- LEFT SIDEBAR (settings) --- */
-#leftSidebar {
-  width: 350px;
-  background: #ffffff;
-  border-right: 1px solid #ccc;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  overflow-y: auto;
-  box-sizing: border-box;
-}
-
-.panel {
-  padding: 12px;
-  border: 1px solid #ddd;
-  border-radius: 10px;
-  background: #fafafa;
-  margin-bottom: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.panelTitle {
-  margin: 0 0 6px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #6c00f9;
-  border-bottom: 1px solid #ccc;
-  padding-bottom: 4px;
-}
-
-.sliderRow {
-  display: flex;
-  flex-direction: column;
-  width: 100%; /* ensures full width */
-  gap: 6px;
-}
-
-.sliderWithInput {
-  display: flex;
-  align-items: center;
-  width: 100%; /* full width */
-  gap: 10px;
-}
-
-.sliderWithInput input[type="number"] {
-  width: 45px;      /* smaller, compact */
-  padding: 4px;
-  font-size: 14px;
-}
-
-.sliderWithInput input[type="range"] {
-  flex: 1; /* expands to fill leftover space */
-}
-
-
-.toggle {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.toggle input {
-  display: none;
-}
-
-.toggle .slider {
-  width: 36px;
-  height: 20px;
-  background: #ccc;
-  border-radius: 20px;
-  position: relative;
-  transition: background 0.2s;
-}
-
-.toggle .slider::before {
-  content: "";
-  position: absolute;
-  width: 16px;
-  height: 16px;
-  background: white;
-  border-radius: 50%;
-  top: 2px;
-  left: 2px;
-  transition: transform 0.2s;
-}
-
-.toggle input:checked + .slider {
-  background: #d54387;
-}
-
-.toggle input:checked + .slider::before {
-  transform: translateX(16px);
-}
-
-#leftSidebar .divider {
-  border: none;
-  border-top: 1px solid #074cef;
-  margin: 12px 0;
-}
-
-
-/* --- RIGHT SIDEBAR (export) --- */
-#rightSidebar {
-  width: 220px;
-  background: #f4f4f4;
-  border-left: 1px solid #ccc;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  overflow-y: auto;
-  box-sizing: border-box;
-}
-
-#rightSidebar .divider {
-  border: none;
-  border-top: 1px solid #074cef;
-  margin: 12px 0;
+    display: flex;
+    flex: 1;
+    overflow: hidden;
 }
 
 #mainArea {
-  flex: 1;
-  background: #333; /* Dark background so you can see the white canvas */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  height: 100%;    /* Important */
-  min-height: 0;   /* Fixes flexbox shrinking issues */
-}
-
-/* styles.css */
-#canvas {
-  background: #ffffff;
-  display: block;
-  box-shadow: 0 0 20px rgba(0,0,0,0.5);
-  max-width: 95%;
-  max-height: 95%;
-
-  user-select: none;
-  -webkit-user-drag: none;
-  cursor: crosshair;
-
-  /* PRECISION OVERRIDE: Prevents anti-aliasing drift */
-  image-rendering: -moz-pixelated;
-  image-rendering: -webkit-optimize-contrast;
-  image-rendering: pixelated;
-  image-rendering: optimizeSpeed;
-  
-  /* Prevent interaction delays on mobile/tablets */
-  touch-action: none; 
-}
-
-/* --- BOTTOM PALETTE BAR --- */
-#bottomPalette {
-  background: #fafafa;
-  border-top: 1px solid #ccc;
-  padding: 10px;
-  overflow-y: auto;
-  box-sizing: border-box;
-
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-/* --- PALETTE STYLES (unchanged) --- */
-
-#palette {
-  width: 100%;
-  padding: 10px;
-  overflow-y: auto;
-  box-sizing: border-box;
-}
-
-/* Bottom palette bar stays small */
-#bottomPalette {
-  background: #fafafa;
-  border-top: 1px solid #ccc;
-  padding: 10px;
-  box-sizing: border-box;
-
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-
-  /* NEW: fixed height so it never eats canvas space */
-  max-height: 140px;
-  overflow: hidden;
-}
-
-/* Palette container scrolls vertically */
-#palette {
-  width: 100%;
-  padding: 10px;
-  box-sizing: border-box;
-
-  /* NEW: vertical scroll only */
-  overflow-y: auto;
-  overflow-x: hidden;
-}
-
-/* Palette grid stays the same, but no height explosion */
-/* styles.css */
-
-#paletteGrid {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr); /* Exactly 5 across */
-    gap: 6px;
-    max-height: 400px;
-    overflow-y: auto;
-    padding: 8px;
-    background: #f9f9f9;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-}
-
-.palette-swatch {
-  width: 25px;
-  height: 15px;
-  border: 1px solid #666666;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: transform 0.1s;
-}
-
-.palette-swatch:hover {
-  transform: scale(1.2);
-  z-index: 10;
-  border-color: #000;
-}
-
-/* styles.css */
-.palette-swatch.used {
-    border: 2px solid #000 !important;
-    box-shadow: 0 0 5px rgba(0,0,0,0.3);
-}
-
-.palette-swatch.selected {
-    outline: 3px solid #ea732f;
-    outline-offset: 1px;
-    z-index: 5;
-}
-
-.star {
-    color: #ea732f;
-    font-weight: bold;
-    margin-left: 5px;
-}
-#toggleList {
-  width: 100%;
-  padding: 6px;
-  margin-bottom: 6px;
-  cursor: pointer;
-}
-
-.palette-row {
-  display: flex;
-  align-items: center;
-  padding: 4px 0;
-  cursor: pointer;
-}
-
-.palette-row .swatch {
-  width: 18px;
-  height: 18px;
-  border: 1px solid #888;
-  margin-right: 8px;
-}
-
-/* BUTTON STYLING */
-
-button {
-  font-family: var(--font-main);
-  padding: 6px 12px;
-  background: #f4f4f4;
-  border: 1px solid #ccc;
-  border-radius: 10px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
-}
-
-button:hover {
-  background: #d8e999;
-  border-color: #115aae;
-}
-
-button:active {
-  background: #ea9bce;
-  border-color: #aaa;
-}
-
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-button.active {
-  background: #ea732f;
-  border-color: #7ab0ff;
-}
-
-/* styles.css */
-
-
-body.chartGrid {
-    /* Prevents "rubber banding" which causes visual drift */
-    overscroll-behavior: none; 
-}
-
-/* Tabs Styling */
-.tabs {
-    display: flex;
-    border-bottom: 1px solid #ccc;
-    margin-bottom: 10px;
-}
-.tab-link {
     flex: 1;
-    border: none;
-    background: #eee;
-    padding: 10px;
-    cursor: pointer;
-    border-radius: 0;
+    background: #333;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
 }
-.tab-link.active {
-    background: #fff;
-    border-bottom: 2px solid #ea732f;
-    font-weight: bold;
-}
-.tab-content {
-    display: none;
+
+/* Sidebars */
+#leftSidebar { 
+    width: 300px; 
+    border-right: 1px solid var(--border-light); 
+    background: var(--bg-sidebar);
+    padding: 12px;
+    display: flex;
     flex-direction: column;
     gap: 12px;
+    overflow-y: auto;
 }
 
-/* Threads Table */
-#threadsTable {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 12px;
+#rightSidebar { 
+    width: 260px; 
+    border-left: 1px solid var(--border-light); 
+    background: var(--bg-sidebar-alt);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: auto;
 }
-#threadsTable th, #threadsTable td {
-    padding: 6px 4px;
-    text-align: left;
-    border-bottom: 1px solid #eee;
-}
-.table-swatch {
-    width: 16px;
-    height: 16px;
-    border: 1px solid #000;
-}
-.button-stack {
+
+/* ==========================================================================
+   5. PANELS & DIVIDERS
+   ========================================================================== */
+.panel {
+    padding: 12px;
+    border: 1px solid var(--border-panel);
+    border-radius: 10px;
+    background: var(--bg-panel);
+    margin-bottom: 14px;
     display: flex;
     flex-direction: column;
     gap: 8px;
 }
 
-/* Updated Footer for Export */
+.panelTitle {
+    margin: 0 0 6px;
+    font-size: 1.3rem; /* Matching h3 Jersey 15 */
+    font-weight: 600;
+    color: var(--color-purple);
+    border-bottom: 1px solid var(--border-light);
+    padding-bottom: 4px;
+    font-family: var(--font-brand);
+}
+
+.divider {
+    border: none;
+    border-top: 1px solid var(--color-blue);
+    margin: 12px 0;
+}
+
+/* ==========================================================================
+   6. INPUTS & CONTROLS
+   ========================================================================== */
+.sliderRow {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    gap: 6px;
+}
+
+.sliderWithInput {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: 10px;
+}
+
+input[type="number"] {
+    font-family: var(--font-main);
+    width: 50px;
+    padding: 4px;
+    font-size: 1.2rem;
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+}
+
+input[type="range"] {
+    flex: 1;
+    cursor: pointer;
+}
+
+/* Custom Toggle Switch */
+.toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    font-size: 1.2rem;
+}
+
+.toggle input { display: none; }
+
+.toggle .slider {
+    width: 36px;
+    height: 20px;
+    background: #ccc;
+    border-radius: 20px;
+    position: relative;
+    transition: background 0.2s;
+}
+
+.toggle .slider::before {
+    content: "";
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    background: white;
+    border-radius: 50%;
+    top: 2px;
+    left: 2px;
+    transition: transform 0.2s;
+}
+
+.toggle input:checked + .slider { background: var(--color-pink); }
+.toggle input:checked + .slider::before { transform: translateX(16px); }
+
+/* ==========================================================================
+   7. BUTTONS
+   ========================================================================== */
+button {
+    font-family: var(--font-main);
+    padding: 6px 12px;
+    background: #f4f4f4;
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+button:hover { background: #d8e999; border-color: #115aae; }
+button:active { background: #ea9bce; }
+button.active { background: var(--color-orange); border-color: #7ab0ff; color: white; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ==========================================================================
+   8. PALETTE SYSTEM
+   ========================================================================== */
+#paletteGrid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 8px;
+    background: #f9f9f9;
+    border: 1px solid var(--border-panel);
+    border-radius: 8px;
+}
+
+.palette-swatch {
+    width: 25px;
+    height: 15px;
+    border: 1px solid #666;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+
+.palette-swatch:hover { transform: scale(1.1); z-index: 10; border-color: #000; }
+.palette-swatch.used { border: 2.5px solid #000 !important; box-shadow: 0 0 5px rgba(0,0,0,0.3); }
+.palette-swatch.selected { outline: 3px solid var(--color-orange); outline-offset: 1px; }
+
+/* Dropdown/List Search */
+#paletteListContainer {
+    background: #fff;
+    border: 1px solid var(--border-panel);
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
+#paletteSearch {
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 8px;
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    font-family: var(--font-main);
+    font-size: 1.1rem;
+}
+
+#paletteList {
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+.palette-row {
+    display: flex;
+    align-items: center;
+    padding: 6px;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.palette-row .swatch {
+    width: 20px;
+    height: 20px;
+    border: 1px solid #999;
+    margin-right: 10px;
+    flex-shrink: 0;
+}
+
+.palette-info { font-size: 1rem; display: flex; gap: 5px; align-items: center; }
+.star { color: var(--color-orange); font-weight: bold; }
+
+/* ==========================================================================
+   9. TABS & TABLES
+   ========================================================================== */
+.tabs { display: flex; border-bottom: 1px solid var(--border-light); margin-bottom: 10px; }
+
+.tab-link { 
+    flex: 1; 
+    border-radius: 0; 
+    border: none; 
+    background: #eeeeee; 
+    padding: 10px; 
+    font-size: 1.2rem;
+}
+
+.tab-link.active { 
+    background: var(--color-orange); 
+    color: white; 
+    border-bottom: 2px solid var(--color-orange); 
+    font-weight: bold; 
+}
+
+.tab-content { display: none; flex-direction: column; gap: 12px; }
+
+#threadsTable { width: 100%; border-collapse: collapse; font-size: 1.1rem; }
+#threadsTable th, #threadsTable td { padding: 6px 4px; text-align: left; border-bottom: 1px solid #eee; }
+#threadsTable th { text-transform: uppercase; font-size: 0.9rem; color: #888; }
+.table-swatch { width: 16px; height: 16px; border: 1px solid #000; }
+
+/* ==========================================================================
+   10. FOOTER (EXPORT BAR)
+   ========================================================================== */
 #bottomPalette {
-    height: 60px; /* Slim footer */
-    max-height: 60px;
+    height: 60px;
     background: #eee;
-    border-top: 1px solid #ccc;
+    border-top: 1px solid var(--border-light);
     display: flex;
     align-items: center;
     padding: 0 20px;
@@ -460,82 +363,19 @@ body.chartGrid {
     width: 100%;
     align-items: center;
     justify-content: space-between;
-    gap: 20px;
 }
 
-.footer-group {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 0.9rem;
-}
+.footer-group { display: flex; align-items: center; gap: 10px; font-size: 1.1rem; }
+.footer-buttons { display: flex; gap: 10px; }
 
-.footer-buttons {
-    display: flex;
-    gap: 10px;
-}
-
-/* Ensure sidebar takes full height for the long palette */
-#rightSidebar {
-    width: 260px; /* Slightly wider for 5 swatches */
-}
-
-/* styles.css */
-
-#paletteListContainer {
-    background: #fff;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    padding: 10px;
-    margin-bottom: 10px;
-    box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
-}
-
-#paletteSearch {
-    width: 100%;
-    padding: 8px;
-    margin-bottom: 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    box-sizing: border-box;
-}
-
-#paletteList {
-    max-height: 250px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-}
-
-.palette-row {
-    display: flex;
-    align-items: center;
-    padding: 6px;
-    cursor: pointer;
-    border-bottom: 1px solid #f0f0f0;
-    transition: background 0.2s;
-}
-
-.palette-row:hover {
-    background: #f8f8f8;
-}
-
-.palette-row .swatch {
-    width: 20px;
-    height: 20px;
-    margin-right: 10px;
-    border: 1px solid #999;
-    flex-shrink: 0;
-}
-
-.palette-info {
-    font-size: 0.8rem;
-    display: flex;
-    gap: 5px;
-    align-items: center;
-}
-
-.star {
-    color: #ea732f;
-    font-weight: bold;
+/* ==========================================================================
+   11. CANVAS OPTIMIZATIONS
+   ========================================================================== */
+#canvas {
+    background: #ffffff;
+    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    user-select: none;
+    cursor: crosshair;
+    image-rendering: pixelated;
+    touch-action: none;
 }
