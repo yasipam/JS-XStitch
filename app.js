@@ -52,6 +52,8 @@ async function runMapping() {
         // 1. Setup Distance Metrics
         const useLab = mappingConfig.distanceMethod.startsWith("cie");
         const distFn = getDistanceFn(mappingConfig.distanceMethod, useLab);
+
+        // Pre-calculate the LAB values for the ENTIRE DMC library
         const masterDmcLab = useLab ? DMC_RGB.map(d => rgbToLab(d[2])) : null;
 
         // 2. Extract colors from image and map to DMC

@@ -21,23 +21,19 @@ export function nearestDmcColor(pixelRgb, distanceFn, dmcPaletteLab, allowedPale
     let best = null;
     let bestDist = Infinity;
 
-    const isLabMetric = distanceFn && distanceFn.name && distanceFn.name.includes("CIE");
-    const target = isLabMetric ? rgbToLab([pixelRgb])[0] : pixelRgb;
-
-    // Use the distance function to get a batch of distances for all colors in the palette
-    // This is much faster and ensures the selected metric is actually used
-    const distances = distanceFn([target], isLabMetric ? dmcPaletteLab : allowedPalette.map(p => p[2]));
-
-    // Find the index of the smallest distance
-    // Note: distanceFn returns an array of distances for each 'center' provided
-    // but our distanceFn logic in palette.js is designed for: dist(pixels, single_center)
-    // So we must loop the palette and call the function correctly:
+    const isLabMetric = distanceFn && distanceFn.name && distanceFn.name.includes("distCIE");
     
+    // Ensure target is a flat [L, a, b] or [R, G, B] array
+    const target = isLabMetric ? rgbToLab(pixelRgb) : pixelRgb;
+
     for (let i = 0; i < allowedPalette.length; i++) {
         const [code, name, dmcRgb] = allowedPalette[i];
-        const center = isLabMetric ? dmcPaletteLab[i] : dmcRgb;
         
-        // Correct usage: distanceFn([pixel], center) returns [distance]
+        // Ensure center is also a flat array
+        const center = (isLabMetric && dmcPaletteLab) ? dmcPaletteLab[i] : dmcRgb;
+        
+        // We pass the single pixel in an array because the distFn 
+        // is designed to process batches: distFn([pixel], center)
         const dist = distanceFn([target], center)[0];
 
         if (dist < bestDist) {
@@ -47,7 +43,6 @@ export function nearestDmcColor(pixelRgb, distanceFn, dmcPaletteLab, allowedPale
     }
     return best;
 }
-
 // -----------------------------------------------------------------------------
 // ANTI‑NOISE (MEDIAN FILTER)
 // -----------------------------------------------------------------------------

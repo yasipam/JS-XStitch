@@ -51,13 +51,15 @@ function xyzToLab([x, y, z]) {
 
 // Public: Convert RGB array → LAB array
 // Accepts either a single pixel [r,g,b] or an array of pixels.
+// mapping/palette.js
+
 export function rgbToLab(input) {
-    if (Array.isArray(input[0])) {
-        // Array of pixels
-        return input.map(rgb => xyzToLab(rgbToXyz(rgb)));
+    // If input is a single pixel [r, g, b] (length 3, and first element is a number)
+    if (typeof input[0] === 'number') {
+        return xyzToLab(rgbToXyz(input));
     }
-    // Single pixel
-    return xyzToLab(rgbToXyz(input));
+    // If input is an array of pixels [[r,g,b], ...]
+    return input.map(rgb => xyzToLab(rgbToXyz(rgb)));
 }
 
 export function buildPaletteFromImage(image, k) {
@@ -253,17 +255,26 @@ export function distCIEDE2000(pixelsLab, centerLab) {
 // -----------------------------------------------------------------------------
 // 6. Distance function selector
 // -----------------------------------------------------------------------------
+// mapping/palette.js
+
+// mapping/palette.js
+
 export function getDistanceFn(metric, useLab) {
-    if (!useLab) {
-        if (metric === "bt709") return distBT709;
-        return distEuclidean;
+    switch (metric) {
+        case "cie76":
+            return (pixels, center) => distCIE76(pixels, center);
+        case "cie94":
+            return (pixels, center) => distCIE94(pixels, center);
+        case "ciede2000":
+            return (pixels, center) => distCIEDE2000(pixels, center);
+        case "bt709":
+            // Perceptual Euclidean weights for RGB
+            return (pixels, center) => distBT709(pixels, center);
+        case "euclidean":
+        default:
+            return (pixels, center) => distEuclidean(pixels, center);
     }
-
-    if (metric === "cie76") return distCIE76;
-    if (metric === "cie94") return distCIE94;
-    return distCIEDE2000;
 }
-
 
 
 // -----------------------------------------------------------------------------
