@@ -1,6 +1,6 @@
 // core/tools.js
 // -----------------------------------------------------------------------------
-// Tool system: Updated for high-precision pointer tracking.
+// Tool system: Updated for Layered Architecture and Iframe Precision.
 // -----------------------------------------------------------------------------
 
 export class BaseTool {
@@ -29,9 +29,6 @@ export class PencilTool extends BaseTool {
 
     onPointerMove(state, gx, gy) {
         if (!this.drawing) return;
-        
-        // If we move between distinct cells, interpolate with a line
-        // to prevent gaps during fast mouse movement.
         if (this.lastGx !== gx || this.lastGy !== gy) {
             this.drawLine(state, this.lastGx, this.lastGy, gx, gy);
             this.lastGx = gx;
@@ -73,9 +70,7 @@ export class EraserTool extends BaseTool {
 
     onPointerMove(state, gx, gy) {
         if (!this.erasing) return;
-        
         if (this.lastGx !== gx || this.lastGy !== gy) {
-            // Re-use logic to erase a line between points to ensure no gaps
             this.eraseLine(state, this.lastGx, this.lastGy, gx, gy);
             this.lastGx = gx;
             this.lastGy = gy;
@@ -143,22 +138,30 @@ export class PanTool extends BaseTool {
 
 export class ZoomTool extends BaseTool {
     cursor = "zoom-in";
+    
     applyZoom(state, delta, clientX, clientY) {
         const oldZoom = state.zoom;
         const zoomFactor = delta < 0 ? 1.1 : 0.9;
         const newZoom = Math.max(0.5, Math.min(oldZoom * zoomFactor, 200));
 
-        const { gx, gy } = state.renderer.screenToGrid(clientX, clientY);
-        const rect = state.renderer.canvas.getBoundingClientRect();
+        // FIX: Look at the UI layer canvas to get the local bounding rect
+        const targetCanvas = state.renderer.canvases.ui;
+        const rect = targetCanvas.getBoundingClientRect();
+        
         const mouseX = clientX - rect.left;
         const mouseY = clientY - rect.top;
 
+        // Get the grid point under the mouse BEFORE changing zoom
+        const { gx, gy } = state.renderer.screenToGrid(clientX, clientY);
+
         state.setZoom(newZoom);
 
+        // Adjust pan so the specific grid cell stays under the cursor
         const newPanX = mouseX - gx * newZoom;
         const newPanY = mouseY - gy * newZoom;
         state.setPan(newPanX, newPanY);
     }
+
     onWheel(state, deltaY, mouseX, mouseY) {
         this.applyZoom(state, deltaY, mouseX, mouseY);
     }
