@@ -339,3 +339,50 @@ body.chartGrid {
     /* Prevents "rubber banding" which causes visual drift */
     overscroll-behavior: none; 
 }
+
+/* Tabs Styling */
+.tabs {
+    display: flex;
+    border-bottom: 1px solid #ccc;
+    margin-bottom: 10px;
+}
+.tab-link {
+    flex: 1;
+    border: none;
+    background: #eee;
+    padding: 10px;
+    cursor: pointer;
+    border-radius: 0;
+}
+.tab-link.active {
+    background: #fff;
+    border-bottom: 2px solid #ea732f;
+    font-weight: bold;
+}
+.tab-content {
+    display: none;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* Threads Table */
+#threadsTable {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+#threadsTable th, #threadsTable td {
+    padding: 6px 4px;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+}
+.table-swatch {
+    width: 16px;
+    height: 16px;
+    border: 1px solid #000;
+}
+.button-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}

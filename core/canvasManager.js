@@ -19,10 +19,13 @@ window.addEventListener('message', (e) => {
             state = new EditorState(canvases);
             events = new EditorEvents(canvases.ui, state);
 
-            // NEW: Report color count changes to the parent shell
             state.on("gridChanged", () => {
                 const count = state.getUniqueColorCount();
-                window.parent.postMessage({ type: 'REPORT_COLOR_COUNT', payload: count }, '*');
+                const threadStats = state.getThreadStats();
+                window.parent.postMessage({ 
+                    type: 'REPORT_GRID_STATS', 
+                    payload: { count, threadStats } 
+                }, '*');
             });
             
             // Sync dimensions and force an immediate layout update

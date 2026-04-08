@@ -225,4 +225,24 @@ getUniqueColorCount() {
         // NEW: Emit a change so the manager knows to report back to parent
         this.emit("gridChanged");
     }
+
+    getThreadStats() {
+        const stats = {};
+        const gridData = this.pixelGrid.grid;
+
+        for (let y = 0; y < this.pixelGrid.height; y++) {
+            for (let x = 0; x < this.pixelGrid.width; x++) {
+                const [r, g, b] = gridData[y][x];
+                if (r === 255 && g === 255 && b === 255) continue;
+                
+                const key = `${r},${g},${b}`;
+                if (!stats[key]) {
+                    stats[key] = { r, g, b, count: 0 };
+                }
+                stats[key].count++;
+            }
+        }
+        return Object.values(stats);
+    }
+
 }

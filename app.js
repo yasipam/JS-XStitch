@@ -129,7 +129,7 @@ async function runMapping() {
 }
 
 // -----------------------------------------------------------------------------
-// UI RENDERING: PALETTE
+// UI RENDERING: PALETTE & THREADS
 // -----------------------------------------------------------------------------
 function renderPalette(projectPalette = []) {
     const paletteGrid = document.getElementById("paletteGrid");
@@ -194,9 +194,51 @@ function updatePaletteHighlights() {
     });
 }
 
+function renderThreadsTable(threadStats) {
+    const tbody = document.getElementById("threadsTableBody");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+
+    // Sort by stitch count descending
+    threadStats.sort((a, b) => b.count - a.count);
+
+    const distFn = getDistanceFn("euclidean", false);
+
+    threadStats.forEach(stat => {
+        const rgb = [stat.r, stat.g, stat.b];
+        const dmc = nearestDmcColor(rgb, distFn, null, DMC_RGB);
+        
+        const code = dmc ? dmc[0] : "???";
+        const name = dmc ? dmc[1] : "Unknown";
+
+        // Calculation: 1600 stitches per 8m skein (standard 14ct/2-strand estimate)
+        const skeins = Math.ceil(stat.count / 1600);
+
+        const row = document.createElement("tr");
+        row.innerHTML = `
+            <td><div class="table-swatch" style="background-color: rgb(${stat.r},${stat.g},${stat.b})"></div></td>
+            <td title="${name}"><strong>${code}</strong></td>
+            <td>${stat.count}</td>
+            <td>${skeins}</td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
 // -----------------------------------------------------------------------------
 // UI SETUP
 // -----------------------------------------------------------------------------
+window.openTab = function(evt, tabName) {
+    const contents = document.getElementsByClassName("tab-content");
+    for (let i = 0; i < contents.length; i++) contents[i].style.display = "none";
+
+    const links = document.getElementsByClassName("tab-link");
+    for (let i = 0; i < links.length; i++) links[i].className = links[i].className.replace(" active", "");
+
+    document.getElementById(tabName).style.display = "block";
+    evt.currentTarget.className += " active";
+};
+
 function setupUpload() {
     const input = document.getElementById("upload"); 
     if (!input) return;
@@ -231,20 +273,13 @@ function setupToolButtons() {
     });
 }
 
-// app.js
-
 function setupEditHistory() {
     const undoBtn = document.getElementById("undoBtn");
     const redoBtn = document.getElementById("redoBtn");
     const clearBtn = document.getElementById("clearAllBtn");
 
-    if (undoBtn) {
-        undoBtn.onclick = () => sendToCanvas('CMD_UNDO');
-    }
-    
-    if (redoBtn) {
-        redoBtn.onclick = () => sendToCanvas('CMD_REDO');
-    }
+    if (undoBtn) undoBtn.onclick = () => sendToCanvas('CMD_UNDO');
+    if (redoBtn) redoBtn.onclick = () => sendToCanvas('CMD_REDO');
 
     if (clearBtn) {
         clearBtn.onclick = () => {
@@ -375,8 +410,6 @@ function setupExportButtons() {
     const exportPngBtn = document.getElementById("exportPngBtn");
     if (exportPngBtn) {
         exportPngBtn.onclick = () => {
-            // Note: Canvas data URL needs to be requested from the iframe
-            // For now, this is a placeholder for PNG export implementation via the bridge
             console.warn("PNG export must be requested from the rendering iframe.");
         };
     }
@@ -432,20 +465,19 @@ window.addEventListener("load", () => {
             height: state.pixelGrid.height
         });
 
-        // If we already have a design (e.g., default 50x50), send it immediately
         if (state.pixelGrid.grid) {
             sendToCanvas('UPDATE_GRID', state.pixelGrid.grid);
         }
+        
+        canvasFrame.contentWindow.focus();
     };
 
-    // Handle both cases: frame already loaded or loading now
     if (canvasFrame.contentDocument && canvasFrame.contentDocument.readyState === 'complete') {
         initializeCanvas();
     } else {
         canvasFrame.onload = initializeCanvas;
     }
 
-    // Initialize UI Component listeners
     setupUpload();
     setupToolButtons();
     setupEditHistory();
@@ -454,45 +486,43 @@ window.addEventListener("load", () => {
     setupExportButtons();
     setupZoomButtons();
 
-    // GLOBAL KEYBOARD BRIDGE: Catch shortcuts in parent and send to iframe
-window.addEventListener("keydown", (e) => {
-    // 1. Ignore shortcuts if the user is typing in a text/number input
-    const activeEl = document.activeElement;
-    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
-        // Only allow the shortcut to pass if it's not a text-editing conflict
-        if (activeEl.type !== 'range' && activeEl.type !== 'checkbox') {
-            return; 
-        }
-    }
-
-    const isZ = e.key.toLowerCase() === "z";
-    const isY = e.key.toLowerCase() === "y";
-    const hasMod = e.ctrlKey || e.metaKey;
-
-    if (hasMod && (isZ || isY)) {
-        e.preventDefault();
-        
-        // Explicitly identify the command to avoid iframe confusion
-        let cmd = 'CMD_UNDO';
-        if (isY || (isZ && e.shiftKey)) {
-            cmd = 'CMD_REDO';
-        }
-
-        console.log(`Parent: Sending ${cmd} to iframe`);
-        sendToCanvas(cmd);
-    }
-});
-
-window.addEventListener('message', (e) => {
-        const { type, payload } = e.data;
-
-        if (type === 'REPORT_COLOR_COUNT') {
-            const countDisplay = document.getElementById("actualColoursUsed");
-            if (countDisplay) {
-                countDisplay.innerHTML = `Actual Colours: ${payload}`;
+    // GLOBAL KEYBOARD BRIDGE
+    window.addEventListener("keydown", (e) => {
+        const activeEl = document.activeElement;
+        if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
+            if (activeEl.type !== 'range' && activeEl.type !== 'checkbox') {
+                return; 
             }
         }
+
+        const isZ = e.key.toLowerCase() === "z";
+        const isY = e.key.toLowerCase() === "y";
+        const hasMod = e.ctrlKey || e.metaKey;
+
+        if (hasMod && (isZ || isY)) {
+            e.preventDefault();
+            let cmd = 'CMD_UNDO';
+            if (isY || (isZ && e.shiftKey)) {
+                cmd = 'CMD_REDO';
+            }
+            sendToCanvas(cmd);
+        }
     });
+
+    window.addEventListener('message', (e) => {
+        const { type, payload } = e.data;
+
+        if (type === 'REPORT_GRID_STATS') {
+            const countDisplay = document.getElementById("actualColoursUsed");
+            if (countDisplay) {
+                countDisplay.innerHTML = `Actual Colours: ${payload.count}`;
+            }
+            renderThreadsTable(payload.threadStats);
+        }
+    });
+
+    renderPalette([]); 
+    state.setColor([0, 0, 0]);
 
     console.log("Cross Stitch Editor Parent Shell Initialized.");
 });
