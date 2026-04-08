@@ -68,5 +68,19 @@ window.addEventListener('message', (e) => {
                 state.setPan((window.innerWidth - grid.width * bestZoom) / 2, (window.innerHeight - grid.height * bestZoom) / 2);
             }
             break;
+
+        case 'CMD_KEYDOWN':
+            if (events) {
+                // We reconstruct a fake event object because real KeyboardEvents 
+                // cannot be sent over postMessage
+                events.onKeyDown({
+                    ctrlKey: payload.ctrlKey,
+                    metaKey: payload.metaKey,
+                    shiftKey: payload.shiftKey,
+                    key: payload.key,
+                    preventDefault: () => {} // Dummy function to prevent errors
+                });
+            }
+            break;
     }
 });

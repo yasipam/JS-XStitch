@@ -445,6 +445,7 @@ window.addEventListener("load", () => {
         canvasFrame.onload = initializeCanvas;
     }
 
+    // Initialize UI Component listeners
     setupUpload();
     setupToolButtons();
     setupEditHistory();
@@ -452,4 +453,35 @@ window.addEventListener("load", () => {
     setupMappingControls();
     setupExportButtons();
     setupZoomButtons();
+
+    // GLOBAL KEYBOARD BRIDGE: Catch shortcuts in parent and send to iframe
+window.addEventListener("keydown", (e) => {
+    // 1. Ignore shortcuts if the user is typing in a text/number input
+    const activeEl = document.activeElement;
+    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
+        // Only allow the shortcut to pass if it's not a text-editing conflict
+        if (activeEl.type !== 'range' && activeEl.type !== 'checkbox') {
+            return; 
+        }
+    }
+
+    const isZ = e.key.toLowerCase() === "z";
+    const isY = e.key.toLowerCase() === "y";
+    const hasMod = e.ctrlKey || e.metaKey;
+
+    if (hasMod && (isZ || isY)) {
+        e.preventDefault();
+        
+        // Explicitly identify the command to avoid iframe confusion
+        let cmd = 'CMD_UNDO';
+        if (isY || (isZ && e.shiftKey)) {
+            cmd = 'CMD_REDO';
+        }
+
+        console.log(`Parent: Sending ${cmd} to iframe`);
+        sendToCanvas(cmd);
+    }
+});
+
+    console.log("Cross Stitch Editor Parent Shell Initialized.");
 });

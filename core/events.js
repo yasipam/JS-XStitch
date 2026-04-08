@@ -36,14 +36,46 @@ export class EditorEvents {
     }
 
     _onKeyDown(e) {
+        // Detect Ctrl+Z or Cmd+Z (Mac)
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
-            e.preventDefault();
-            e.shiftKey ? this.state.redo() : this.state.undo();
+            e.preventDefault(); // Prevent browser default undo if applicable
+
+            if (e.shiftKey) {
+                // CTRL + SHIFT + Z -> Redo
+                console.log("Shortcut: Redo");
+                this.state.redo();
+            } else {
+                // CTRL + Z -> Undo
+                console.log("Shortcut: Undo");
+                this.state.undo();
+            }
         }
+
+        // Optional: Keep CTRL + Y for Redo as a standard alternative
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
             e.preventDefault();
+            console.log("Shortcut: Redo (Alt)");
             this.state.redo();
         }
+    }
+
+    _bindEvents() {
+        this.canvas.addEventListener("pointerdown", e => this._onPointerDown(e));
+        this.canvas.addEventListener("pointermove", e => this._onPointerMove(e));
+        this.canvas.addEventListener("pointerup", e => this._onPointerUp(e));
+        this.canvas.addEventListener("pointerleave", e => this._onPointerUp(e));
+        this.canvas.addEventListener("contextmenu", e => e.preventDefault());
+        
+        // Internal listener for when the iframe IS focused
+        window.addEventListener("keydown", e => this.onKeyDown(e));
+
+        this.canvas.addEventListener("wheel", e => this._onWheel(e), { passive: false });
+
+        new ResizeObserver(() => {
+            if (this.state.renderer) {
+                this.state.renderer.resizeToContainer();
+            }
+        }).observe(this.canvas);
     }
 
     _onPointerDown(e) {
