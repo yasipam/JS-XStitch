@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body, html { margin: 0; padding: 0; overflow: hidden; height: 100%; width: 100%; background: #333; }
+        #container { 
+            position: relative; 
+            width: 100%; 
+            height: 100%; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+        }
+        
+        /* Layered stacking: BG (Stitches) -> Mid (Grid) -> Top (Interaction) */
+        canvas { 
+            position: absolute; 
+            image-rendering: pixelated; /* Essential for sharp stitch edges */
+            touch-action: none; 
+            user-select: none;
+        }
+        #bgLayer   { z-index: 1; } 
+        #gridLayer { z-index: 2; pointer-events: none; } /* Clicks pass through to UI layer */
+        #uiLayer   { z-index: 3; } 
+    </style>
+</head>
+<body>
+    <div id="container">
+        <canvas id="bgLayer"></canvas>
+        <canvas id="gridLayer"></canvas>
+        <canvas id="uiLayer"></canvas>
+    </div>
+    <script type="module" src="core/canvasManager.js"></script>
+</body>
+</html>

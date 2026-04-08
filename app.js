@@ -41,33 +41,58 @@ const mappingConfig = {
 };
 
 // -----------------------------------------------------------------------------
+// IFRAME BRIDGE (Global Scope)
+// -----------------------------------------------------------------------------
+function sendToCanvas(type, payload) {
+    const canvasFrame = document.getElementById('canvasFrame');
+    if (canvasFrame && canvasFrame.contentWindow) {
+        canvasFrame.contentWindow.postMessage({ type, payload }, '*');
+    }
+}
+
+// -----------------------------------------------------------------------------
 // CORE PIPELINE: IMAGE -> GRID
 // -----------------------------------------------------------------------------
+let cachedProjectPalette = null;
+let lastPaletteConfig = { maxSize: 0, maxColours: 0, image: null, distanceMethod: "" };
+
 async function runMapping() {
     if (!currentImage) return;
 
     try {
-        const colourLimit = mappingConfig.maxColours;
+        const maxSize = mappingConfig.maxSize;
+        const maxColours = mappingConfig.maxColours;
+        const distanceMethod = mappingConfig.distanceMethod;
 
-        // 1. Setup Distance Metrics
-        const useLab = mappingConfig.distanceMethod.startsWith("cie");
-        const distFn = getDistanceFn(mappingConfig.distanceMethod, useLab);
+        const useLab = distanceMethod.startsWith("cie");
+        const distFn = getDistanceFn(distanceMethod, useLab);
+        const dmcLibraryLab = useLab ? DMC_RGB.map(d => rgbToLab(d[2])) : null;
 
-        // Pre-calculate the LAB values for the ENTIRE DMC library
-        const masterDmcLab = useLab ? DMC_RGB.map(d => rgbToLab(d[2])) : null;
+        const needsNewPalette = 
+            cachedProjectPalette === null ||
+            lastPaletteConfig.maxSize !== maxSize ||
+            lastPaletteConfig.maxColours !== maxColours ||
+            lastPaletteConfig.image !== currentImage ||
+            lastPaletteConfig.distanceMethod !== distanceMethod;
 
-        // 2. Extract colors from image and map to DMC
-        const extractedColors = buildPaletteFromImage(currentImage, colourLimit);
-        
-        const restrictedPalette = extractedColors.map(rgb => {
-            return nearestDmcColor(rgb, distFn, masterDmcLab, DMC_RGB);
-        });
+        if (needsNewPalette) {
+            const extractedColors = buildPaletteFromImage(currentImage, maxColours);
+            cachedProjectPalette = extractedColors.map(rgb => {
+                return nearestDmcColor(rgb, distFn, dmcLibraryLab, DMC_RGB);
+            });
 
-        // 3. Run mapping engine
+            lastPaletteConfig = { 
+                maxSize: maxSize, 
+                maxColours: maxColours, 
+                image: currentImage, 
+                distanceMethod: distanceMethod 
+            };
+        }
+
         const [rgbGrid, dmcGrid] = mapFullWithPalette(
             currentImage,
-            mappingConfig.maxSize,
-            restrictedPalette, 
+            maxSize,
+            cachedProjectPalette, 
             1.0 + (mappingConfig.brightnessInt / 10),
             1.0 + (mappingConfig.saturationInt / 10),
             1.0 + (mappingConfig.contrastInt / 10),
@@ -76,33 +101,27 @@ async function runMapping() {
             mappingConfig.biasGreenMagenta,
             mappingConfig.biasCyanRed,
             mappingConfig.biasBlueYellow,
-            mappingConfig.distanceMethod,
+            distanceMethod,
             mappingConfig.antiNoise
         );
 
-        // 4. Update the actual data state
         state.setMappingResults(rgbGrid, dmcGrid);
 
         if (mappingConfig.stampedMode) {
             const stamped = buildStampedGrid(dmcGrid, { hueShift: mappingConfig.stampedHueShift });
             state.loadGrid(stamped);
+            sendToCanvas('UPDATE_GRID', stamped);
         } else {
             state.loadGrid(rgbGrid);
+            sendToCanvas('UPDATE_GRID', rgbGrid);
         }
 
-        renderPalette(restrictedPalette);
+        renderPalette(cachedProjectPalette);
         updatePaletteHighlights();
 
-        // 5. AUTO-CENTER FIX: Ensure renderer is resized before clicking reset
-        setTimeout(() => {
-            if (state.renderer) {
-                state.renderer.resizeToContainer();
-            }
-            const resetBtn = document.getElementById("resetViewBtn");
-            if (resetBtn) {
-                resetBtn.click();
-            }
-        }, 100); 
+        requestAnimationFrame(() => {
+            sendToCanvas('CMD_RESET_VIEW');
+        });
 
     } catch (error) {
         console.error("Mapping failed:", error);
@@ -134,6 +153,7 @@ function renderPalette(projectPalette = []) {
         
         swatch.onclick = () => {
             state.setColor(rgb);
+            sendToCanvas('SET_COLOR', rgb);
             document.querySelectorAll('.palette-swatch').forEach(s => s.classList.remove('selected'));
             swatch.classList.add('selected');
         };
@@ -146,13 +166,15 @@ function renderPalette(projectPalette = []) {
             <div class="swatch" style="background-color: ${rgbStr}"></div>
             <span><strong>${code}</strong> - ${name} <span class="star">${isUsed ? '★' : ''}</span></span>
         `;
-        row.onclick = () => state.setColor(rgb);
+        row.onclick = () => {
+            state.setColor(rgb);
+            sendToCanvas('SET_COLOR', rgb);
+        };
         paletteList.appendChild(row);
     });
 }
 
 function updatePaletteHighlights() {
-    // Determine metric for the highlight check
     const useLab = mappingConfig.distanceMethod.startsWith("cie");
     const distFn = getDistanceFn(mappingConfig.distanceMethod, useLab);
     const masterDmcLab = useLab ? DMC_RGB.map(d => rgbToLab(d[2])) : null;
@@ -187,6 +209,7 @@ function setupUpload() {
         img.onload = () => {
             currentImage = img; 
             state.clear();
+            sendToCanvas('UPDATE_GRID', state.pixelGrid.grid);
             runMapping();
         };
         img.src = URL.createObjectURL(file);
@@ -200,6 +223,7 @@ function setupToolButtons() {
         if (btn) {
             btn.onclick = () => {
                 state.setTool(id);
+                sendToCanvas('SET_TOOL', id);
                 document.querySelectorAll("#topToolbar button").forEach(b => b.classList.remove("active"));
                 btn.classList.add("active");
             };
@@ -212,20 +236,24 @@ function setupEditHistory() {
     const redoBtn = document.getElementById("redoBtn");
     const clearBtn = document.getElementById("clearAllBtn");
 
-    if (undoBtn) undoBtn.onclick = () => state.undo();
-    if (redoBtn) redoBtn.onclick = () => state.redo();
+    if (undoBtn) undoBtn.onclick = () => {
+        state.undo();
+        sendToCanvas('UPDATE_GRID', state.pixelGrid.grid);
+    };
+    if (redoBtn) redoBtn.onclick = () => {
+        state.redo();
+        sendToCanvas('UPDATE_GRID', state.pixelGrid.grid);
+    };
 
     if (clearBtn) {
         clearBtn.onclick = () => {
             if (confirm("Are you sure you want to clear the canvas?")) {
                 state.clearCanvasAction();
+                sendToCanvas('UPDATE_GRID', state.pixelGrid.grid);
                 currentImage = null;
                 const uploader = document.getElementById("upload");
                 if (uploader) uploader.value = "";
-
                 resetUIControls();
-                
-                console.log("Canvas cleared and uploader reset.");
             }
         };
     }
@@ -233,17 +261,11 @@ function setupEditHistory() {
 
 function setupResetControls() {
     const resetOriginalBtn = document.getElementById("resetOriginalBtn");
-
     if (resetOriginalBtn) {
         resetOriginalBtn.onclick = () => {
             if (confirm("Restore original pattern and discard all edits?")) {
-                // 1. Reset the UI first
                 resetUIControls();
-                
-                // 2. Trigger the state reset
                 state.resetToMappedState();
-                
-                // 3. Re-run mapping to apply the now-default slider values
                 runMapping();
             }
         };
@@ -294,7 +316,6 @@ function setupMappingControls() {
         }
     });
 
-    // app.js - inside setupMappingControls()
     const biasControls = [
         ["greenToMagenta", "biasGreenMagenta"],
         ["cyanToRed", "biasCyanRed"],
@@ -305,14 +326,12 @@ function setupMappingControls() {
         const el = document.getElementById(id);
         if (el) {
             el.oninput = () => {
-                // mappingConfig now stores values from -10 to 10
                 mappingConfig[configKey] = parseInt(el.value, 10);
                 runMapping();
             };
         }
     });
 
-    // Isolated Stitches Toggle
     const isolatedToggle = document.getElementById("reduceIsolatedStitches");
     if (isolatedToggle) {
         isolatedToggle.onchange = () => {
@@ -321,7 +340,6 @@ function setupMappingControls() {
         };
     }
 
-    // Anti-Noise Slider
     const antiNoiseSlider = document.getElementById("antiNoise");
     const antiNoiseVal = document.getElementById("antiNoiseVal");
     if (antiNoiseSlider) {
@@ -357,57 +375,21 @@ function setupExportButtons() {
     const exportPngBtn = document.getElementById("exportPngBtn");
     if (exportPngBtn) {
         exportPngBtn.onclick = () => {
-            const link = document.createElement("a");
-            link.download = "pattern.png";
-            link.href = state.renderer.canvas.toDataURL();
-            link.click();
+            // Note: Canvas data URL needs to be requested from the iframe
+            // For now, this is a placeholder for PNG export implementation via the bridge
+            console.warn("PNG export must be requested from the rendering iframe.");
         };
     }
 }
 
 function setupZoomButtons() {
-    const zoomInBtn = document.getElementById("zoomInBtn");
-    const zoomOutBtn = document.getElementById("zoomOutBtn");
-    const resetViewBtn = document.getElementById("resetViewBtn");
-
-    if (zoomInBtn) {
-        zoomInBtn.onclick = () => {
-            const centerX = state.renderer.canvas.width / 2;
-            const centerY = state.renderer.canvas.height / 2;
-            ToolRegistry.zoom.applyZoom(state, -1, centerX, centerY);
-        };
-    }
-    if (zoomOutBtn) {
-        zoomOutBtn.onclick = () => {
-            const centerX = state.renderer.canvas.width / 2;
-            const centerY = state.renderer.canvas.height / 2;
-            ToolRegistry.zoom.applyZoom(state, 1, centerX, centerY);
-        };
-    }
-    if (resetViewBtn) {
-        resetViewBtn.onclick = () => {
-            const grid = state.pixelGrid;
-            const padding = 40;
-            const availableW = state.renderer.canvas.width - padding;
-            const availableH = state.renderer.canvas.height - padding;
-            const zoomW = availableW / grid.width;
-            const zoomH = availableH / grid.height;
-            const bestZoom = Math.min(zoomW, zoomH, 20);
-            state.setZoom(bestZoom);
-            const gridPxW = grid.width * bestZoom;
-            const gridPxH = grid.height * bestZoom;
-            const newPanX = (state.renderer.canvas.width - gridPxW) / 2;
-            const newPanY = (state.renderer.canvas.height - gridPxH) / 2;
-            state.setPan(newPanX, newPanY);
-        };
-    }
+    document.getElementById("zoomInBtn").onclick = () => sendToCanvas('CMD_ZOOM', 1);
+    document.getElementById("zoomOutBtn").onclick = () => sendToCanvas('CMD_ZOOM', -1);
+    document.getElementById("resetViewBtn").onclick = () => sendToCanvas('CMD_RESET_VIEW');
 }
 
-// app.js
-
 function resetUIControls() {
-    // 1. Reset the internal config object to defaults
-    mappingConfig.maxSize = 80; // Reset to your default import size
+    mappingConfig.maxSize = 80;
     mappingConfig.maxColours = 30;
     mappingConfig.brightnessInt = 0;
     mappingConfig.saturationInt = 0;
@@ -418,7 +400,6 @@ function resetUIControls() {
     mappingConfig.antiNoise = 0;
     mappingConfig.reduceIsolatedStitches = false;
 
-    // 2. Update the HTML Sliders/Inputs
     const ids = ["brightness", "saturation", "contrast", "greenToMagenta", "cyanToRed", "blueToYellow", "antiNoise"];
     ids.forEach(id => {
         const el = document.getElementById(id);
@@ -430,7 +411,6 @@ function resetUIControls() {
     if (sizeSlider) sizeSlider.value = 80;
     if (sizeInput) sizeInput.value = 80;
 
-    // 3. Update specific labels or checkboxes
     const antiNoiseVal = document.getElementById("antiNoiseVal");
     if (antiNoiseVal) antiNoiseVal.textContent = "0";
 
@@ -442,13 +422,29 @@ function resetUIControls() {
 // BOOTSTRAP
 // -----------------------------------------------------------------------------
 window.addEventListener("load", () => {
-    const canvas = document.getElementById("canvas");
-    if (!canvas) return;
+    state = new EditorState(null); 
+    const canvasFrame = document.getElementById('canvasFrame');
 
-    state = new EditorState(canvas);
-    events = new EditorEvents(canvas, state);
+    const initializeCanvas = () => {
+        console.log("Sending INIT to iframe...");
+        sendToCanvas('INIT', {
+            width: state.pixelGrid.width,
+            height: state.pixelGrid.height
+        });
 
-    state.renderer.resizeToContainer();
+        // If we already have a design (e.g., default 50x50), send it immediately
+        if (state.pixelGrid.grid) {
+            sendToCanvas('UPDATE_GRID', state.pixelGrid.grid);
+        }
+    };
+
+    // Handle both cases: frame already loaded or loading now
+    if (canvasFrame.contentDocument && canvasFrame.contentDocument.readyState === 'complete') {
+        initializeCanvas();
+    } else {
+        canvasFrame.onload = initializeCanvas;
+    }
+
     setupUpload();
     setupToolButtons();
     setupEditHistory();
@@ -456,64 +452,4 @@ window.addEventListener("load", () => {
     setupMappingControls();
     setupExportButtons();
     setupZoomButtons();
-
-    renderPalette([]); 
-    state.setColor([0, 0, 0]);
-
-    let paletteUpdateTimeout;
-    state.on("pixelChanged", () => {
-        clearTimeout(paletteUpdateTimeout);
-        paletteUpdateTimeout = setTimeout(() => {
-            updatePaletteHighlights();
-        }, 100); 
-    });
-
-    state.on("requestStampedReload", () => {
-        if (state.mappedDmcGrid) {
-            const stamped = buildStampedGrid(state.mappedDmcGrid, { 
-                hueShift: mappingConfig.stampedHueShift 
-            });
-            state.loadGrid(stamped);
-        }
-    });
-
-    const toggleBtn = document.getElementById("toggleList");
-    const container = document.getElementById("paletteListContainer");
-    if (toggleBtn && container) {
-        container.style.display = "none"; 
-        toggleBtn.onclick = (e) => {
-            e.preventDefault();
-            const isHidden = container.style.display === "none";
-            container.style.display = isHidden ? "block" : "none";
-            toggleBtn.textContent = isHidden ? "Hide List ▲" : "Show List ▼";
-        };
-    }
-
-    const maxSizeSlider = document.getElementById("maxSizeSlider");
-    const maxSizeInput = document.getElementById("maxSizeInput");
-    if (maxSizeSlider && maxSizeInput) {
-        maxSizeSlider.value = mappingConfig.maxSize;
-        maxSizeInput.value = mappingConfig.maxSize;
-    }
-
-    const maxColoursSlider = document.getElementById("maxColours");
-    const maxColoursInput = document.getElementById("maxColoursInput");
-    if (maxColoursSlider && maxColoursInput) {
-        maxColoursSlider.value = mappingConfig.maxColours;
-        maxColoursInput.value = mappingConfig.maxColours;
-    }
-
-    const paletteSearch = document.getElementById("paletteSearch");
-    if (paletteSearch) {
-        paletteSearch.oninput = () => {
-            const q = paletteSearch.value.toLowerCase();
-            const rows = document.querySelectorAll(".palette-row");
-            rows.forEach(row => {
-                const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(q) ? "flex" : "none";
-            });
-        };
-    }
-    
-    console.log("Cross Stitch Editor Initialized.");
 });
