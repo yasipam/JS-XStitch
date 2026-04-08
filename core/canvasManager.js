@@ -18,6 +18,14 @@ window.addEventListener('message', (e) => {
             };
             state = new EditorState(canvases);
             events = new EditorEvents(canvases.ui, state);
+
+            // NEW: Report color count changes to the parent shell
+            state.on("gridChanged", () => {
+                const count = state.getUniqueColorCount();
+                window.parent.postMessage({ type: 'REPORT_COLOR_COUNT', payload: count }, '*');
+            });
+            
+            // Sync dimensions and force an immediate layout update
             state.pixelGrid.resize(payload.width, payload.height, [255, 255, 255], false);
             state.renderer.resizeToContainer(); 
             break;

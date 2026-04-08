@@ -483,5 +483,16 @@ window.addEventListener("keydown", (e) => {
     }
 });
 
+window.addEventListener('message', (e) => {
+        const { type, payload } = e.data;
+
+        if (type === 'REPORT_COLOR_COUNT') {
+            const countDisplay = document.getElementById("actualColoursUsed");
+            if (countDisplay) {
+                countDisplay.innerHTML = `Actual Colours: ${payload}`;
+            }
+        }
+    });
+
     console.log("Cross Stitch Editor Parent Shell Initialized.");
 });

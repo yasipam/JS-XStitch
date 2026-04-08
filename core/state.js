@@ -192,6 +192,22 @@ export class EditorState {
     // -------------------------------------------------------------------------
     // REPLACE ENTIRE GRID (e.g., after image import)
     // -------------------------------------------------------------------------
+getUniqueColorCount() {
+        // We use a Set of strings to count unique RGB combinations
+        const uniqueColors = new Set();
+        const gridData = this.pixelGrid.grid;
+
+        for (let y = 0; y < this.pixelGrid.height; y++) {
+            for (let x = 0; x < this.pixelGrid.width; x++) {
+                const [r, g, b] = gridData[y][x];
+                // Ignore pure white (background) if you don't want it counted as a "thread"
+                if (r === 255 && g === 255 && b === 255) continue;
+                uniqueColors.add(`${r},${g},${b}`);
+            }
+        }
+        return uniqueColors.size;
+    }
+
     loadGrid(newGrid) {
         if (!newGrid || newGrid.length === 0) return;
         const h = newGrid.length;
@@ -200,11 +216,13 @@ export class EditorState {
         this.pixelGrid = new PixelGrid(w, h);
         this.pixelGrid.grid = newGrid.map(row => row.map(px => [...px]));
 
-        if (this.renderer) { // Safety Guard
+        if (this.renderer) {
             this.renderer.setPixelGrid(this.pixelGrid);
             this.renderer.draw();
         }
 
         this.emit("gridLoaded", { width: w, height: h });
+        // NEW: Emit a change so the manager knows to report back to parent
+        this.emit("gridChanged");
     }
 }
