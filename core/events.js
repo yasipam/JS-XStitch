@@ -89,24 +89,29 @@ export class EditorEvents {
     // POINTER MOVE
     // -------------------------------------------------------------------------
     _onPointerMove(e) {
-    if (this.isPanning) {
-        const dx = e.clientX - this.lastPointerX;
-        const dy = e.clientY - this.lastPointerY;
-        this.state.setPan(this.state.panX + dx, this.state.panY + dy);
-        this.lastPointerX = e.clientX;
-        this.lastPointerY = e.clientY;
-        return;
+        if (this.isPanning || this.isPointerDown) {
+            // Stop the browser from trying to draw 100+ times per second
+            if (this.renderPending) return;
+            this.renderPending = true;
+
+            requestAnimationFrame(() => {
+                const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
+                
+                if (this.isPanning) {
+                    const dx = e.clientX - this.lastPointerX;
+                    const dy = e.clientY - this.lastPointerY;
+                    this.state.setPan(this.state.panX + dx, this.state.panY + dy);
+                    this.lastPointerX = e.clientX;
+                    this.lastPointerY = e.clientY;
+                } else if (this.isPointerDown) {
+                    const tool = ToolRegistry[this.state.activeTool];
+                    tool.onPointerMove(this.state, gx, gy, e.clientX, e.clientY);
+                }
+                
+                this.renderPending = false;
+            });
+        }
     }
-
-    if (!this.isPointerDown) return;
-
-    const tool = ToolRegistry[this.state.activeTool];
-    if (!tool) return;
-
-    // Use raw e.clientX/Y again
-    const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
-    tool.onPointerMove(this.state, gx, gy, e.clientX, e.clientY);
-}
 
     // -------------------------------------------------------------------------
     // POINTER UP

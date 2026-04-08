@@ -161,13 +161,26 @@
   min-height: 0;   /* Fixes flexbox shrinking issues */
 }
 
+/* styles.css */
 #canvas {
   background: #ffffff;
   display: block;
-  /* Do not use width: 100% here yet; let the JS handle the resolution */
   box-shadow: 0 0 20px rgba(0,0,0,0.5);
   max-width: 95%;
   max-height: 95%;
+
+  user-select: none;
+  -webkit-user-drag: none;
+  cursor: crosshair;
+
+  /* PRECISION OVERRIDE: Prevents anti-aliasing drift */
+  image-rendering: -moz-pixelated;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: pixelated;
+  image-rendering: optimizeSpeed;
+  
+  /* Prevent interaction delays on mobile/tablets */
+  touch-action: none; 
 }
 
 /* --- BOTTOM PALETTE BAR --- */
@@ -317,4 +330,12 @@ button:disabled {
 button.active {
   background: #ea732f;
   border-color: #7ab0ff;
+}
+
+/* styles.css */
+
+
+body.chartGrid {
+    /* Prevents "rubber banding" which causes visual drift */
+    overscroll-behavior: none; 
 }

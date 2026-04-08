@@ -1,7 +1,7 @@
 // core/canvasRenderer.js
 // -----------------------------------------------------------------------------
-// CanvasRenderer: draws a PixelGrid onto an HTML <canvas>.
-// Handles zoom, pan, gridlines, and efficient redraws.
+// High-Precision CanvasRenderer: Factors in Device Pixel Ratio (DPR) 
+// to eliminate coordinate drift and blurriness.
 // -----------------------------------------------------------------------------
 
 export class CanvasRenderer {
@@ -10,45 +10,51 @@ export class CanvasRenderer {
         this.ctx = canvas.getContext("2d", { alpha: false });
         this.pixelGrid = pixelGrid;
 
-        // View transform
-        this.zoom = 1;          // pixels per stitch
-        this.offsetX = 0;       // pan X
-        this.offsetY = 0;       // pan Y
+        this.zoom = 1;          
+        this.offsetX = 0;       
+        this.offsetY = 0;       
 
-        // Rendering options
         this.showGrid = true;
         this.gridColor = "#000000";
-        this.gridThickness = 0.2;
+        this.gridThickness = 0.5; // Slightly thicker for high-DPI screens
 
-        // Ensure crisp rendering
+        // Ensure crisp rendering at the engine level
         this.ctx.imageSmoothingEnabled = false;
-
-        // Resize canvas to match container
+        
         this.resizeToContainer();
     }
 
-    // -------------------------------------------------------------------------
-    // RESIZE CANVAS TO MATCH CSS SIZE
-    // -------------------------------------------------------------------------
+    /**
+     * OVERRIDE: Syncs CSS size with internal resolution using DPR.
+     * This prevents the "drift" caused by browser scaling.
+     */
+// core/canvasRenderer.js
+// --- ADD TO resizeToContainer ---
+
     resizeToContainer() {
         const parent = this.canvas.parentElement;
         if (!parent) return;
+        
+        const dpr = window.devicePixelRatio || 1;
+        const rect = parent.getBoundingClientRect();
+        
+        // CRITICAL: Snap the CSS display size to integers to prevent 
+        // the browser from "guessing" the pixel alignment.
+        const displayWidth = Math.floor(rect.width);
+        const displayHeight = Math.floor(rect.height);
 
-        // Get the available space in the mainArea
-        const w = parent.clientWidth;
-        const h = parent.clientHeight;
-
-        if (w === 0 || h === 0) return;
-
-        this.canvas.width = w;
-        this.canvas.height = h;
-        this.ctx.imageSmoothingEnabled = false;
+        if (this.canvas.width !== displayWidth * dpr) {
+            this.canvas.width = displayWidth * dpr;
+            this.canvas.height = displayHeight * dpr;
+            this.canvas.style.width = `${displayWidth}px`;
+            this.canvas.style.height = `${displayHeight}px`;
+            
+            this.ctx.scale(dpr, dpr);
+            this.ctx.imageSmoothingEnabled = false;
+        }
         this.draw();
     }
 
-    // -------------------------------------------------------------------------
-    // SETTERS
-    // -------------------------------------------------------------------------
     setPixelGrid(pixelGrid) {
         this.pixelGrid = pixelGrid;
         this.draw();
@@ -70,112 +76,101 @@ export class CanvasRenderer {
         this.draw();
     }
 
-    // -------------------------------------------------------------------------
-    // MAIN DRAW FUNCTION
-    // -------------------------------------------------------------------------
     draw() {
         const ctx = this.ctx;
         const grid = this.pixelGrid;
-
         if (!grid) return;
 
         const { width: gw, height: gh } = grid;
+        const cw = this.canvas.width / (window.devicePixelRatio || 1);
+        const ch = this.canvas.height / (window.devicePixelRatio || 1);
 
-        // Clear canvas
         ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        ctx.fillRect(0, 0, cw, ch);
 
-        // Draw pixels
-        for (let y = 0; y < gh; y++) {
-            for (let x = 0; x < gw; x++) {
+        const startX = Math.max(0, Math.floor(-this.offsetX / this.zoom));
+        const startY = Math.max(0, Math.floor(-this.offsetY / this.zoom));
+        const endX = Math.min(gw, Math.ceil((cw - this.offsetX) / this.zoom));
+        const endY = Math.min(gh, Math.ceil((ch - this.offsetY) / this.zoom));
+
+        for (let y = startY; y < endY; y++) {
+            for (let x = startX; x < endX; x++) {
                 const [r, g, b] = grid.grid[y][x];
-
                 ctx.fillStyle = `rgb(${r},${g},${b})`;
 
                 const px = this.offsetX + x * this.zoom;
                 const py = this.offsetY + y * this.zoom;
 
-                ctx.fillRect(px, py, this.zoom, this.zoom);
+                // Precision fix: Use Math.floor on positions to avoid sub-pixel blurring
+                ctx.fillRect(Math.floor(px), Math.floor(py), Math.ceil(this.zoom), Math.ceil(this.zoom));
             }
         }
 
-        // Draw gridlines
         if (this.showGrid && this.zoom >= 6) {
             ctx.strokeStyle = this.gridColor;
             ctx.lineWidth = this.gridThickness;
+            ctx.beginPath();
 
-            // Vertical lines
-            for (let x = 0; x <= gw; x++) {
-                const px = this.offsetX + x * this.zoom;
-                ctx.beginPath();
-                ctx.moveTo(px, this.offsetY);
-                ctx.lineTo(px, this.offsetY + gh * this.zoom);
-                ctx.stroke();
+            for (let x = startX; x <= endX; x++) {
+                const px = Math.floor(this.offsetX + x * this.zoom);
+                ctx.moveTo(px, this.offsetY + startY * this.zoom);
+                ctx.lineTo(px, this.offsetY + endY * this.zoom);
             }
 
-            // Horizontal lines
-            for (let y = 0; y <= gh; y++) {
-                const py = this.offsetY + y * this.zoom;
-                ctx.beginPath();
-                ctx.moveTo(this.offsetX, py);
-                ctx.lineTo(this.offsetX + gw * this.zoom, py);
-                ctx.stroke();
+            for (let y = startY; y <= endY; y++) {
+                const py = Math.floor(this.offsetY + y * this.zoom);
+                ctx.moveTo(this.offsetX + startX * this.zoom, py);
+                ctx.lineTo(this.offsetX + endX * this.zoom, py);
             }
+            ctx.stroke();
         }
     }
 
-    // -------------------------------------------------------------------------
-    // CONVERT CANVAS COORDINATES → GRID COORDINATES
-    // -------------------------------------------------------------------------
+    /**
+     * PRECISION OVERRIDE: 
+     * Uses client coordinates relative to the bounding box to ensure 
+     * clicks align perfectly with the grid regardless of zoom/pan.
+     */
     screenToGrid(clientX, clientY) {
-        // 1. Find exactly where the canvas is on the screen right now
         const rect = this.canvas.getBoundingClientRect();
+        
+        // 1. Force integer mouse coordinates relative to the canvas CSS box
+        const x = Math.round(clientX - rect.left);
+        const y = Math.round(clientY - rect.top);
 
-        // 2. Map screen mouse -> local canvas mouse
-        const x = clientX - rect.left;
-        const y = clientY - rect.top;
+        // 2. Snap the Pan offsets to integers during the calculation
+        // This ensures the "anchor" of your grid isn't sitting between pixels
+        const snapX = Math.round(this.offsetX);
+        const snapY = Math.round(this.offsetY);
 
-        // 3. Convert local mouse -> grid coordinates
-        // We use Math.floor so the "hitbox" is the top-left of the stitch
-        const gx = Math.floor((x - this.offsetX) / this.zoom);
-        const gy = Math.floor((y - this.offsetY) / this.zoom);
+        // 3. Calculate grid position
+        const gx = Math.floor((x - snapX) / this.zoom);
+        const gy = Math.floor((y - snapY) / this.zoom);
 
         return { gx, gy };
     }
 
     gridToScreen(gx, gy) {
-        // This is used for drawing single cells. No rect math needed here
-        // as drawing is always relative to the canvas internal 0,0
         return {
             x: this.offsetX + (gx * this.zoom),
             y: this.offsetY + (gy * this.zoom)
         };
     }
 
-    // -------------------------------------------------------------------------
-    // DRAW ONLY ONE CELL (for fast tool updates)
-    // -------------------------------------------------------------------------
-drawCell(gx, gy, color) {
-        // Safety check: if color is null/undefined, don't try to draw it
+    drawCell(gx, gy, color) {
         if (!color || !Array.isArray(color)) return;
-
-        // Use the gridToScreen helper already in this class
         const { x, y } = this.gridToScreen(gx, gy);
-        
-        // Fix: Use this.zoom, not this.state.zoom
         const size = this.zoom;
-
         const [r, g, b] = color;
         this.ctx.fillStyle = `rgb(${r},${g},${b})`;
         
-        // Draw the pixel immediately on the canvas
-        this.ctx.fillRect(x, y, size, size);
+        // Align to pixel grid
+        this.ctx.fillRect(Math.floor(x), Math.floor(y), Math.ceil(size), Math.ceil(size));
 
-        // Optional: If you want gridlines to stay visible over the new pixel
         if (this.showGrid && this.zoom >= 6) {
             this.ctx.strokeStyle = this.gridColor;
             this.ctx.lineWidth = this.gridThickness;
-            this.ctx.strokeRect(x, y, size, size);
+            this.ctx.strokeRect(Math.floor(x), Math.floor(y), Math.ceil(size), Math.ceil(size));
         }
     }
 }

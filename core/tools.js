@@ -1,28 +1,20 @@
 // core/tools.js
-// @ts-nocheck
 // -----------------------------------------------------------------------------
-// Tool system for the Cross Stitch Editor.
-// Each tool implements pointer handlers and interacts with EditorState.
+// Tool system: Updated for high-precision pointer tracking.
 // -----------------------------------------------------------------------------
 
 export class BaseTool {
-    onPointerDown(state, gx, gy) {}
-    onPointerMove(state, gx, gy) {}
-    onPointerUp(state, gx, gy) {}
+    onPointerDown(state, gx, gy, screenX, screenY, options) {}
+    onPointerMove(state, gx, gy, screenX, screenY) {}
+    onPointerUp(state) {}
     cursor = "default";
 }
 
-
-// -----------------------------------------------------------------------------
-// PENCIL TOOL
-// -----------------------------------------------------------------------------
 export class PencilTool extends BaseTool {
     cursor = "crosshair";
 
     onPointerDown(state, gx, gy, screenX, screenY, options) {
-        // 1. SAVE THE WHOLE GRID ONCE
         state.pixelGrid.pushUndo(); 
-
         this.drawing = true;
 
         if (options?.shiftKey && this.lastGx !== undefined) {
@@ -37,17 +29,20 @@ export class PencilTool extends BaseTool {
 
     onPointerMove(state, gx, gy) {
         if (!this.drawing) return;
-        // 2. Just draw pixels, NO UNDO PUSH HERE
-        state.setPixel(gx, gy, state.activeColor);
-        this.lastGx = gx;
-        this.lastGy = gy;
+        
+        // If we move between distinct cells, interpolate with a line
+        // to prevent gaps during fast mouse movement.
+        if (this.lastGx !== gx || this.lastGy !== gy) {
+            this.drawLine(state, this.lastGx, this.lastGy, gx, gy);
+            this.lastGx = gx;
+            this.lastGy = gy;
+        }
     }
 
     onPointerUp() {
         this.drawing = false;
     }
 
-    // Bresenham's Line Algorithm to fill in stitches between two points
     drawLine(state, x0, y0, x1, y1) {
         const dx = Math.abs(x1 - x0);
         const dy = Math.abs(y1 - y0);
@@ -69,37 +64,54 @@ export class EraserTool extends BaseTool {
     cursor = "cell";
 
     onPointerDown(state, gx, gy) {
+        state.pixelGrid.pushUndo();
         this.erasing = true;
         state.setPixel(gx, gy, [255, 255, 255]);
+        this.lastGx = gx;
+        this.lastGy = gy;
     }
 
     onPointerMove(state, gx, gy) {
         if (!this.erasing) return;
-        state.setPixel(gx, gy, [255, 255, 255]);
+        
+        if (this.lastGx !== gx || this.lastGy !== gy) {
+            // Re-use logic to erase a line between points to ensure no gaps
+            this.eraseLine(state, this.lastGx, this.lastGy, gx, gy);
+            this.lastGx = gx;
+            this.lastGy = gy;
+        }
     }
 
     onPointerUp() {
         this.erasing = false;
     }
+
+    eraseLine(state, x0, y0, x1, y1) {
+        const dx = Math.abs(x1 - x0);
+        const dy = Math.abs(y1 - y0);
+        const sx = (x0 < x1) ? 1 : -1;
+        const sy = (y0 < y1) ? 1 : -1;
+        let err = dx - dy;
+
+        while (true) {
+            state.setPixel(x0, y0, [255, 255, 255]);
+            if (x0 === x1 && y0 === y1) break;
+            const e2 = 2 * err;
+            if (e2 > -dy) { err -= dy; x0 += sx; }
+            if (e2 < dx) { err += dx; y0 += sy; }
+        }
+    }
 }
 
-// -----------------------------------------------------------------------------
-// FILL TOOL (BUCKET)
-// -----------------------------------------------------------------------------
 export class FillTool extends BaseTool {
     cursor = "cell";
-
     onPointerDown(state, gx, gy) {
         state.floodFill(gx, gy, state.activeColor);
     }
 }
 
-// -----------------------------------------------------------------------------
-// PICKER TOOL (EYEDROPPER)
-// -----------------------------------------------------------------------------
 export class PickerTool extends BaseTool {
     cursor = "copy";
-
     onPointerDown(state, gx, gy) {
         const px = state.pixelGrid.get(gx, gy);
         if (!px) return;
@@ -107,12 +119,8 @@ export class PickerTool extends BaseTool {
     }
 }
 
-// -----------------------------------------------------------------------------
-// PAN TOOL (HAND)
-// -----------------------------------------------------------------------------
 export class PanTool extends BaseTool {
     cursor = "grab";
-
     onPointerDown(state, gx, gy, screenX, screenY) {
         this.dragging = true;
         this.startX = screenX;
@@ -121,69 +129,40 @@ export class PanTool extends BaseTool {
         this.startPanY = state.panY;
         this.cursor = "grabbing";
     }
-
     onPointerMove(state, gx, gy, screenX, screenY) {
         if (!this.dragging) return;
-
         const dx = screenX - this.startX;
         const dy = screenY - this.startY;
-
         state.setPan(this.startPanX + dx, this.startPanY + dy);
     }
-
     onPointerUp() {
         this.dragging = false;
         this.cursor = "grab";
     }
 }
 
-// -----------------------------------------------------------------------------
-// ZOOM TOOL (WHEEL / PINCH)
-// -----------------------------------------------------------------------------
-// core/tools.js
-// -----------------------------------------------------------------------------
-// ZOOM TOOL: Handles both wheel and manual button scaling
-// -----------------------------------------------------------------------------
 export class ZoomTool extends BaseTool {
     cursor = "zoom-in";
-
-    /**
-     * Internal helper to zoom at a specific screen coordinate.
-     * Keeps the focal point (centerX, centerY) stable while scaling.
-     */
     applyZoom(state, delta, clientX, clientY) {
         const oldZoom = state.zoom;
         const zoomFactor = delta < 0 ? 1.1 : 0.9;
         const newZoom = Math.max(0.5, Math.min(oldZoom * zoomFactor, 200));
 
-        // Get the grid point under the mouse BEFORE the zoom
         const { gx, gy } = state.renderer.screenToGrid(clientX, clientY);
         const rect = state.renderer.canvas.getBoundingClientRect();
-        
-        // Save where that mouse was relative to the canvas
         const mouseX = clientX - rect.left;
         const mouseY = clientY - rect.top;
 
         state.setZoom(newZoom);
 
-        // Adjust pan so the grid point (gx, gy) stays under the mouse
         const newPanX = mouseX - gx * newZoom;
         const newPanY = mouseY - gy * newZoom;
-
         state.setPan(newPanX, newPanY);
     }
-
     onWheel(state, deltaY, mouseX, mouseY) {
-        // Direct wheel zoom uses the mouse position as the focal point
         this.applyZoom(state, deltaY, mouseX, mouseY);
     }
 }
-
-// -----------------------------------------------------------------------------
-// TOOL REGISTRY
-// -----------------------------------------------------------------------------
-// core/tools.js - Registry Export
-// ... (classes go here) ...
 
 export const ToolRegistry = {
     pencil: new PencilTool(),

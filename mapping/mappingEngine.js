@@ -10,30 +10,31 @@
 // - Minimum‑occurrence cleanup
 // - Full mapping pipeline (palette → DMC grid)
 // -----------------------------------------------------------------------------
+// mapping/mappingEngine.js
+// -----------------------------------------------------------------------------
+// DMC mapping engine (Optimized version)
+// -----------------------------------------------------------------------------
 
 import { DMC_RGB } from "./constants.js";
 import { adjustBSCBias, getDistanceFn, rgbToLab } from "./palette.js";
 
 /**
  * Finds the nearest DMC thread color for a given RGB pixel.
+ * Optimization: Now expects pre-calculated Lab values to avoid redundant conversion.
  */
 export function nearestDmcColor(pixelRgb, distanceFn, dmcPaletteLab, allowedPalette) {
     let best = null;
     let bestDist = Infinity;
 
     const isLabMetric = distanceFn && distanceFn.name && distanceFn.name.includes("distCIE");
-    
-    // Ensure target is a flat [L, a, b] or [R, G, B] array
     const target = isLabMetric ? rgbToLab(pixelRgb) : pixelRgb;
 
     for (let i = 0; i < allowedPalette.length; i++) {
         const [code, name, dmcRgb] = allowedPalette[i];
         
-        // Ensure center is also a flat array
+        // Use the pre-computed Lab value if available, otherwise fallback to RGB
         const center = (isLabMetric && dmcPaletteLab) ? dmcPaletteLab[i] : dmcRgb;
         
-        // We pass the single pixel in an array because the distFn 
-        // is designed to process batches: distFn([pixel], center)
         const dist = distanceFn([target], center)[0];
 
         if (dist < bestDist) {
@@ -43,29 +44,19 @@ export function nearestDmcColor(pixelRgb, distanceFn, dmcPaletteLab, allowedPale
     }
     return best;
 }
-// -----------------------------------------------------------------------------
-// ANTI‑NOISE (MEDIAN FILTER)
-// -----------------------------------------------------------------------------
-// JS has no PIL, so we use Canvas-based median filtering.
-// This is a direct functional equivalent, not a new feature.
+
 export function applyAntiNoise(imageData, strength) {
     if (strength <= 0) return imageData;
     let data = imageData;
-    // Each pass refines the image further based on the threshold
     for (let pass = 0; pass < strength; pass++) {
         data = medianFilter3x3(data);
     }
     return data;
 }
 
-// Simple 3×3 median filter for RGB
-// mapping/mappingEngine.js
 function medianFilter3x3(imageData) {
     const { width, height, data } = imageData;
     const out = new Uint8ClampedArray(data.length);
-    
-    // Threshold: how different a pixel must be to be considered "noise"
-    // Lower = more aggressive smoothing; Higher = preserves more detail
     const threshold = 90; 
 
     function getPixel(x, y) {
@@ -96,12 +87,10 @@ function medianFilter3x3(imageData) {
                 }
             }
 
-            // Calculate Medians
             const medR = rValues.sort((a, b) => a - b)[Math.floor(rValues.length / 2)];
             const medG = gValues.sort((a, b) => a - b)[Math.floor(gValues.length / 2)];
             const medB = bValues.sort((a, b) => a - b)[Math.floor(bValues.length / 2)];
 
-            // Selective Smoothing: Only apply if the difference is greater than the threshold
             const diff = Math.abs(r - medR) + Math.abs(g - medG) + Math.abs(b - medB);
             
             if (diff > threshold) {
@@ -114,16 +103,11 @@ function medianFilter3x3(imageData) {
     return new ImageData(out, width, height);
 }
 
-// -----------------------------------------------------------------------------
-// REMOVE ISOLATED STITCHES
-// -----------------------------------------------------------------------------
 export function removeIsolatedStitches(dmcGrid, rgbGrid, minSame = 1, rareThreshold = 3) {
     const h = dmcGrid.length;
     const w = dmcGrid[0].length;
-
     const cleaned = dmcGrid.map(row => row.slice());
 
-    // Count global occurrences
     const globalFreq = {};
     for (let i = 0; i < h; i++) {
         for (let j = 0; j < w; j++) {
@@ -135,11 +119,8 @@ export function removeIsolatedStitches(dmcGrid, rgbGrid, minSame = 1, rareThresh
     for (let i = 0; i < h; i++) {
         for (let j = 0; j < w; j++) {
             const center = String(dmcGrid[i][j]);
-
-            // Never modify cloth
             if (center === "0") continue;
 
-            // Gather neighbours
             const neighbours = [];
             for (let di = -1; di <= 1; di++) {
                 for (let dj = -1; dj <= 1; dj++) {
@@ -152,18 +133,14 @@ export function removeIsolatedStitches(dmcGrid, rgbGrid, minSame = 1, rareThresh
                 }
             }
 
-            // Edge‑aware protection
             if (new Set(neighbours).size >= 5) continue;
 
-            // Count matching neighbours
             const same = neighbours.filter(n => n === center).length;
             if (same >= minSame) continue;
 
-            // Rare colour handling
             const isRare = (globalFreq[center] || 0) <= rareThreshold;
             if (!isRare && same > 0) continue;
 
-            // Replace with most common neighbour
             const freq = {};
             for (const n of neighbours) {
                 if (n === "0") continue;
@@ -176,20 +153,14 @@ export function removeIsolatedStitches(dmcGrid, rgbGrid, minSame = 1, rareThresh
             }
         }
     }
-
     return cleaned;
 }
 
-// -----------------------------------------------------------------------------
-// CLEANUP: MINIMUM OCCURRENCE
-// -----------------------------------------------------------------------------
 export function cleanupMinOccurrence(dmcGrid, minOccurrence, codeToRgb) {
     if (minOccurrence <= 0) return dmcGrid;
-
     const h = dmcGrid.length;
     const w = dmcGrid[0].length;
 
-    // Count occurrences
     const countMap = {};
     for (let i = 0; i < h; i++) {
         for (let j = 0; j < w; j++) {
@@ -205,12 +176,9 @@ export function cleanupMinOccurrence(dmcGrid, minOccurrence, codeToRgb) {
     );
 
     if (toRemove.size === 0) return dmcGrid;
-
     const remaining = Object.keys(countMap).filter(code => !toRemove.has(code));
     if (remaining.length === 0) return dmcGrid;
-
     const remainingRGBs = remaining.map(code => codeToRgb[code]);
-
     const newGrid = dmcGrid.map(row => row.slice());
 
     for (let i = 0; i < h; i++) {
@@ -224,27 +192,18 @@ export function cleanupMinOccurrence(dmcGrid, minOccurrence, codeToRgb) {
 
             for (let k = 0; k < remaining.length; k++) {
                 const rgb = remainingRGBs[k];
-                const d =
-                    (orig[0] - rgb[0]) ** 2 +
-                    (orig[1] - rgb[1]) ** 2 +
-                    (orig[2] - rgb[2]) ** 2;
-
+                const d = (orig[0] - rgb[0]) ** 2 + (orig[1] - rgb[1]) ** 2 + (orig[2] - rgb[2]) ** 2;
                 if (d < bestDist) {
                     bestDist = d;
                     best = remaining[k];
                 }
             }
-
             newGrid[i][j] = best;
         }
     }
-
     return newGrid;
 }
 
-// -----------------------------------------------------------------------------
-// FULL MAPPING PIPELINE
-// -----------------------------------------------------------------------------
 export function mapFullWithPalette(
     image,
     stitchWidth,
@@ -262,27 +221,21 @@ export function mapFullWithPalette(
 ) {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
-    
     const scale = stitchWidth / image.width;
     const newW = stitchWidth;
     const newH = Math.max(1, Math.floor(image.height * scale));
     canvas.width = newW;
     canvas.height = newH;
-    
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(image, 0, 0, newW, newH);
 
-    // 1. Anti-Noise Smoothing
-    // We must grab the data AFTER smoothing it on the canvas
     if (antiNoisePasses > 0) {
         const rawData = ctx.getImageData(0, 0, newW, newH);
         const smoothedData = applyAntiNoise(rawData, antiNoisePasses);
         ctx.putImageData(smoothedData, 0, 0);
     }
     
-    // Grab the final source data (smoothed or original)
     const finalSourceData = ctx.getImageData(0, 0, newW, newH);
-
     const rgbFlat = [];
     const maskFlat = [];
     for (let i = 0; i < finalSourceData.data.length; i += 4) {
@@ -290,23 +243,23 @@ export function mapFullWithPalette(
         maskFlat.push(finalSourceData.data[i+3] < 128);
     }
 
-    // mapping/mappingEngine.js - inside mapFullWithPalette
     const adjustedFlat = adjustBSCBias(
         rgbFlat, brightness, saturation, contrast, 
-        biasGreenMagenta, biasCyanRed, biasBlueYellow // Remove the "/ 10" here
+        biasGreenMagenta, biasCyanRed, biasBlueYellow
     );
 
     const metric = distanceMetric || "euclidean"; 
     const useLab = metric.startsWith("cie"); 
     const distFn = getDistanceFn(metric, useLab);
-    const dmcPaletteLab = useLab ? DMC_RGB.map(d => rgbToLab([d[2]])[0]) : null;
+    
+    // CACHE Lab values for the specific palette used in this map
+    const dmcPaletteLab = useLab ? palette.map(d => rgbToLab(d[2])) : null;
 
     let dmcGrid = [];
     const codeToRgb = {};
     DMC_RGB.forEach(([code, , rgb]) => { codeToRgb[String(code)] = rgb; });
     codeToRgb["0"] = [255, 255, 255];
 
-    // Initial Mapping Pass
     for (let y = 0; y < newH; y++) {
         const dmcRow = [];
         for (let x = 0; x < newW; x++) {
@@ -321,23 +274,15 @@ export function mapFullWithPalette(
         dmcGrid.push(dmcRow);
     }
 
-    // 2. Reduce Isolated Stitches
-    // We use a temporary RGB grid just for the calculation
     if (doCleanupIsolated) {
         const tempRgb = dmcGrid.map(row => row.map(c => codeToRgb[c]));
         dmcGrid = removeIsolatedStitches(dmcGrid, tempRgb);
     }
 
-    // 3. Cleanup Rare Colors
     if (minOccurrence > 1) {
         dmcGrid = cleanupMinOccurrence(dmcGrid, minOccurrence, codeToRgb);
     }
 
-    // FINAL SYNC: Rebuild the RGB grid so the canvas actually shows the cleaned version
-    const finalRgbGrid = dmcGrid.map(row => 
-        row.map(code => codeToRgb[String(code)])
-    );
-
-    // RETURN THE CLEANED DATA
+    const finalRgbGrid = dmcGrid.map(row => row.map(code => codeToRgb[String(code)]));
     return [finalRgbGrid, dmcGrid];
 }
