@@ -136,6 +136,7 @@ function renderPalette(projectPalette = []) {
     const paletteList = document.getElementById("paletteList");
     if (!paletteGrid || !paletteList) return;
 
+    // Clear previous entries
     paletteGrid.innerHTML = "";
     paletteList.innerHTML = "";
 
@@ -145,6 +146,7 @@ function renderPalette(projectPalette = []) {
         const isUsed = projectCodes.has(String(code));
         const rgbStr = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
         
+        // 1. Grid Swatch (Only if used in project, or show all - usually show all for picker)
         const swatch = document.createElement("div");
         swatch.className = `palette-swatch ${isUsed ? 'used' : ''}`;
         swatch.dataset.code = code;
@@ -159,19 +161,57 @@ function renderPalette(projectPalette = []) {
         };
         paletteGrid.appendChild(swatch);
 
+        // 2. Full List Row (Searchable section)
         const row = document.createElement("div");
         row.className = "palette-row";
         row.dataset.code = code;
         row.innerHTML = `
             <div class="swatch" style="background-color: ${rgbStr}"></div>
-            <span><strong>${code}</strong> - ${name} <span class="star">${isUsed ? '★' : ''}</span></span>
+            <div class="palette-info">
+                <strong>${code}</strong> <span>${name}</span>
+                ${isUsed ? '<span class="star">★</span>' : ''}
+            </div>
         `;
         row.onclick = () => {
             state.setColor(rgb);
             sendToCanvas('SET_COLOR', rgb);
+            // Also select in grid if visible
+            const relatedSwatch = paletteGrid.querySelector(`[data-code="${code}"]`);
+            if (relatedSwatch) relatedSwatch.click();
         };
         paletteList.appendChild(row);
     });
+}
+
+
+function setupPaletteUI() {
+    const toggleBtn = document.getElementById("toggleList");
+    const listContainer = document.getElementById("paletteListContainer");
+    const searchInput = document.getElementById("paletteSearch");
+
+    if (toggleBtn && listContainer) {
+        toggleBtn.onclick = () => {
+            const isHidden = listContainer.style.display === "none";
+            listContainer.style.display = isHidden ? "block" : "none";
+            toggleBtn.textContent = isHidden ? "Hide List ▲" : "Show Full List ▼";
+            
+            // Focus search automatically when opening
+            if (isHidden && searchInput) searchInput.focus();
+        };
+    }
+
+    if (searchInput) {
+        searchInput.oninput = () => {
+            const query = searchInput.value.toLowerCase();
+            const rows = document.querySelectorAll(".palette-row");
+            
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                // Filter rows based on search text
+                row.style.display = text.includes(query) ? "flex" : "none";
+            });
+        };
+    }
 }
 
 function updatePaletteHighlights() {
@@ -522,6 +562,7 @@ window.addEventListener("load", () => {
     setupMappingControls();
     setupExportButtons();
     setupZoomButtons();
+    setupPaletteUI();
 
     // GLOBAL KEYBOARD BRIDGE
     window.addEventListener("keydown", (e) => {
