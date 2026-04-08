@@ -16,9 +16,11 @@ window.addEventListener('message', (e) => {
                 grid: document.getElementById('gridLayer'),
                 ui: document.getElementById('uiLayer')
             };
+
             state = new EditorState(canvases);
             events = new EditorEvents(canvases.ui, state);
 
+            // This listener catches manual drawing, flood fills, and undos
             state.on("gridChanged", () => {
                 const count = state.getUniqueColorCount();
                 const threadStats = state.getThreadStats();
@@ -27,8 +29,17 @@ window.addEventListener('message', (e) => {
                     payload: { count, threadStats } 
                 }, '*');
             });
+
+            // We also need to trigger this on individual pixel changes for real-time table updates
+            state.on("pixelChanged", () => {
+                const count = state.getUniqueColorCount();
+                const threadStats = state.getThreadStats();
+                window.parent.postMessage({ 
+                    type: 'REPORT_GRID_STATS', 
+                    payload: { count, threadStats } 
+                }, '*');
+            });
             
-            // Sync dimensions and force an immediate layout update
             state.pixelGrid.resize(payload.width, payload.height, [255, 255, 255], false);
             state.renderer.resizeToContainer(); 
             break;

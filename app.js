@@ -199,19 +199,23 @@ function renderThreadsTable(threadStats) {
     if (!tbody) return;
     tbody.innerHTML = "";
 
-    // Sort by stitch count descending
+    // 1. Sort by stitch count descending
     threadStats.sort((a, b) => b.count - a.count);
 
+    // 2. Use the standard Euclidean distance for the table readout
     const distFn = getDistanceFn("euclidean", false);
 
     threadStats.forEach(stat => {
         const rgb = [stat.r, stat.g, stat.b];
+        
+        // 3. Find the closest DMC color for the manually picked RGB
+        // We pass 'null' for the LAB library to ensure it recalculates for new colors
         const dmc = nearestDmcColor(rgb, distFn, null, DMC_RGB);
         
         const code = dmc ? dmc[0] : "???";
         const name = dmc ? dmc[1] : "Unknown";
 
-        // Calculation: 1600 stitches per 8m skein (standard 14ct/2-strand estimate)
+        // 4. Standard skein calculation
         const skeins = Math.ceil(stat.count / 1600);
 
         const row = document.createElement("tr");
