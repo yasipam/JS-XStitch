@@ -214,21 +214,16 @@ function setupEditHistory() {
 
     if (undoBtn) undoBtn.onclick = () => state.undo();
     if (redoBtn) redoBtn.onclick = () => state.redo();
-    
+
     if (clearBtn) {
         clearBtn.onclick = () => {
-            if (confirm("Are you sure you want to clear the canvas? This will remove your current work.")) {
-                // 1. Perform the undoable grid wipe
+            if (confirm("Are you sure you want to clear the canvas?")) {
                 state.clearCanvasAction();
-
-                // 2. Clear the global image reference
                 currentImage = null;
-
-                // 3. Reset the file uploader UI
                 const uploader = document.getElementById("upload");
-                if (uploader) {
-                    uploader.value = ""; // This removes the filename from the "Choose File" button
-                }
+                if (uploader) uploader.value = "";
+
+                resetUIControls();
                 
                 console.log("Canvas cleared and uploader reset.");
             }
@@ -241,8 +236,15 @@ function setupResetControls() {
 
     if (resetOriginalBtn) {
         resetOriginalBtn.onclick = () => {
-            if (confirm("This will remove all manual edits (pencil, eraser, etc.) and restore the original generated pattern. Proceed?")) {
+            if (confirm("Restore original pattern and discard all edits?")) {
+                // 1. Reset the UI first
+                resetUIControls();
+                
+                // 2. Trigger the state reset
                 state.resetToMappedState();
+                
+                // 3. Re-run mapping to apply the now-default slider values
+                runMapping();
             }
         };
     }
@@ -399,6 +401,41 @@ function setupZoomButtons() {
             state.setPan(newPanX, newPanY);
         };
     }
+}
+
+// app.js
+
+function resetUIControls() {
+    // 1. Reset the internal config object to defaults
+    mappingConfig.maxSize = 80; // Reset to your default import size
+    mappingConfig.maxColours = 30;
+    mappingConfig.brightnessInt = 0;
+    mappingConfig.saturationInt = 0;
+    mappingConfig.contrastInt = 0;
+    mappingConfig.biasGreenMagenta = 0;
+    mappingConfig.biasCyanRed = 0;
+    mappingConfig.biasBlueYellow = 0;
+    mappingConfig.antiNoise = 0;
+    mappingConfig.reduceIsolatedStitches = false;
+
+    // 2. Update the HTML Sliders/Inputs
+    const ids = ["brightness", "saturation", "contrast", "greenToMagenta", "cyanToRed", "blueToYellow", "antiNoise"];
+    ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = 0;
+    });
+
+    const sizeSlider = document.getElementById("maxSizeSlider");
+    const sizeInput = document.getElementById("maxSizeInput");
+    if (sizeSlider) sizeSlider.value = 80;
+    if (sizeInput) sizeInput.value = 80;
+
+    // 3. Update specific labels or checkboxes
+    const antiNoiseVal = document.getElementById("antiNoiseVal");
+    if (antiNoiseVal) antiNoiseVal.textContent = "0";
+
+    const isolatedToggle = document.getElementById("reduceIsolatedStitches");
+    if (isolatedToggle) isolatedToggle.checked = false;
 }
 
 // -----------------------------------------------------------------------------

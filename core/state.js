@@ -54,21 +54,15 @@ export class EditorState {
     }
 
     clearCanvasAction() {
-        // 1. Save the current image to history before we wipe it
         this.pixelGrid.pushUndo();
-
-        // 2. Fill the grid with white
-        const white = [255, 255, 255];
-        this.pixelGrid.fillAll(white);
-
-        // 3. Clear the mapped DMC data since it no longer matches the grid
+        this.pixelGrid.fillAll([255, 255, 255]);
         this.mappedRgbGrid = null;
         this.mappedDmcGrid = null;
 
-        // 4. Update the renderer and UI
         this.renderer.draw();
         this.emit("gridChanged");
-        this.emit("mappingUpdated", { rgbGrid: null, dmcGrid: null });
+        // This tells the palette to stop highlighting colors
+        this.emit("mappingUpdated", { rgbGrid: null, dmcGrid: null }); 
     }
     
     resetToMappedState() {
