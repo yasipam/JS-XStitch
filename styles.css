@@ -10,7 +10,7 @@
     
     /* Brand Colors */
     --color-orange: #f96e03;
-    --color-blue: #7e005e;
+    --color-blue: #00527e;
     --color-purple: #c10054;
     --color-pink: #d54387;
     --color-label: #3d008e;
@@ -59,14 +59,14 @@ h1 {
 }
 
 h2 {
-    font-family: var(--font-brand);
-    font-size: 1.8rem;
+    font-family: var(--font-main);
+    font-size: 1.4rem;
     color: var(--color-blue);
     margin-bottom: 8px;
 }
 
 h3 {
-    font-family: var(--font-brand);
+    font-family: var(--font-main);
     font-size: 1.4rem;
     color: var(--color-blue);
     margin-bottom: 8px;
@@ -334,7 +334,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .tab-link.active { 
     background: var(--color-orange); 
-    color: white; 
+    color: rgb(255, 255, 255); 
     border-bottom: 2px solid var(--color-orange); 
     font-weight: bold; 
 }
