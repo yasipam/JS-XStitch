@@ -112,7 +112,6 @@ export class PixelGrid {
     // RESIZE GRID
     // -------------------------------------------------------------------------
     resize(newW, newH, fill = [255, 255, 255], recordUndo = true) {
-        // FIX: Corrected internal helper call to public method
         if (recordUndo) this.pushUndo();
 
         const newGrid = Array.from({ length: newH }, (_, y) =>
@@ -149,6 +148,64 @@ export class PixelGrid {
         this.grid = this.redoStack.pop();
         
         return this.grid;
+    }
+
+    // -------------------------------------------------------------------------
+    // MINIMUM OCCURRENCE CLEANUP
+    // -------------------------------------------------------------------------
+    cleanupMinOccurrence(minOccurrence) {
+        if (minOccurrence <= 1) return;
+
+        // 1. Count occurrences of every color
+        const countMap = {};
+        for (let y = 0; y < this.height; y++) {
+            for (let x = 0; x < this.width; x++) {
+                const rgb = this.grid[y][x];
+                const key = rgb.join(',');
+                countMap[key] = (countMap[key] || 0) + 1;
+            }
+        }
+
+        // 2. Identify colors to remove
+        const toRemove = Object.entries(countMap)
+            .filter(([rgbKey, count]) => count < minOccurrence)
+            .map(([rgbKey]) => rgbKey);
+
+        if (toRemove.length === 0) return;
+
+        // 3. Identify surviving colors
+        const remaining = Object.keys(countMap)
+            .filter(key => !toRemove.includes(key))
+            .map(key => key.split(',').map(Number));
+
+        // Safety check: if everything is removed, abort
+        if (remaining.length === 0) return;
+
+        this.pushUndo(); // Save state before bulk change
+
+        // 4. Replace rare colors with the nearest surviving RGB
+        for (let y = 0; y < this.height; y++) {
+            for (let x = 0; x < this.width; x++) {
+                const currentKey = this.grid[y][x].join(',');
+                
+                if (toRemove.includes(currentKey)) {
+                    const orig = this.grid[y][x];
+                    let bestColor = remaining[0];
+                    let minSquareDist = Infinity;
+
+                    for (const rgb of remaining) {
+                        const d = Math.pow(orig[0] - rgb[0], 2) + 
+                                  Math.pow(orig[1] - rgb[1], 2) + 
+                                  Math.pow(orig[2] - rgb[2], 2);
+                        if (d < minSquareDist) {
+                            minSquareDist = d;
+                            bestColor = rgb;
+                        }
+                    }
+                    this.grid[y][x] = [...bestColor];
+                }
+            }
+        }
     }
 
     // -------------------------------------------------------------------------

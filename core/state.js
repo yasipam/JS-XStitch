@@ -12,7 +12,7 @@ export class EditorState {
         // Core data model is always initialized
         this.pixelGrid = new PixelGrid(50, 50);
         
-        // FIX: Only initialize renderer if canvases are provided (Iframe side)
+        // Only initialize renderer if canvases are provided (Iframe side)
         // If canvases is null, this is the Parent side which handles logic only.
         this.renderer = canvases ? new LayeredRenderer(canvases, this.pixelGrid) : null;
 
@@ -42,7 +42,6 @@ export class EditorState {
         this.history = [];
         this.activeColor = [0, 0, 0]; 
 
-        // Safety Guard: Only update renderer if it exists in this window context
         if (this.renderer) {
             this.renderer.setPixelGrid(this.pixelGrid);
             this.renderer.draw();
@@ -56,7 +55,7 @@ export class EditorState {
         this.mappedRgbGrid = null;
         this.mappedDmcGrid = null;
 
-        if (this.renderer) this.renderer.draw(); // Safety Guard
+        if (this.renderer) this.renderer.draw();
         this.emit("gridChanged");
         this.emit("mappingUpdated", { rgbGrid: null, dmcGrid: null }); 
     }
@@ -72,7 +71,7 @@ export class EditorState {
     }
 
     // -------------------------------------------------------------------------
-    // EVENT SYSTEM (simple pub/sub)
+    // EVENT SYSTEM
     // -------------------------------------------------------------------------
     on(event, callback) {
         if (!this.listeners[event]) this.listeners[event] = [];
@@ -85,16 +84,13 @@ export class EditorState {
     }
 
     // -------------------------------------------------------------------------
-    // TOOL MANAGEMENT
+    // TOOL & COLOR MANAGEMENT
     // -------------------------------------------------------------------------
     setTool(toolName) {
         this.activeTool = toolName;
         this.emit("toolChanged", toolName);
     }
 
-    // -------------------------------------------------------------------------
-    // COLOR MANAGEMENT
-    // -------------------------------------------------------------------------
     setColor(rgb) {
         this.activeColor = [...rgb];
         this.emit("colorChanged", rgb);
@@ -105,23 +101,20 @@ export class EditorState {
     // -------------------------------------------------------------------------
     setZoom(zoom) {
         this.zoom = zoom;
-        if (this.renderer) this.renderer.setZoom(zoom); // Safety Guard
+        if (this.renderer) this.renderer.setZoom(zoom);
         this.emit("zoomChanged", zoom);
     }
 
     setPan(x, y) {
         this.panX = x;
         this.panY = y;
-        if (this.renderer) this.renderer.setPan(x, y); // Safety Guard
+        if (this.renderer) this.renderer.setPan(x, y);
         this.emit("panChanged", { x, y });
     }
 
-    // -------------------------------------------------------------------------
-    // GRID VISIBILITY
-    // -------------------------------------------------------------------------
     toggleGrid(show) {
         this.showGrid = show;
-        if (this.renderer) this.renderer.toggleGrid(show); // Safety Guard
+        if (this.renderer) this.renderer.toggleGrid(show);
         this.emit("gridVisibilityChanged", show);
     }
 
@@ -130,21 +123,23 @@ export class EditorState {
     // -------------------------------------------------------------------------
     setPixel(x, y, rgb) {
         this.pixelGrid.set(x, y, rgb);
-        if (this.renderer) this.renderer.drawCell(x, y, rgb); // Safety Guard
+        if (this.renderer) this.renderer.drawCell(x, y, rgb);
         this.emit("pixelChanged", { x, y, rgb });
+        // Trigger gridChanged so threads table updates during manual drawing
+        this.emit("gridChanged"); 
     }
 
     floodFill(x, y, rgb) {
         this.pixelGrid.pushUndo();
         this.pixelGrid.floodFill(x, y, rgb);
-        if (this.renderer) this.renderer.draw(); // Safety Guard
+        if (this.renderer) this.renderer.draw();
         this.emit("gridChanged");
     }
 
     fillAll(rgb) {
         this.pixelGrid.pushUndo();
         this.pixelGrid.fillAll(rgb);
-        if (this.renderer) this.renderer.draw(); // Safety Guard
+        if (this.renderer) this.renderer.draw();
         this.emit("gridChanged");
     }
 
@@ -172,40 +167,12 @@ export class EditorState {
     }
 
     // -------------------------------------------------------------------------
-    // GRID RESIZING
+    // GRID RESIZING & LOADING
     // -------------------------------------------------------------------------
     resizeGrid(newW, newH, fill = [255, 255, 255]) {
         this.pixelGrid.resize(newW, newH, fill);
-        if (this.renderer) this.renderer.draw(); // Safety Guard
+        if (this.renderer) this.renderer.draw();
         this.emit("gridChanged");
-    }
-
-    // -------------------------------------------------------------------------
-    // MAPPING PIPELINE RESULTS
-    // -------------------------------------------------------------------------
-    setMappingResults(rgbGrid, dmcGrid) {
-        this.mappedRgbGrid = rgbGrid;
-        this.mappedDmcGrid = dmcGrid;
-        this.emit("mappingUpdated", { rgbGrid, dmcGrid });
-    }
-
-    // -------------------------------------------------------------------------
-    // REPLACE ENTIRE GRID (e.g., after image import)
-    // -------------------------------------------------------------------------
-getUniqueColorCount() {
-        // We use a Set of strings to count unique RGB combinations
-        const uniqueColors = new Set();
-        const gridData = this.pixelGrid.grid;
-
-        for (let y = 0; y < this.pixelGrid.height; y++) {
-            for (let x = 0; x < this.pixelGrid.width; x++) {
-                const [r, g, b] = gridData[y][x];
-                // Ignore pure white (background) if you don't want it counted as a "thread"
-                if (r === 255 && g === 255 && b === 255) continue;
-                uniqueColors.add(`${r},${g},${b}`);
-            }
-        }
-        return uniqueColors.size;
     }
 
     loadGrid(newGrid) {
@@ -222,8 +189,24 @@ getUniqueColorCount() {
         }
 
         this.emit("gridLoaded", { width: w, height: h });
-        // NEW: Emit a change so the manager knows to report back to parent
         this.emit("gridChanged");
+    }
+
+    // -------------------------------------------------------------------------
+    // STATS & CLEANUP
+    // -------------------------------------------------------------------------
+    getUniqueColorCount() {
+        const uniqueColors = new Set();
+        const gridData = this.pixelGrid.grid;
+
+        for (let y = 0; y < this.pixelGrid.height; y++) {
+            for (let x = 0; x < this.pixelGrid.width; x++) {
+                const [r, g, b] = gridData[y][x];
+                if (r === 255 && g === 255 && b === 255) continue;
+                uniqueColors.add(`${r},${g},${b}`);
+            }
+        }
+        return uniqueColors.size;
     }
 
     getThreadStats() {
@@ -245,4 +228,17 @@ getUniqueColorCount() {
         return Object.values(stats);
     }
 
+    applyMinOccurrence(threshold) {
+        this.pixelGrid.cleanupMinOccurrence(threshold);
+        if (this.renderer) {
+            this.renderer.draw();
+            this.emit("gridChanged"); 
+        }
+    }
+
+    setMappingResults(rgbGrid, dmcGrid) {
+        this.mappedRgbGrid = rgbGrid;
+        this.mappedDmcGrid = dmcGrid;
+        this.emit("mappingUpdated", { rgbGrid, dmcGrid });
+    }
 }
