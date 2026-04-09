@@ -521,8 +521,17 @@ function setupExportButtons() {
     // --- PNG EXPORT ---
     if (exportPngBtn) {
         exportPngBtn.onclick = () => {
-            console.log("Requesting PNG export...");
-            sendToCanvas('CMD_EXPORT_PNG'); 
+            console.log("Generating 1:1 Pixel PNG...");
+            
+            const dmcGrid = state.mappedDmcGrid; // The 2D array of DMC codes
+            const rgbGrid = state.mappedRgbGrid; // The 2D array of [r,g,b] colors
+            
+            if (!dmcGrid || !rgbGrid) {
+                console.error("No grid data available to export.");
+                return;
+            }
+
+            exportPixelPNG(rgbGrid, "pattern_1x1.png");
         };
     }
 
@@ -549,6 +558,53 @@ function setupZoomButtons() {
     document.getElementById("zoomInBtn").onclick = () => sendToCanvas('CMD_ZOOM', 1);
     document.getElementById("zoomOutBtn").onclick = () => sendToCanvas('CMD_ZOOM', -1);
     document.getElementById("resetViewBtn").onclick = () => sendToCanvas('CMD_RESET_VIEW');
+}
+
+/**
+ * Generates a PNG where 1 pixel = 1 stitch
+ */
+function exportPixelPNG(rgbGrid, filename) {
+    const height = rgbGrid.length;
+    const width = rgbGrid[0].length;
+
+    // 1. Create a "hidden" canvas at the exact grid dimensions
+    const offscreenCanvas = document.createElement('canvas');
+    offscreenCanvas.width = width;
+    offscreenCanvas.height = height;
+    const ctx = offscreenCanvas.getContext('2d');
+
+    // 2. Create ImageData to manipulate raw pixels
+    const imageData = ctx.createImageData(width, height);
+    const data = imageData.data;
+
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const index = (y * width + x) * 4;
+            const rgb = rgbGrid[y][x];
+
+            // Handle transparency (cloth/0)
+            // If your cloth is 255,255,255 and you want it transparent:
+            if (rgb[0] === 255 && rgb[1] === 255 && rgb[2] === 255) {
+                data[index] = 255;
+                data[index + 1] = 255;
+                data[index + 2] = 255;
+                data[index + 3] = 0; // Transparent Alpha
+            } else {
+                data[index] = rgb[0];     // R
+                data[index + 1] = rgb[1]; // G
+                data[index + 2] = rgb[2]; // B
+                data[index + 3] = 255;    // Opaque Alpha
+            }
+        }
+    }
+
+    // 3. Put the pixels on the canvas and trigger download
+    ctx.putImageData(imageData, 0, 0);
+    
+    const link = document.createElement('a');
+    link.download = filename;
+    link.href = offscreenCanvas.toDataURL("image/png");
+    link.click();
 }
 
 function resetUIControls() {
