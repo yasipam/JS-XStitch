@@ -194,6 +194,24 @@
                         <option value="18">18</option>
                     </select>
                 </div>
+
+                <div class="footer-group">
+                    <h3 class="panelTitle">Stamped Mode</h3>
+                    <label class="toggle">
+                        <input type="checkbox" id="stampedMode">
+                        <span class="slider"></span>
+                        Enable Stamped Colors
+                    </label>
+                    
+                    <div id="stampedControls" style="display: none; margin-top: 10px;">
+                        <label for="stampedHue">Palette Hue Shift</label>
+                        <div class="sliderWithInput">
+                            <input type="range" id="stampedHue" min="0" max="10" value="0">
+                            <span id="stampedHueVal">0°</span>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="footer-buttons">
                     <button id="exportPDFBtn">Export PDF</button>
                     <button id="exportPngBtn">Export PNG</button>

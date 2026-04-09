@@ -34,7 +34,7 @@ const mappingConfig = {
     antiNoise: 0,
     minOccurrence: 1,
     stampedMode: false,
-    stampedHueShift: 0,
+    stampedHue: 0,
     distanceMethod: "euclidean",
     exportFabricCount: 14,
     exportMode: "cross"
@@ -105,17 +105,27 @@ async function runMapping() {
             mappingConfig.antiNoise
         );
 
-        state.setMappingResults(rgbGrid, dmcGrid);
-
+        // STAMPED MODE LOGIC
+        let finalDisplayGrid;
+        
         if (mappingConfig.stampedMode) {
-            const stamped = buildStampedGrid(dmcGrid, { hueShift: mappingConfig.stampedHueShift });
-            state.loadGrid(stamped);
-            sendToCanvas('UPDATE_GRID', stamped);
+            // Generate the high-contrast grid based on the DMC codes
+            finalDisplayGrid = buildStampedGrid(dmcGrid, { 
+                hueShift: mappingConfig.stampedHue 
+            });
+            // In stamped mode, the state holds the high-contrast colors for rendering
+            state.setMappingResults(finalDisplayGrid, dmcGrid);
         } else {
-            state.loadGrid(rgbGrid);
-            sendToCanvas('UPDATE_GRID', rgbGrid);
+            // Normal mode uses real DMC RGB colors
+            finalDisplayGrid = rgbGrid;
+            state.setMappingResults(rgbGrid, dmcGrid);
         }
 
+        // Load the chosen grid into the state and send to the Iframe canvas
+        state.loadGrid(finalDisplayGrid);
+        sendToCanvas('UPDATE_GRID', finalDisplayGrid);
+
+        // UI Updates
         renderPalette(cachedProjectPalette);
         updatePaletteHighlights();
 
@@ -433,12 +443,25 @@ function setupMappingControls() {
     }
 
     const stampedToggle = document.getElementById("stampedMode");
-    if (stampedToggle) {
-        stampedToggle.onchange = () => {
-            mappingConfig.stampedMode = stampedToggle.checked;
-            runMapping();
-        };
-    }
+        const stampedHue = document.getElementById("stampedHue");
+        const stampedHueVal = document.getElementById("stampedHueVal");
+        const stampedControls = document.getElementById("stampedControls");
+
+        if (stampedToggle) {
+            stampedToggle.onchange = () => {
+                mappingConfig.stampedMode = stampedToggle.checked;
+                stampedControls.style.display = stampedToggle.checked ? "block" : "none";
+                runMapping();
+            };
+        }
+
+        if (stampedHue) {
+            stampedHue.oninput = () => {
+                mappingConfig.stampedHue = parseInt(stampedHue.value, 10);
+                stampedHueVal.textContent = `${stampedHue.value}°`;
+                runMapping();
+            };
+        }
 
     // NEW: Handle Minimum Occurrence directly in mapping config
     const minOccurrenceInput = document.getElementById("minOccurrenceInput");
