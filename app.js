@@ -8,6 +8,7 @@ import { mergeSimilarPaletteColors, buildPaletteFromImage, getDistanceFn, rgbToL
 import { mapFullWithPalette, nearestDmcColor } from "./mapping/mappingEngine.js";
 import { buildStampedGrid } from "./mapping/stamped.js";
 import { DMC_RGB } from "./mapping/constants.js";
+import { exportOXS } from "./export/exportOXS.js";
 
 // Export Logic
 import { buildExportData } from "./export/buildExportData.js";
@@ -493,24 +494,53 @@ function setupMinOccurrenceControl() {
     }
 }
 
+// app.js
+
 function setupExportButtons() {
+    // 1. Grab all elements from the DOM
     const exportPdfBtn = document.getElementById("exportPDFBtn");
+    const exportPngBtn = document.getElementById("exportPngBtn");
+    const exportOxsBtn = document.getElementById("exportOxsBtn"); // Match lowercase 'xs'
+    
+    // Config elements from your footer
+    const fabricSelect = document.getElementById("fabricCountSelect");
+    const modeSelect = document.getElementById("exportModeSelect");
+    const stampedToggle = document.getElementById("stampedMode");
+
+    // --- PDF EXPORT ---
     if (exportPdfBtn) {
         exportPdfBtn.onclick = () => {
             const data = buildExportData(state, mappingConfig, {
-                fabricCount: mappingConfig.exportFabricCount,
-                mode: mappingConfig.exportMode
+                fabricCount: fabricSelect.value, // Get latest UI value
+                mode: modeSelect.value           // Get latest UI value
             });
             exportPDF(data);
         };
     }
 
-    const exportPngBtn = document.getElementById("exportPngBtn");
+    // --- PNG EXPORT ---
     if (exportPngBtn) {
         exportPngBtn.onclick = () => {
-            // Updated to be clearer on how to implement this later
-            console.warn("PNG export: Send CMD_EXPORT_PNG to iframe to get dataURL.");
+            console.log("Requesting PNG export...");
             sendToCanvas('CMD_EXPORT_PNG'); 
+        };
+    }
+
+    // --- OXS EXPORT ---
+    if (exportOxsBtn) {
+        exportOxsBtn.onclick = () => {
+            console.log("Triggering OXS download...");
+            
+            // Use the toggle state directly from the footer
+            const isStamped = stampedToggle ? stampedToggle.checked : false;
+            
+            // Use the grid data stored in the state
+            exportOXS(
+                state.mappedDmcGrid, 
+                DMC_RGB, 
+                "kriss_kross_pattern.oxs", 
+                isStamped ? state.mappedRgbGrid : null
+            );
         };
     }
 }
