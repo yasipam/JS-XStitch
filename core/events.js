@@ -1,6 +1,6 @@
 // core/events.js
 // -----------------------------------------------------------------------------
-// Event system: Updated for Layered Renderer and precise Zoom tracking.
+// Event system: Handles pointer, touch (pinch-zoom), and keyboard events.
 // -----------------------------------------------------------------------------
 
 import { ToolRegistry } from "./tools.js";
@@ -10,24 +10,33 @@ export class EditorEvents {
         this.canvas = canvas; // This is the uiLayer canvas
         this.state = state;
         this.isPointerDown = false;
+        this.isPanning = false;
         this.renderPending = false;
+
+        // Touch/Gesture Cache
+        this.evCache = [];      // Stores active touch points
+        this.prevDiff = -1;     // Stores distance between fingers for pinch
+
         this._bindEvents();
     }
 
     _bindEvents() {
+        // Pointer Events (Handles Mouse, Pen, and Touch)
         this.canvas.addEventListener("pointerdown", e => this._onPointerDown(e));
         this.canvas.addEventListener("pointermove", e => this._onPointerMove(e));
         this.canvas.addEventListener("pointerup", e => this._onPointerUp(e));
         this.canvas.addEventListener("pointerleave", e => this._onPointerUp(e));
+        
+        // Prevent context menu on right-click (used for panning)
         this.canvas.addEventListener("contextmenu", e => e.preventDefault());
         
-        // Key listener on window to catch shortcuts regardless of focus
-        window.addEventListener("keydown", e => this._onKeyDown(e));
+        // Internal keyboard listener for when the iframe IS focused
+        window.addEventListener("keydown", e => this.onKeyDown(e));
 
-        // Wheel zoom: must be non-passive to call preventDefault
+        // Wheel zoom: centers on cursor
         this.canvas.addEventListener("wheel", e => this._onWheel(e), { passive: false });
 
-        // Auto-resize sync
+        // Auto-resize sync via ResizeObserver
         new ResizeObserver(() => {
             if (this.state.renderer) {
                 this.state.renderer.resizeToContainer();
@@ -35,87 +44,122 @@ export class EditorEvents {
         }).observe(this.canvas);
     }
 
-    _onKeyDown(e) {
-        // Detect Ctrl+Z or Cmd+Z (Mac)
-        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
-            e.preventDefault(); // Prevent browser default undo if applicable
+    /**
+     * Public method to handle keydown events. 
+     * Can be called by the parent shell via the CanvasManager bridge.
+     */
+    onKeyDown(e) {
+        const key = e.key.toLowerCase();
+        const hasMod = e.ctrlKey || e.metaKey;
+
+        // CTRL+Z / CMD+Z (Undo)
+        if (hasMod && key === "z") {
+            if (typeof e.preventDefault === 'function') e.preventDefault();
 
             if (e.shiftKey) {
-                // CTRL + SHIFT + Z -> Redo
-                console.log("Shortcut: Redo");
                 this.state.redo();
             } else {
-                // CTRL + Z -> Undo
-                console.log("Shortcut: Undo");
                 this.state.undo();
             }
         }
 
-        // Optional: Keep CTRL + Y for Redo as a standard alternative
-        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
-            e.preventDefault();
-            console.log("Shortcut: Redo (Alt)");
+        // CTRL+Y (Redo)
+        if (hasMod && key === "y") {
+            if (typeof e.preventDefault === 'function') e.preventDefault();
             this.state.redo();
         }
     }
 
-    _bindEvents() {
-        this.canvas.addEventListener("pointerdown", e => this._onPointerDown(e));
-        this.canvas.addEventListener("pointermove", e => this._onPointerMove(e));
-        this.canvas.addEventListener("pointerup", e => this._onPointerUp(e));
-        this.canvas.addEventListener("pointerleave", e => this._onPointerUp(e));
-        this.canvas.addEventListener("contextmenu", e => e.preventDefault());
-        
-        // Internal listener for when the iframe IS focused
-        window.addEventListener("keydown", e => this.onKeyDown(e));
-
-        this.canvas.addEventListener("wheel", e => this._onWheel(e), { passive: false });
-
-        new ResizeObserver(() => {
-            if (this.state.renderer) {
-                this.state.renderer.resizeToContainer();
-            }
-        }).observe(this.canvas);
-    }
-
     _onPointerDown(e) {
-        e.preventDefault();
-        
-        if (e.button === 2) { // Right Click Pan
+        // Add to multi-touch cache for gestures
+        this.evCache.push(e);
+
+        if (e.button === 2 || this.evCache.length > 1) { 
+            // Right Click or Multi-touch -> Panning Mode
             this.isPanning = true;
+            this.isPointerDown = false;
             this.lastPointerX = e.clientX;
             this.lastPointerY = e.clientY;
-            this.canvas.setPointerCapture(e.pointerId);
-            return;
+        } else {
+            // Left Click -> Tool Interaction
+            this.isPointerDown = true;
+            this.isPanning = false;
+            const tool = ToolRegistry[this.state.activeTool];
+            if (tool) {
+                const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
+                tool.onPointerDown(this.state, gx, gy, e.clientX, e.clientY, { shiftKey: e.shiftKey });
+            }
         }
 
-        this.isPointerDown = true;
-        const tool = ToolRegistry[this.state.activeTool];
-        if (!tool) return;
-
-        const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
         this.canvas.setPointerCapture(e.pointerId);
-        tool.onPointerDown(this.state, gx, gy, e.clientX, e.clientY, { shiftKey: e.shiftKey });
     }
 
     _onPointerMove(e) {
-        if (!this.isPanning && !this.isPointerDown) return;
+        // Update pointer in gesture cache
+        const index = this.evCache.findIndex(p => p.pointerId === e.pointerId);
+        if (index !== -1) this.evCache[index] = e;
 
         if (this.renderPending) return;
         this.renderPending = true;
 
         requestAnimationFrame(() => {
-            const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
+            // HANDLE TWO-FINGER GESTURES (ZOOM & PAN)
+            if (this.evCache.length === 2) {
+                const p1 = this.evCache[0];
+                const p2 = this.evCache[1];
+
+                // 1. Calculate Distance for Zooming
+                const curDiff = Math.sqrt(
+                    Math.pow(p1.clientX - p2.clientX, 2) +
+                    Math.pow(p1.clientY - p2.clientY, 2)
+                );
+
+                // 2. Calculate Midpoint for Panning
+                const curMidX = (p1.clientX + p2.clientX) / 2;
+                const curMidY = (p1.clientY + p2.clientY) / 2;
+
+                if (this.prevDiff > 0) {
+                    // Apply Zoom
+                    const zoomSensitivity = 0.5;
+                    const delta = (curDiff - this.prevDiff) * zoomSensitivity;
+
+                    if (Math.abs(delta) > 1) {
+                        const newZoom = delta > 0 ? this.state.zoom + 1 : this.state.zoom - 1;
+                        this.state.setZoom(Math.max(1, newZoom));
+                        this.prevDiff = curDiff;
+                    }
+
+                    // Apply Two-Finger Pan
+                    if (this.lastMidX !== undefined) {
+                        const dx = curMidX - this.lastMidX;
+                        const dy = curMidY - this.lastMidY;
+                        this.state.setPan(this.state.panX + dx, this.state.panY + dy);
+                    }
+                } else {
+                    this.prevDiff = curDiff;
+                }
+
+                // Update midpoints for next move frame
+                this.lastMidX = curMidX;
+                this.lastMidY = curMidY;
+            } 
             
-            if (this.isPanning) {
+            // HANDLE SINGLE-FINGER PANNING (Right-click mode)
+            else if (this.isPanning) {
                 const dx = e.clientX - this.lastPointerX;
                 const dy = e.clientY - this.lastPointerY;
                 this.state.setPan(this.state.panX + dx, this.state.panY + dy);
                 this.lastPointerX = e.clientX;
                 this.lastPointerY = e.clientY;
-            } else if (this.isPointerDown) {
+            } 
+            
+            // HANDLE DRAWING
+            else if (this.isPointerDown) {
                 const tool = ToolRegistry[this.state.activeTool];
-                tool.onPointerMove(this.state, gx, gy, e.clientX, e.clientY);
+                if (tool) {
+                    const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
+                    tool.onPointerMove(this.state, gx, gy, e.clientX, e.clientY);
+                }
             }
             
             this.renderPending = false;
@@ -123,22 +167,33 @@ export class EditorEvents {
     }
 
     _onPointerUp(e) {
-        if (e.button === 2) {
+        this.evCache = this.evCache.filter(p => p.pointerId !== e.pointerId);
+        
+        if (this.evCache.length < 2) {
+            this.prevDiff = -1;
+            this.lastMidX = undefined; // Reset so pan doesn't "jump" next time
+            this.lastMidY = undefined;
+        }
+
+        if (e.button === 2 || this.evCache.length === 0) {
             this.isPanning = false;
-        } else {
+        }
+
+        if (this.isPointerDown && this.evCache.length === 0) {
             this.isPointerDown = false;
             const tool = ToolRegistry[this.state.activeTool];
             if (tool) tool.onPointerUp(this.state);
         }
+
         this.canvas.releasePointerCapture(e.pointerId);
     }
 
     _onWheel(e) {
         e.preventDefault();
         const tool = ToolRegistry["zoom"];
-        if (!tool) return;
-
-        // Pass the actual screen coordinates so zoom centers on the cursor
-        tool.onWheel(this.state, e.deltaY, e.clientX, e.clientY);
+        if (tool) {
+            // Standard wheel zoom centered on cursor
+            tool.onWheel(this.state, e.deltaY, e.clientX, e.clientY);
+        }
     }
 }
