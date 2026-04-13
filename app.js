@@ -61,14 +61,8 @@ async function runMapping() {
     if (!currentImage) return;
 
     try {
-        // 1. Target Size logic correctly toggles based on current config
-        let targetSize;
-        if (mappingConfig.pixelArtMode) {
-            targetSize = Math.max(currentImage.width, currentImage.height);
-        } else {
-            targetSize = parseInt(mappingConfig.maxSize, 10);
-        }
-
+        // Use the maxSize established by the toggle or upload logic
+        const targetSize = parseInt(mappingConfig.maxSize, 10);
         const maxColours = parseInt(mappingConfig.maxColours, 10);
         const distanceMethod = mappingConfig.distanceMethod;
 
@@ -115,25 +109,18 @@ async function runMapping() {
             mappingConfig.antiNoise
         );
 
-        // 4. View Mode Selection
-        let finalDisplayGrid;
-        if (mappingConfig.stampedMode) {
-            finalDisplayGrid = buildStampedGrid(dmcGrid, { hueShift: mappingConfig.stampedHue });
-        } else {
-            finalDisplayGrid = rgbGrid;
-        }
-
-        // 5. Sync and Send
         state.setMappingResults(rgbGrid, dmcGrid);
+
+        // Push to Iframe
+        const finalDisplayGrid = mappingConfig.stampedMode ?
+            buildStampedGrid(dmcGrid, { hueShift: mappingConfig.stampedHue }) : rgbGrid;
+
         sendToCanvas('UPDATE_GRID', finalDisplayGrid);
 
-        // 6. UI Updates
-        renderPalette(cachedProjectPalette);
-        updatePaletteHighlights();
-
-        requestAnimationFrame(() => {
+        // Wait a beat for the renderer to catch up
+        setTimeout(() => {
             sendToCanvas('CMD_RESET_VIEW');
-        });
+        }, 50);
 
     } catch (error) {
         console.error("Mapping failed:", error);
@@ -297,8 +284,6 @@ window.openTab = function(evt, tabName) {
 
 // app.js
 
-// app.js
-
 function setupUpload() {
     const input = document.getElementById("upload");
     if (!input) return;
@@ -311,23 +296,28 @@ function setupUpload() {
         img.onload = () => {
             currentImage = img;
 
+            // 1. FORCE RESET: Always start new uploads in standard mode
             const pixelArtToggle = document.getElementById("pixelArtMode");
             const sizeSlider = document.getElementById("maxSizeSlider");
             const sizeInput = document.getElementById("maxSizeInput");
 
-            if (pixelArtToggle && pixelArtToggle.checked) {
-                // FORCE: Override config immediately with real image dimensions
-                mappingConfig.pixelArtMode = true;
-                mappingConfig.maxSize = img.width;
+            if (pixelArtToggle) pixelArtToggle.checked = false;
+            mappingConfig.pixelArtMode = false;
 
-                if (sizeSlider) { sizeSlider.value = img.width; sizeSlider.disabled = true; }
-                if (sizeInput) { sizeInput.value = img.width; sizeInput.disabled = true; }
+            // 2. Restore slider functionality and default size
+            if (sizeSlider) {
+                sizeSlider.disabled = false;
+                sizeSlider.value = 80; // Or mappingConfig.maxSize default
+                mappingConfig.maxSize = 80;
+            }
+            if (sizeInput) {
+                sizeInput.value = 80;
+                sizeInput.disabled = false;
             }
 
             state.clear();
-
-            // CRITICAL: Reset the iframe's internal grid size before mapping
-            sendToCanvas('INIT', { width: img.width, height: img.height });
+            // Tell the iframe to prepare for an 80px grid
+            sendToCanvas('INIT', { width: 80, height: Math.floor(80 * (img.height / img.width)) });
 
             runMapping();
         };
@@ -419,17 +409,15 @@ function setupMappingControls() {
             mappingConfig.pixelArtMode = isPixelMode;
 
             if (isPixelMode && currentImage) {
-                // Lock to 1:1
-                mappingConfig.maxSize = currentImage.width;
-                if (sizeSlider) { sizeSlider.value = currentImage.width; sizeSlider.disabled = true; }
-                if (sizeInput) { sizeInput.value = currentImage.width; sizeInput.disabled = true; }
+                // Switch to 1:1 mapping
+                mappingConfig.maxSize = Math.max(currentImage.width, currentImage.height);
+                sizeSlider.disabled = true;
+                sizeInput.disabled = true;
             } else {
-                // RESTORE: Re-enable and pull the value back from the slider
-                if (sizeSlider) {
-                    sizeSlider.disabled = false;
-                    mappingConfig.maxSize = parseInt(sizeSlider.value, 10);
-                }
-                if (sizeInput) sizeInput.disabled = false;
+                // Switch back to the SLIDER value
+                sizeSlider.disabled = false;
+                sizeInput.disabled = false;
+                mappingConfig.maxSize = parseInt(sizeSlider.value, 10);
             }
 
             runMapping();
