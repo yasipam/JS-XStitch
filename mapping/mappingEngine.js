@@ -220,13 +220,21 @@ export function mapFullWithPalette(
     antiNoisePasses
 ) {
     const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { alpha: true });
+
     const scale = stitchWidth / image.width;
     const newW = stitchWidth;
     const newH = Math.max(1, Math.floor(image.height * scale));
+
     canvas.width = newW;
     canvas.height = newH;
+
     ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(image, 0, 0, newW, newH);
+    ctx.imageSmoothingEnabled = false;
+    ctx.webkitImageSmoothingEnabled = false;
+    ctx.mozImageSmoothingEnabled = false;
+
     ctx.drawImage(image, 0, 0, newW, newH);
 
     if (antiNoisePasses > 0) {

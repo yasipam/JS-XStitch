@@ -46,11 +46,14 @@ window.addEventListener('message', (e) => {
 
         case 'UPDATE_GRID':
             if (state && payload) {
-                // When receiving a mapped image, we load it as a fresh start
+                // 1. Load the data into the local iframe state
                 state.loadGrid(payload);
-                const bestZoom = Math.min((window.innerWidth - 40) / state.pixelGrid.width, (window.innerHeight - 40) / state.pixelGrid.height, 20);
-                state.setZoom(bestZoom);
-                state.setPan((window.innerWidth - state.pixelGrid.width * bestZoom) / 2, (window.innerHeight - state.pixelGrid.height * bestZoom) / 2);
+
+                // 2. FORCE the renderer to recognize the new dimensions immediately
+                state.renderer.resizeToContainer();
+
+                // 3. Optional: manually trigger a draw to ensure no "blank" frames
+                state.renderer.draw();
             }
             break;
 

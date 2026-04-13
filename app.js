@@ -61,17 +61,25 @@ async function runMapping() {
     if (!currentImage) return;
 
     try {
-        const maxSize = mappingConfig.maxSize;
-        const maxColours = mappingConfig.maxColours;
+        // 1. Target Size logic correctly toggles based on current config
+        let targetSize;
+        if (mappingConfig.pixelArtMode) {
+            targetSize = Math.max(currentImage.width, currentImage.height);
+        } else {
+            targetSize = parseInt(mappingConfig.maxSize, 10);
+        }
+
+        const maxColours = parseInt(mappingConfig.maxColours, 10);
         const distanceMethod = mappingConfig.distanceMethod;
 
         const useLab = distanceMethod.startsWith("cie");
         const distFn = getDistanceFn(distanceMethod, useLab);
-        const dmcLibraryLab = useLab ? DMC_RGB.map(d => rgbToLab(d[2])) : null;
+        const dmcLibraryLab = useLab ? DMC_RGB.map(d => rgbToLab([d[2]])[0]) : null;
 
-        const needsNewPalette = 
+        // 2. Palette Cache Logic
+        const needsNewPalette =
             cachedProjectPalette === null ||
-            lastPaletteConfig.maxSize !== maxSize ||
+            lastPaletteConfig.maxSize !== targetSize ||
             lastPaletteConfig.maxColours !== maxColours ||
             lastPaletteConfig.image !== currentImage ||
             lastPaletteConfig.distanceMethod !== distanceMethod;
@@ -82,18 +90,19 @@ async function runMapping() {
                 return nearestDmcColor(rgb, distFn, dmcLibraryLab, DMC_RGB);
             });
 
-            lastPaletteConfig = { 
-                maxSize: maxSize, 
-                maxColours: maxColours, 
-                image: currentImage, 
-                distanceMethod: distanceMethod 
+            lastPaletteConfig = {
+                maxSize: targetSize,
+                maxColours: maxColours,
+                image: currentImage,
+                distanceMethod: distanceMethod
             };
         }
 
+        // 3. Mapping Pipeline
         const [rgbGrid, dmcGrid] = mapFullWithPalette(
             currentImage,
-            maxSize,
-            cachedProjectPalette, 
+            targetSize,
+            cachedProjectPalette,
             1.0 + (mappingConfig.brightnessInt / 10),
             1.0 + (mappingConfig.saturationInt / 10),
             1.0 + (mappingConfig.contrastInt / 10),
@@ -106,27 +115,19 @@ async function runMapping() {
             mappingConfig.antiNoise
         );
 
-        // STAMPED MODE LOGIC
+        // 4. View Mode Selection
         let finalDisplayGrid;
-        
         if (mappingConfig.stampedMode) {
-            // Generate the high-contrast grid based on the DMC codes
-            finalDisplayGrid = buildStampedGrid(dmcGrid, { 
-                hueShift: mappingConfig.stampedHue 
-            });
-            // In stamped mode, the state holds the high-contrast colors for rendering
-            state.setMappingResults(finalDisplayGrid, dmcGrid);
+            finalDisplayGrid = buildStampedGrid(dmcGrid, { hueShift: mappingConfig.stampedHue });
         } else {
-            // Normal mode uses real DMC RGB colors
             finalDisplayGrid = rgbGrid;
-            state.setMappingResults(rgbGrid, dmcGrid);
         }
 
-        // Load the chosen grid into the state and send to the Iframe canvas
-        state.loadGrid(finalDisplayGrid);
+        // 5. Sync and Send
+        state.setMappingResults(rgbGrid, dmcGrid);
         sendToCanvas('UPDATE_GRID', finalDisplayGrid);
 
-        // UI Updates
+        // 6. UI Updates
         renderPalette(cachedProjectPalette);
         updatePaletteHighlights();
 
@@ -294,8 +295,12 @@ window.openTab = function(evt, tabName) {
     evt.currentTarget.className += " active";
 };
 
+// app.js
+
+// app.js
+
 function setupUpload() {
-    const input = document.getElementById("upload"); 
+    const input = document.getElementById("upload");
     if (!input) return;
 
     input.onchange = (e) => {
@@ -304,9 +309,26 @@ function setupUpload() {
 
         const img = new Image();
         img.onload = () => {
-            currentImage = img; 
+            currentImage = img;
+
+            const pixelArtToggle = document.getElementById("pixelArtMode");
+            const sizeSlider = document.getElementById("maxSizeSlider");
+            const sizeInput = document.getElementById("maxSizeInput");
+
+            if (pixelArtToggle && pixelArtToggle.checked) {
+                // FORCE: Override config immediately with real image dimensions
+                mappingConfig.pixelArtMode = true;
+                mappingConfig.maxSize = img.width;
+
+                if (sizeSlider) { sizeSlider.value = img.width; sizeSlider.disabled = true; }
+                if (sizeInput) { sizeInput.value = img.width; sizeInput.disabled = true; }
+            }
+
             state.clear();
-            sendToCanvas('UPDATE_GRID', state.pixelGrid.grid);
+
+            // CRITICAL: Reset the iframe's internal grid size before mapping
+            sendToCanvas('INIT', { width: img.width, height: img.height });
+
             runMapping();
         };
         img.src = URL.createObjectURL(file);
@@ -363,8 +385,8 @@ function setupResetControls() {
 }
 
 // app.js
-
 function setupMappingControls() {
+    // 1. Size & Color Pairs
     const controlPairs = [
         ["maxSizeSlider", "maxSizeInput", "maxSize"],
         ["maxColours", "maxColoursInput", "maxColours"]
@@ -387,6 +409,34 @@ function setupMappingControls() {
         }
     });
 
+    const pixelArtToggle = document.getElementById("pixelArtMode");
+    const sizeSlider = document.getElementById("maxSizeSlider");
+    const sizeInput = document.getElementById("maxSizeInput");
+
+    if (pixelArtToggle) {
+        pixelArtToggle.onchange = () => {
+            const isPixelMode = pixelArtToggle.checked;
+            mappingConfig.pixelArtMode = isPixelMode;
+
+            if (isPixelMode && currentImage) {
+                // Lock to 1:1
+                mappingConfig.maxSize = currentImage.width;
+                if (sizeSlider) { sizeSlider.value = currentImage.width; sizeSlider.disabled = true; }
+                if (sizeInput) { sizeInput.value = currentImage.width; sizeInput.disabled = true; }
+            } else {
+                // RESTORE: Re-enable and pull the value back from the slider
+                if (sizeSlider) {
+                    sizeSlider.disabled = false;
+                    mappingConfig.maxSize = parseInt(sizeSlider.value, 10);
+                }
+                if (sizeInput) sizeInput.disabled = false;
+            }
+
+            runMapping();
+        };
+    }
+    
+    // 3. Distance Radios
     const distanceRadios = document.querySelectorAll("input[name='colorDistance']");
     distanceRadios.forEach(radio => {
         radio.onchange = () => {
@@ -397,6 +447,7 @@ function setupMappingControls() {
         };
     });
 
+    // 4. Levels (Brightness/Sat/Contrast)
     const levels = ["brightness", "saturation", "contrast"];
     levels.forEach(id => {
         const el = document.getElementById(id);
@@ -408,6 +459,7 @@ function setupMappingControls() {
         }
     });
 
+    // 5. Bias Controls
     const biasControls = [
         ["greenToMagenta", "biasGreenMagenta"],
         ["cyanToRed", "biasCyanRed"],
@@ -424,6 +476,7 @@ function setupMappingControls() {
         }
     });
 
+    // 6. Toggles & Smoothers
     const isolatedToggle = document.getElementById("reduceIsolatedStitches");
     if (isolatedToggle) {
         isolatedToggle.onchange = () => {
@@ -443,58 +496,37 @@ function setupMappingControls() {
         };
     }
 
+    // 7. Stamped Mode
     const stampedToggle = document.getElementById("stampedMode");
-        const stampedHue = document.getElementById("stampedHue");
-        const stampedHueVal = document.getElementById("stampedHueVal");
-        const stampedControls = document.getElementById("stampedControls");
+    const stampedHue = document.getElementById("stampedHue");
+    const stampedHueVal = document.getElementById("stampedHueVal");
+    const stampedControls = document.getElementById("stampedControls");
 
-        if (stampedToggle) {
-            stampedToggle.onchange = () => {
-                mappingConfig.stampedMode = stampedToggle.checked;
-                stampedControls.style.display = stampedToggle.checked ? "block" : "none";
-                runMapping();
-            };
-        }
+    if (stampedToggle) {
+        stampedToggle.onchange = () => {
+            mappingConfig.stampedMode = stampedToggle.checked;
+            if (stampedControls) stampedControls.style.display = stampedToggle.checked ? "block" : "none";
+            runMapping();
+        };
+    }
 
-        if (stampedHue) {
-            stampedHue.oninput = () => {
-                mappingConfig.stampedHue = parseInt(stampedHue.value, 10);
-                stampedHueVal.textContent = `${stampedHue.value}°`;
-                runMapping();
-            };
-        }
+    if (stampedHue) {
+        stampedHue.oninput = () => {
+            mappingConfig.stampedHue = parseInt(stampedHue.value, 10);
+            if (stampedHueVal) stampedHueVal.textContent = `${stampedHue.value}°`;
+            runMapping();
+        };
+    }
 
-    // NEW: Handle Minimum Occurrence directly in mapping config
+    // 8. Min Occurrence
     const minOccurrenceInput = document.getElementById("minOccurrenceInput");
     if (minOccurrenceInput) {
         minOccurrenceInput.onchange = () => {
-            const val = parseInt(minOccurrenceInput.value, 10) || 1;
-            mappingConfig.minOccurrence = val;
-            // Option 1: Run a full re-map (Cleanest result)
-            runMapping(); 
-            // Option 2: Just cleanup the current canvas (Faster)
-            // sendToCanvas('CMD_CLEANUP_MIN', val); 
+            mappingConfig.minOccurrence = parseInt(minOccurrenceInput.value, 10) || 1;
+            runMapping();
         };
     }
-}
-
-// Keep this separate if you want a dedicated "Apply Cleanup" button for the current canvas
-function setupMinOccurrenceControl() {
-    const input = document.getElementById("minOccurrenceInput");
-    const applyBtn = document.getElementById("applyMinBtn");
-
-    if (input && applyBtn) {
-        applyBtn.onclick = () => {
-            const val = parseInt(input.value, 10);
-            if (val >= 1) {
-                console.log(`Parent: Requesting manual cleanup for < ${val} stitches`);
-                sendToCanvas('CMD_CLEANUP_MIN', val);
-            }
-        };
-    }
-}
-
-// app.js
+} // <--- Properly closing setupMappingControls here
 
 function setupExportButtons() {
     // 1. Grab all elements from the DOM
@@ -610,6 +642,7 @@ function exportPixelPNG(rgbGrid, filename) {
 function resetUIControls() {
     mappingConfig.maxSize = 80;
     mappingConfig.maxColours = 30;
+    mappingConfig.pixelArtMode = false;
     mappingConfig.brightnessInt = 0;
     mappingConfig.saturationInt = 0;
     mappingConfig.contrastInt = 0;
