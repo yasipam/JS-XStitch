@@ -61,16 +61,23 @@ async function runMapping() {
     if (!currentImage) return;
 
     try {
-        // Use the maxSize established by the toggle or upload logic
-        const targetSize = parseInt(mappingConfig.maxSize, 10);
+        // 1. Calculate Target Size
+        let targetSize;
+        if (mappingConfig.pixelArtMode) {
+            targetSize = Math.max(currentImage.width, currentImage.height);
+        } else {
+            targetSize = parseInt(mappingConfig.maxSize, 10);
+        }
+
         const maxColours = parseInt(mappingConfig.maxColours, 10);
         const distanceMethod = mappingConfig.distanceMethod;
 
+        // 2. Setup Distance Functions
         const useLab = distanceMethod.startsWith("cie");
         const distFn = getDistanceFn(distanceMethod, useLab);
         const dmcLibraryLab = useLab ? DMC_RGB.map(d => rgbToLab([d[2]])[0]) : null;
 
-        // 2. Palette Cache Logic
+        // 3. Palette Cache Logic
         const needsNewPalette =
             cachedProjectPalette === null ||
             lastPaletteConfig.maxSize !== targetSize ||
@@ -92,7 +99,7 @@ async function runMapping() {
             };
         }
 
-        // 3. Mapping Pipeline
+        // 4. Mapping Pipeline
         const [rgbGrid, dmcGrid] = mapFullWithPalette(
             currentImage,
             targetSize,
@@ -109,18 +116,38 @@ async function runMapping() {
             mappingConfig.antiNoise
         );
 
+        // 5. Update Local State & FIX FOR EXPORTS
+        // Explicitly set these properties so buildExportData.js can find them
         state.setMappingResults(rgbGrid, dmcGrid);
+        state.mappedRgbGrid = rgbGrid;
+        state.mappedDmcGrid = dmcGrid;
 
-        // Push to Iframe
+        // 6. Prepare Final Display Grid
         const finalDisplayGrid = mappingConfig.stampedMode ?
             buildStampedGrid(dmcGrid, { hueShift: mappingConfig.stampedHue }) : rgbGrid;
 
-        sendToCanvas('UPDATE_GRID', finalDisplayGrid);
+        // 7. Sync with Canvas Iframe (KEPT EXACTLY AS PER YOUR WORKING VERSION)
+        const payload = {
+            grid: finalDisplayGrid,
+            width: dmcGrid[0].length,
+            height: dmcGrid.length
+        };
 
-        // Wait a beat for the renderer to catch up
+        sendToCanvas('CMD_LOAD_GRID', payload);
+
+        setTimeout(() => {
+            sendToCanvas('UPDATE_GRID', finalDisplayGrid);
+        }, 50);
+
+        // 8. Refresh UI & Captures
+        renderPalette(cachedProjectPalette);
+        updatePaletteHighlights();
+
         setTimeout(() => {
             sendToCanvas('CMD_RESET_VIEW');
-        }, 50);
+            // Request snapshot for PDF cover page
+            sendToCanvas('CMD_GET_IMAGE_DATA');
+        }, 300);
 
     } catch (error) {
         console.error("Mapping failed:", error);
@@ -517,40 +544,49 @@ function setupMappingControls() {
 } // <--- Properly closing setupMappingControls here
 
 function setupExportButtons() {
-    // 1. Grab all elements from the DOM
     const exportPdfBtn = document.getElementById("exportPDFBtn");
     const exportPngBtn = document.getElementById("exportPngBtn");
-    const exportOxsBtn = document.getElementById("exportOxsBtn"); // Match lowercase 'xs'
-    
-    // Config elements from your footer
+    const exportOxsBtn = document.getElementById("exportOxsBtn");
+
+    // Selectors for PDF configuration
     const fabricSelect = document.getElementById("fabricCountSelect");
-    const modeSelect = document.getElementById("exportModeSelect");
+    const modeSelect = document.getElementById("exportModeSelect"); // crosses, symbol, filled
+    const pdfTypeSelect = document.getElementById("pdfTypeSelect"); // Printable vs Standard
+    const pkCheckbox = document.getElementById("addPatternKeeper");
     const stampedToggle = document.getElementById("stampedMode");
 
-    // --- PDF EXPORT ---
     if (exportPdfBtn) {
-        exportPdfBtn.onclick = () => {
+        exportPdfBtn.onclick = async () => {
+            const selectedMode = modeSelect.value;
+
+            // CRITICAL FIX: Update the global mappingConfig so buildExportData 
+            // captures the correct mode ('symbol', 'filled', or 'cross')
+            mappingConfig.exportMode = selectedMode;
+
             const data = buildExportData(state, mappingConfig, {
-                fabricCount: fabricSelect.value, // Get latest UI value
-                mode: modeSelect.value           // Get latest UI value
+                fabricCount: fabricSelect.value,
+                mode: selectedMode
             });
-            exportPDF(data);
+
+            // Trigger the export with the specific type (PRINTABLE or STANDARD)
+            const exportType = pdfTypeSelect.value;
+            await exportPDF(data, exportType);
+
+            // Handle Pattern Keeper add-on if checked
+            if (pkCheckbox && pkCheckbox.checked) {
+                await exportPDF(data, 'PK');
+            }
         };
     }
 
     // --- PNG EXPORT ---
     if (exportPngBtn) {
         exportPngBtn.onclick = () => {
-            console.log("Generating 1:1 Pixel PNG...");
-            
-            const dmcGrid = state.mappedDmcGrid; // The 2D array of DMC codes
-            const rgbGrid = state.mappedRgbGrid; // The 2D array of [r,g,b] colors
-            
-            if (!dmcGrid || !rgbGrid) {
+            const rgbGrid = state.mappedRgbGrid;
+            if (!rgbGrid) {
                 console.error("No grid data available to export.");
                 return;
             }
-
             exportPixelPNG(rgbGrid, "pattern_1x1.png");
         };
     }
@@ -558,16 +594,15 @@ function setupExportButtons() {
     // --- OXS EXPORT ---
     if (exportOxsBtn) {
         exportOxsBtn.onclick = () => {
-            console.log("Triggering OXS download...");
-            
-            // Use the toggle state directly from the footer
+            if (!state.mappedDmcGrid) {
+                console.error("No grid data available to export.");
+                return;
+            }
             const isStamped = stampedToggle ? stampedToggle.checked : false;
-            
-            // Use the grid data stored in the state
             exportOXS(
-                state.mappedDmcGrid, 
-                DMC_RGB, 
-                "kriss_kross_pattern.oxs", 
+                state.mappedDmcGrid,
+                DMC_RGB,
+                "kriss_kross_pattern.oxs",
                 isStamped ? state.mappedRgbGrid : null
             );
         };

@@ -186,51 +186,64 @@
                 </aside>
             </div>
 
-        <footer id="bottomPalette">
-            <div id="exportFooter">
-                <div class="footer-group">
-                    <label>Mode:</label>
-                    <select id="exportModeSelect">
-                        <option value="cross">Cross Mode</option>
-                        <option value="filled">Filled Mode</option>
-                        <option value="symbol">Symbol Mode</option>
-                        <option value="all">All Modes</option>
-                    </select>
-                </div>
-                <div class="footer-group">
-                    <label>Aida:</label>
-                    <select id="fabricCountSelect">
-                        <option value="11">11</option>
-                        <option value="14" selected>14</option>
-                        <option value="16">16</option>
-                        <option value="18">18</option>
-                    </select>
-                </div>
+            <footer id="bottomPalette">
+                <div id="exportFooter">
+                    <div class="footer-group">
+                        <label>PDF Layout:</label>
+                        <select id="pdfTypeSelect">
+                            <option value="PRINTABLE">Printable (To-Size)</option>
+                            <option value="STANDARD">Standard (Tiled)</option>
+                        </select>
+                    </div>
 
-                <div class="footer-group">
-                    <h3 class="panelTitle">Stamped Mode</h3>
-                    <label class="toggle">
-                        <input type="checkbox" id="stampedMode">
-                        <span class="slider"></span>
-                        Enable Stamped Colors
-                    </label>
-                    
-                    <div id="stampedControls" style="display: none; margin-top: 10px;">
-                        <label for="stampedHue">Palette Hue Shift</label>
-                        <div class="sliderWithInput">
-                            <input type="range" id="stampedHue" min="0" max="10" value="0">
-                            <span id="stampedHueVal">Steps</span>
+                    <div class="footer-group">
+                        <label>Aida Count:</label>
+                        <select id="fabricCountSelect">
+                            <option value="11">11ct</option>
+                            <option value="14" selected>14ct</option>
+                            <option value="16">16ct</option>
+                            <option value="18">18ct</option>
+                        </select>
+                    </div>
+
+                    <div class="footer-group">
+                        <label>Print Mode:</label>
+                        <select id="exportModeSelect">
+                            <option value="cross">Crosses (X-stitch)</option>
+                            <option value="symbol">Symbols & Colors</option>
+                            <option value="filled">Filled Boxes (Corners)</option>
+                        </select>
+                    </div>
+
+                    <div class="footer-group">
+                        <label class="toggle">
+                            <input type="checkbox" id="stampedMode">
+                            <span class="slider"></span>
+                            Enable Stamped Colors
+                        </label>
+
+                        <div id="stampedControls" style="display: none; margin-top: 5px;">
+                            <label for="stampedHue">Hue Shift</label>
+                            <input type="range" id="stampedHue" min="0" max="10" value="0" style="width: 80px;">
+                            <span id="stampedHueVal">0°</span>
                         </div>
                     </div>
-                </div>
 
-                <div class="footer-buttons">
-                    <button id="exportPDFBtn">Export PDF</button>
-                    <button id="exportPngBtn">Export PNG</button>
-                    <button id="exportOxsBtn">Export OXS</button>
+                    <div class="footer-group">
+                        <label class="toggle">
+                            <input type="checkbox" id="addPatternKeeper">
+                            <span class="slider"></span>
+                            Pattern Keeper Page
+                        </label>
+                    </div>
+
+                    <div class="footer-buttons">
+                        <button id="exportPDFBtn">Export PDF</button>
+                        <button id="exportPngBtn">Export PNG</button>
+                        <button id="exportOxsBtn">Export OXS</button>
+                    </div>
                 </div>
-            </div>
-        </footer>
+            </footer>
 
     <script type="module" src="app.js"></script>
 </body>
