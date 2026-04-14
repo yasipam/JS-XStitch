@@ -241,17 +241,16 @@ function setupPaletteUI() {
 }
 
 function updatePaletteHighlights() {
-    const useLab = mappingConfig.distanceMethod.startsWith("cie");
-    const distFn = getDistanceFn(mappingConfig.distanceMethod, useLab);
-    const masterDmcLab = useLab ? DMC_RGB.map(d => rgbToLab(d[2])) : null;
+    // CRITICAL: Always use the DMC grid for highlighting used colors, 
+    // never the RGB grid (which may be stamped)
+    const dmcGrid = state.mappedDmcGrid;
+    if (!dmcGrid) return;
 
-    const usedCodes = new Set(state.pixelGrid.toFlatArray().map(rgb => {
-        const match = nearestDmcColor(rgb, distFn, masterDmcLab, DMC_RGB); 
-        return match ? String(match[0]) : null;
-    }));
+    const usedCodes = new Set(dmcGrid.flat().map(String));
 
     document.querySelectorAll('.palette-swatch').forEach(swatch => {
         const code = swatch.dataset.code;
+        // Highlight based on the presence of the DMC code, not the displayed color
         if (usedCodes.has(code)) {
             swatch.classList.add('used');
         } else {
@@ -268,31 +267,66 @@ function renderThreadsTable(threadStats) {
     // 1. Sort by stitch count descending
     threadStats.sort((a, b) => b.count - a.count);
 
-    // 2. Use the standard Euclidean distance for the table readout
+    // 2. Setup distance function for lookup
     const distFn = getDistanceFn("euclidean", false);
 
     threadStats.forEach(stat => {
-        const rgb = [stat.r, stat.g, stat.b];
-        
-        // 3. Find the closest DMC color for the manually picked RGB
-        // We pass 'null' for the LAB library to ensure it recalculates for new colors
-        const dmc = nearestDmcColor(rgb, distFn, null, DMC_RGB);
-        
-        const code = dmc ? dmc[0] : "???";
-        const name = dmc ? dmc[1] : "Unknown";
+        const currentRgb = [stat.r, stat.g, stat.b];
 
-        // 4. Standard skein calculation
-        const skeins = Math.ceil(stat.count / 1600);
+        /** * CRITICAL FIX: Find the ORIGINAL DMC code.
+         * Instead of finding the DMC match for the neon 'currentRgb', 
+         * we look at our master PROJECT palette to see which DMC code 
+         * this stitch actually belongs to.
+         */
+        const dmcEntry = DMC_RGB.find(dmc => {
+            // If Stamped Mode is ON, we must find the original by comparing 
+            // the stitch count and existing dmcGrid data to identify the thread.
+            // A simpler reliable way is to find the match in the master DMC list 
+            // BEFORE any stamping was applied.
+            return nearestDmcColor(currentRgb, distFn, null, DMC_RGB);
+        });
 
-        const row = document.createElement("tr");
-        row.innerHTML = `
-            <td><div class="table-swatch" style="background-color: rgb(${stat.r},${stat.g},${stat.b})"></div></td>
-            <td title="${name}"><strong>${code}</strong></td>
-            <td>${stat.count}</td>
-            <td>${skeins}</td>
-        `;
-        tbody.appendChild(row);
+        // To perfectly lock it, we use the global project state mapping
+        const originalDmcCode = state.mappedDmcGrid ?
+            getOriginalDmcFromStats(stat, state.mappedDmcGrid, DMC_RGB) : "???";
+
+        const projectColor = DMC_RGB.find(d => String(d[0]) === String(originalDmcCode));
+
+        if (projectColor) {
+            const [code, name, originalRgb] = projectColor;
+            const skeins = Math.ceil(stat.count / 1600);
+
+            const row = document.createElement("tr");
+            row.innerHTML = `
+                <td>
+                    <div class="table-swatch" style="background-color: rgb(${originalRgb[0]}, ${originalRgb[1]}, ${originalRgb[2]}); border: 1px solid #ccc;"></div>
+                </td>
+                <td title="${name}"><strong>${code}</strong></td>
+                <td>${stat.count}</td>
+                <td>${skeins}</td>
+            `;
+            tbody.appendChild(row);
+        }
     });
+}
+
+/**
+ * Helper to ensure we never use the stamped color to identify the thread.
+ * It looks at the actual DMC grid stored in the parent state.
+ */
+function getOriginalDmcFromStats(stat, dmcGrid, dmcLibrary) {
+    // We search the dmcGrid for the code that appears most often with this specific count
+    // or simply rely on the fact that dmcGrid already contains the CORRECT codes.
+    // The threadStats from the canvas should strictly be used for counts, 
+    // while dmcGrid is used for the Identity.
+    const flatGrid = dmcGrid.flat();
+    const usedCodes = [...new Set(flatGrid)].filter(c => c !== "0");
+
+    // Find the code whose stitch count matches this stat
+    return usedCodes.find(code => {
+        const count = flatGrid.filter(c => String(c) === String(code)).length;
+        return count === stat.count;
+    }) || "???";
 }
 
 // -----------------------------------------------------------------------------
@@ -371,6 +405,11 @@ function setupToolButtons() {
         const btn = document.getElementById(id === "picker" ? "toolPicker" : id + "Btn");
         if (btn) {
             btn.onclick = () => {
+                // Prevent tool switching if Stamped Mode is ON
+                if (mappingConfig.stampedMode) {
+                    alert("Drawing tools are disabled in Stamped Mode. Turn off Stamped Mode to edit.");
+                    return;
+                }
                 state.setTool(id);
                 sendToCanvas('SET_TOOL', id);
                 document.querySelectorAll("#topToolbar button").forEach(b => b.classList.remove("active"));
@@ -773,6 +812,8 @@ window.addEventListener("load", () => {
             if (countDisplay) {
                 countDisplay.innerHTML = `Actual Colours: ${payload.count}`;
             }
+
+            // Pass the stats to the rendering function
             renderThreadsTable(payload.threadStats);
         }
 

@@ -74,6 +74,12 @@ export class EditorEvents {
         // Add to multi-touch cache for gestures
         this.evCache.push(e);
 
+        // BLOCK INTERACTION IF STAMPED
+        if (this.state.stampedMode && e.button !== 2) {
+            // Allow right-click panning, but block left-click drawing
+            return;
+        }
+
         if (e.button === 2 || this.evCache.length > 1) { 
             // Right Click or Multi-touch -> Panning Mode
             this.isPanning = true;
