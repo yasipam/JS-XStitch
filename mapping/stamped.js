@@ -69,15 +69,11 @@ const CUSTOM_PALETTE_HEX = [
     "FF997578","FF6b4e55","FF442e38","FF2b1c2b","FF592246","FF933981","FFce69c7","FFf399ff"
 ];
 
-/**
- * FIXED: Standard export function.
- */
 export function buildStampedGrid(dmcGrid, options = {}) {
     const h = dmcGrid.length;
     const w = dmcGrid[0].length;
-    const hueShift = options.hueShift || 0;
 
-    const stampedGrid = Array.from({ length: h }, () => 
+    const stampedGrid = Array.from({ length: h }, () =>
         Array.from({ length: w }, () => [255, 255, 255])
     );
 
@@ -87,14 +83,10 @@ export function buildStampedGrid(dmcGrid, options = {}) {
         parseInt(hx.slice(6, 8), 16)
     ]).filter(c => !(c[0] === 255 && c[1] === 255 && c[2] === 255));
 
-    // Stable seed based on the grid content so colors don't jump 
-    // randomly unless the pattern actually changes
     const seed = hashString(JSON.stringify(dmcGrid));
     const rng = mulberry32(seed);
     shuffleArray(palette, rng);
 
-    // FIX: Calculate rotation based on a 1-10 scale mapped to palette length
-    // Each step (1-10) will move the palette forward by 10% of its total size
     const steps = options.hueShift || 0;
     const rotation = Math.floor((steps / 10) * palette.length);
     const rotated = palette.slice(rotation).concat(palette.slice(0, rotation));
@@ -111,5 +103,7 @@ export function buildStampedGrid(dmcGrid, options = {}) {
             stampedGrid[y][x] = code === "0" ? [255, 255, 255] : [...stampedMap[code]];
         }
     }
-    return stampedGrid;
+
+    // Crucial: return the map so buildExportData doesn't have to "search" the grid
+    return { grid: stampedGrid, lookup: stampedMap };
 }

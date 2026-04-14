@@ -99,7 +99,7 @@ async function runMapping() {
             };
         }
 
-        // 4. Mapping Pipeline
+        // 4. Mapping Pipeline (Always generates original DMC Grids first)
         const [rgbGrid, dmcGrid] = mapFullWithPalette(
             currentImage,
             targetSize,
@@ -116,36 +116,44 @@ async function runMapping() {
             mappingConfig.antiNoise
         );
 
-        // 5. Update Local State & FIX FOR EXPORTS
-        // Explicitly set these properties so buildExportData.js can find them
-        state.setMappingResults(rgbGrid, dmcGrid);
-        state.mappedRgbGrid = rgbGrid;
+        // 5. Update Local State (THE SOURCE OF TRUTH FOR EXPORTS)
         state.mappedDmcGrid = dmcGrid;
+        // We temporarily hold the original RGB grid here
+        state.mappedRgbGrid = rgbGrid;
 
-        // 6. Prepare Final Display Grid
-        const finalDisplayGrid = mappingConfig.stampedMode ?
-            buildStampedGrid(dmcGrid, { hueShift: mappingConfig.stampedHue }) : rgbGrid;
+        // 6. STAMPED LOGIC: Prepare the "Visual" Grid for the UI
+        let finalDisplayGrid;
+        // Inside runMapping in app.js
+        if (mappingConfig.stampedMode) {
+            const stampedResult = buildStampedGrid(dmcGrid, { hueShift: mappingConfig.stampedHue });
+            // Send ONLY to the canvas for display
+            sendToCanvas('UPDATE_GRID', stampedResult.grid);
+        } else {
+            sendToCanvas('UPDATE_GRID', rgbGrid);
+        }
+        // Finalize state update
+        state.setMappingResults(state.mappedRgbGrid, state.mappedDmcGrid);
 
-        // 7. Sync with Canvas Iframe (KEPT EXACTLY AS PER YOUR WORKING VERSION)
+        // 7. Sync with Canvas Iframe
         const payload = {
             grid: finalDisplayGrid,
             width: dmcGrid[0].length,
             height: dmcGrid.length
         };
 
+        // This replaces the old grid with the new visual grid (Neon or Original)
         sendToCanvas('CMD_LOAD_GRID', payload);
 
         setTimeout(() => {
             sendToCanvas('UPDATE_GRID', finalDisplayGrid);
         }, 50);
 
-        // 8. Refresh UI & Captures
+        // 8. Refresh UI
         renderPalette(cachedProjectPalette);
         updatePaletteHighlights();
 
         setTimeout(() => {
             sendToCanvas('CMD_RESET_VIEW');
-            // Request snapshot for PDF cover page
             sendToCanvas('CMD_GET_IMAGE_DATA');
         }, 300);
 
@@ -563,24 +571,54 @@ function setupMappingControls() {
         };
     }
 
-    // 7. Stamped Mode
     const stampedToggle = document.getElementById("stampedMode");
     const stampedHue = document.getElementById("stampedHue");
     const stampedHueVal = document.getElementById("stampedHueVal");
     const stampedControls = document.getElementById("stampedControls");
 
     if (stampedToggle) {
+        // Ensure initial UI state matches configuration
+        stampedToggle.checked = mappingConfig.stampedMode;
+        if (stampedControls) {
+            stampedControls.style.display = mappingConfig.stampedMode ? "block" : "none";
+        }
+
         stampedToggle.onchange = () => {
+            // A. Update the master configuration object
             mappingConfig.stampedMode = stampedToggle.checked;
-            if (stampedControls) stampedControls.style.display = stampedToggle.checked ? "block" : "none";
+
+            // B. Update UI visibility
+            if (stampedControls) {
+                stampedControls.style.display = stampedToggle.checked ? "block" : "none";
+            }
+
+            // C. CRITICAL: Trigger runMapping immediately.
+            // Your existing runMapping() will see mappingConfig.stampedMode is now true,
+            // generate the stampedGrid, and send UPDATE_GRID to the canvas, 
+            // while preserving the original DMC grids in the state for the export.
             runMapping();
         };
     }
 
     if (stampedHue) {
+        // Ensure initial UI state matches configuration
+        stampedHue.value = mappingConfig.stampedHue;
+        if (stampedHueVal) {
+            stampedHueVal.textContent = `${mappingConfig.stampedHue}°`;
+        }
+
+        // Use oninput for immediate, smooth feedback as the user slides
         stampedHue.oninput = () => {
+            // A. Update the master configuration object
             mappingConfig.stampedHue = parseInt(stampedHue.value, 10);
-            if (stampedHueVal) stampedHueVal.textContent = `${stampedHue.value}°`;
+
+            // B. Update the text display (e.g., "180°")
+            if (stampedHueVal) {
+                stampedHueVal.textContent = `${stampedHue.value}°`;
+            }
+
+            // C. CRITICAL: Trigger runMapping immediately.
+            // This causes the visual neon colors to rotate smoothly in the canvas.
             runMapping();
         };
     }
@@ -818,13 +856,20 @@ window.addEventListener("load", () => {
         }
 
         if (type === 'SYNC_GRID_TO_PARENT') {
-            // Perform the heavy mapping only once per pause in drawing
+            // CRITICAL FIX: If we are in Stamped Mode, the canvas is holding NEON colors.
+            // We must NOT sync these back to the parent state, or they will overwrite 
+            // our original DMC pattern data and destroy the export.
+            if (mappingConfig.stampedMode) {
+                console.log("Sync blocked: Stamped Mode is active to protect original DMC data.");
+                return;
+            }
+
+            // Normal sync logic only runs when Stamped Mode is OFF
             state.mappedRgbGrid = payload;
 
             const useLab = mappingConfig.distanceMethod.startsWith("cie");
             const distFn = getDistanceFn(mappingConfig.distanceMethod, useLab);
 
-            // Optimization: Use a flat map approach for speed
             state.mappedDmcGrid = payload.map(row =>
                 row.map(rgb => {
                     if (rgb[0] === 255 && rgb[1] === 255 && rgb[2] === 255) return "0";
@@ -833,7 +878,6 @@ window.addEventListener("load", () => {
                 })
             );
 
-            // Update results without re-triggering iframe updates
             state.setMappingResults(state.mappedRgbGrid, state.mappedDmcGrid);
         }
     });
