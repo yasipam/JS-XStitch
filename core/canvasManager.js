@@ -4,6 +4,7 @@ import { ToolRegistry } from "./tools.js";
 
 let state;
 let events;
+let syncTimeout;
 
 /**
  * Recalculates the camera view to center the grid.
@@ -39,17 +40,20 @@ window.addEventListener('message', (e) => {
                 events = new EditorEvents(canvases.ui, state);
 
                 state.on("gridChanged", () => {
-                    // 1. Existing Stats Report
+                    // Immediate UI update for the iframe itself
                     window.parent.postMessage({
                         type: 'REPORT_GRID_STATS',
                         payload: { count: state.getUniqueColorCount(), threadStats: state.getThreadStats() }
                     }, '*');
 
-                    // 2. NEW: Send the actual live pixel data back to the parent
-                    window.parent.postMessage({
-                        type: 'SYNC_GRID_TO_PARENT',
-                        payload: state.pixelGrid.grid // The raw 2D array of [r,g,b]
-                    }, '*');
+                    // Debounced heavy sync to parent
+                    clearTimeout(syncTimeout);
+                    syncTimeout = setTimeout(() => {
+                        window.parent.postMessage({
+                            type: 'SYNC_GRID_TO_PARENT',
+                            payload: state.pixelGrid.grid
+                        }, '*');
+                    }, 250); // Delay sync until drawing pauses
                 });
             }
             state.pixelGrid.resize(payload.width, payload.height, [255, 255, 255], false);

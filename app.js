@@ -763,28 +763,23 @@ window.addEventListener("load", () => {
             renderThreadsTable(payload.threadStats);
         }
 
-        // NEW: Handle live synchronization of drawing edits
         if (type === 'SYNC_GRID_TO_PARENT') {
-            // 1. Update the RGB grid with manual edits
+            // Perform the heavy mapping only once per pause in drawing
             state.mappedRgbGrid = payload;
 
-            // 2. Prepare for DMC re-mapping
             const useLab = mappingConfig.distanceMethod.startsWith("cie");
             const distFn = getDistanceFn(mappingConfig.distanceMethod, useLab);
 
-            // 3. Map edited pixels back to DMC codes for the Export Engine
+            // Optimization: Use a flat map approach for speed
             state.mappedDmcGrid = payload.map(row =>
                 row.map(rgb => {
-                    // Treat pure white as cloth (Code "0")
                     if (rgb[0] === 255 && rgb[1] === 255 && rgb[2] === 255) return "0";
-
-                    // Find closest DMC thread for the hand-drawn color
                     const match = nearestDmcColor(rgb, distFn, null, DMC_RGB);
                     return match ? String(match[0]) : "0";
                 })
             );
 
-            // Ensure EditorState is kept in sync for other UI components
+            // Update results without re-triggering iframe updates
             state.setMappingResults(state.mappedRgbGrid, state.mappedDmcGrid);
         }
     });
