@@ -341,10 +341,10 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .tab-content { display: none; flex-direction: column; gap: 12px; }
 
-#threadsTable { width: 100%; border-collapse: collapse; font-size: 1.1rem; }
-#threadsTable th, #threadsTable td { padding: 6px 4px; text-align: left; border-bottom: 1px solid #eee; }
-#threadsTable th { text-transform: uppercase; font-size: 0.9rem; color: #888; }
-.table-swatch { width: 16px; height: 16px; border: 1px solid #000; }
+#threadsTable { width: 100%; border-collapse: collapse; font-size: 1.2rem; }
+#threadsTable th, #threadsTable td { padding: 6px 4px; text-align: center; border-bottom: 1px solid #eee; }
+#threadsTable th { text-transform: uppercase; font-size: 0.8rem; color:var(--color-label); }
+.table-swatch { width: 24px; height: 16px; border: 1px solid #000; border-radius: 6px; }
 
 /* ==========================================================================
    10. FOOTER (EXPORT BAR)
