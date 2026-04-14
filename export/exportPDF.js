@@ -1,11 +1,22 @@
 import "jspdf";
+import { DEJAVU_FONT_BASE64 } from "./fontData.js";
 
+/**
+ * Main Export Entry Point
+ */
 export async function exportPDF(data, exportType = 'PRINTABLE') {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
+
+    // --- 1. FONT REGISTRATION ---
+    // Import the base64 string from your fontData.js file
+    if (DEJAVU_FONT_BASE64 && DEJAVU_FONT_BASE64.length > 100) {
+        doc.addFileToVFS("DejaVuSansMono.ttf", DEJAVU_FONT_BASE64);
+        doc.addFont("DejaVuSansMono.ttf", "DejaVu", "normal");
+    }
+
     doc.deletePage(1); // Start fresh
 
-    // Cover Page for Standard and Printable
     if (exportType !== 'PK') {
         await drawCoverPage(doc, data);
     }
@@ -22,6 +33,9 @@ export async function exportPDF(data, exportType = 'PRINTABLE') {
     doc.save(`KrissKross_${exportType.toLowerCase()}.pdf`);
 }
 
+/**
+ * Page 1: Statistics and Preview
+ */
 async function drawCoverPage(doc, data) {
     doc.addPage();
     doc.setFont("helvetica", "bold");
@@ -32,7 +46,7 @@ async function drawCoverPage(doc, data) {
         try {
             doc.addImage(data.processedImage, 'PNG', 55, 50, 100, 100);
         } catch (e) {
-            console.warn("Could not add cover image to PDF:", e);
+            console.warn("Cover image failed:", e);
         }
     }
 
@@ -42,9 +56,11 @@ async function drawCoverPage(doc, data) {
     doc.text(`Fabric Count: ${data.fabricCount}-count Aida`, 105, 180, { align: "center" });
 }
 
+/**
+ * Pattern Grid Renderer
+ */
 function drawPatternPages(doc, data, isPrintable, isPK) {
     const { dmcGrid, fabricCount, symbolMap } = data;
-    // Use data.exportMode for main pattern, force 'symbol' for Pattern Keeper
     const mode = isPK ? 'symbol' : data.exportMode;
 
     const cellSize = isPrintable ? (25.4 / fabricCount) : 3.5;
@@ -54,7 +70,10 @@ function drawPatternPages(doc, data, isPrintable, isPK) {
     for (let yOff = 0; yOff < dmcGrid.length; yOff += tileH) {
         for (let xOff = 0; xOff < dmcGrid[0].length; xOff += tileW) {
             doc.addPage();
-            doc.setFont("courier", "bold");
+
+            // Apply DejaVu for Unicode symbols, fallback to courier if loading failed
+            const activeFont = doc.getFontList()["DejaVu"] ? "DejaVu" : "courier";
+            doc.setFont(activeFont, "normal");
 
             const actualTileW = Math.min(tileW, dmcGrid[0].length - xOff);
             const actualTileH = Math.min(tileH, dmcGrid.length - yOff);
@@ -69,17 +88,13 @@ function drawPatternPages(doc, data, isPrintable, isPK) {
                     const cx = x0 + (x * cellSize);
                     const cy = y0 + (y * cellSize);
 
-                    // Color Logic
                     const entry = data.palette.find(p => p.code === code);
                     const rgb = isPK ? [255, 255, 255] : (data.stampedMode ? data.rgbGrid[y + yOff][x + xOff] : entry.rgb);
 
-                    // --- STRICT MODE RENDERING ---
                     switch (mode) {
                         case 'symbol':
-                            // Background Fill
                             doc.setFillColor(rgb[0], rgb[1], rgb[2]);
                             doc.rect(cx, cy, cellSize, cellSize, 'F');
-                            // Centered Monospaced Symbol
                             const sym = symbolMap[code] || '?';
                             doc.setTextColor(isPK ? 0 : (getLuminance(rgb) < 128 ? 255 : 0));
                             doc.setFontSize(cellSize * 1.7);
@@ -87,17 +102,14 @@ function drawPatternPages(doc, data, isPrintable, isPK) {
                             break;
 
                         case 'filled':
-                            // Background Fill
                             doc.setFillColor(rgb[0], rgb[1], rgb[2]);
                             doc.rect(cx, cy, cellSize, cellSize, 'F');
-                            // Corner definitions (White dots)
                             doc.setFillColor(255, 255, 255);
                             doc.circle(cx, cy, cellSize * 0.1, 'F');
                             break;
 
                         case 'cross':
                         default:
-                            // Diagonal Cross Lines
                             doc.setDrawColor(rgb[0], rgb[1], rgb[2]);
                             doc.setLineWidth(0.2);
                             doc.line(cx + 0.3, cy + 0.3, cx + cellSize - 0.3, cy + cellSize - 0.3);
@@ -111,6 +123,9 @@ function drawPatternPages(doc, data, isPrintable, isPK) {
     }
 }
 
+/**
+ * Grid Lines Helper
+ */
 function drawGrid(doc, x0, y0, w, h, size) {
     doc.setDrawColor(180);
     for (let i = 0; i <= w; i++) {
@@ -123,33 +138,55 @@ function drawGrid(doc, x0, y0, w, h, size) {
     }
 }
 
+/**
+ * Legend Generation - Fixed coordinates to match Streamlit
+ */
 function drawLegendPage(doc, data, isPK) {
     doc.addPage();
     doc.setFont("helvetica", "bold");
     doc.setFontSize(18);
     doc.setTextColor(0);
-    doc.text(isPK ? "Pattern Keeper Legend" : "Thread Legend", 20, 20);
+    doc.text(isPK ? "Pattern Keeper Legend" : "Symbol Legend", 20, 20);
 
     let y = 40;
     doc.setFontSize(10);
-    doc.text(["Sym", "DMC", "Name", "Stitches", "Skeins"], 20, 32);
 
-    doc.setFont("courier", "normal");
+    // Column headers aligned to specific coordinates
+    doc.text("Sym", 20, 32);
+    doc.text("DMC", 40, 32);
+    doc.text("Name", 60, 32);
+    doc.text("Stitches", 130, 32);
+    doc.text("Skeins", 155, 32);
+    doc.text("Swatch", 175, 32);
+
+    const activeFont = doc.getFontList()["DejaVu"] ? "DejaVu" : "courier";
+    doc.setFont(activeFont, "normal");
+
     data.palette.forEach(p => {
         const sym = data.symbolMap[p.code] || "?";
         doc.text(sym, 22, y);
-        doc.text(p.code, 35, y);
-        doc.text(p.name.substring(0, 30), 55, y);
-        doc.text(String(p.count), 130, y);
-        doc.text(String(p.skeins), 155, y);
+        doc.text(p.code, 40, y);
+        doc.text(p.name.substring(0, 30), 60, y);
+        doc.text(String(p.count), 135, y);
+        doc.text(String(p.skeins), 160, y);
 
         if (!isPK) {
             doc.setFillColor(p.rgb[0], p.rgb[1], p.rgb[2]);
             doc.rect(175, y - 4, 8, 5, 'F');
+
+            if (data.stampedMode) {
+                const sRgb = data.rgbGrid.flat().find((_, i) => String(data.dmcGrid.flat()[i]) === p.code);
+                if (sRgb) {
+                    doc.setFillColor(sRgb[0], sRgb[1], sRgb[2]);
+                    doc.rect(185, y - 4, 8, 5, 'F');
+                }
+            }
         }
         y += 10;
         if (y > 275) { doc.addPage(); y = 30; }
     });
 }
 
-function getLuminance(rgb) { return 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]; }
+function getLuminance(rgb) {
+    return 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2];
+}
