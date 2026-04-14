@@ -319,36 +319,49 @@ function setupUpload() {
         const file = e.target.files[0];
         if (!file) return;
 
-        const img = new Image();
-        img.onload = () => {
-            currentImage = img;
+        // Use FileReader to get a persistent Base64 string for the PDF export
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const base64Data = event.target.result;
 
-            // 1. FORCE RESET: Always start new uploads in standard mode
-            const pixelArtToggle = document.getElementById("pixelArtMode");
-            const sizeSlider = document.getElementById("maxSizeSlider");
-            const sizeInput = document.getElementById("maxSizeInput");
+            // CRITICAL: Save to state so the PDF cover page can access it
+            state.originalImageURL = base64Data;
 
-            if (pixelArtToggle) pixelArtToggle.checked = false;
-            mappingConfig.pixelArtMode = false;
+            const img = new Image();
+            img.onload = () => {
+                currentImage = img;
 
-            // 2. Restore slider functionality and default size
-            if (sizeSlider) {
-                sizeSlider.disabled = false;
-                sizeSlider.value = 80; // Or mappingConfig.maxSize default
-                mappingConfig.maxSize = 80;
-            }
-            if (sizeInput) {
-                sizeInput.value = 80;
-                sizeInput.disabled = false;
-            }
+                // 1. FORCE RESET: Always start new uploads in standard mode
+                const pixelArtToggle = document.getElementById("pixelArtMode");
+                const sizeSlider = document.getElementById("maxSizeSlider");
+                const sizeInput = document.getElementById("maxSizeInput");
 
-            state.clear();
-            // Tell the iframe to prepare for an 80px grid
-            sendToCanvas('INIT', { width: 80, height: Math.floor(80 * (img.height / img.width)) });
+                if (pixelArtToggle) pixelArtToggle.checked = false;
+                mappingConfig.pixelArtMode = false;
 
-            runMapping();
+                // 2. Restore slider functionality and default size
+                if (sizeSlider) {
+                    sizeSlider.disabled = false;
+                    sizeSlider.value = 80;
+                    mappingConfig.maxSize = 80;
+                }
+                if (sizeInput) {
+                    sizeInput.value = 80;
+                    sizeInput.disabled = false;
+                }
+
+                state.clear();
+                // Tell the iframe to prepare for an 80px grid
+                sendToCanvas('INIT', {
+                    width: 80,
+                    height: Math.floor(80 * (img.height / img.width))
+                });
+
+                runMapping();
+            };
+            img.src = base64Data;
         };
-        img.src = URL.createObjectURL(file);
+        reader.readAsDataURL(file);
     };
 }
 

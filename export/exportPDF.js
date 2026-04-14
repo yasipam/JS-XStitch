@@ -1,23 +1,19 @@
 import "jspdf";
 import { DEJAVU_FONT_BASE64 } from "./fontData.js";
 
-/**
- * Main Export Entry Point
- */
 export async function exportPDF(data, exportType = 'PRINTABLE') {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
 
-    // --- 1. FONT REGISTRATION ---
-    // Import the base64 string from your fontData.js file
     if (DEJAVU_FONT_BASE64 && DEJAVU_FONT_BASE64.length > 100) {
         doc.addFileToVFS("DejaVuSansMono.ttf", DEJAVU_FONT_BASE64);
         doc.addFont("DejaVuSansMono.ttf", "DejaVu", "normal");
     }
 
-    doc.deletePage(1); // Start fresh
+    doc.deletePage(1);
 
     if (exportType !== 'PK') {
+        // Now handles side-by-side Original vs Pixel Preview
         await drawCoverPage(doc, data);
     }
 
@@ -33,27 +29,60 @@ export async function exportPDF(data, exportType = 'PRINTABLE') {
     doc.save(`KrissKross_${exportType.toLowerCase()}.pdf`);
 }
 
-/**
- * Page 1: Statistics and Preview
- */
 async function drawCoverPage(doc, data) {
     doc.addPage();
     doc.setFont("helvetica", "bold");
     doc.setFontSize(22);
-    doc.text("Kriss Kross Pattern", 105, 30, { align: "center" });
+    doc.text("Kriss Kross Pattern", 105, 25, { align: "center" });
 
-    if (data.processedImage) {
+    const imgY = 40;
+    const boxSize = 80;
+
+    // 1. ORIGINAL IMAGE (Left)
+    if (data.originalImage) {
         try {
-            doc.addImage(data.processedImage, 'PNG', 55, 50, 100, 100);
+            doc.addImage(data.originalImage, 'JPEG', 20, imgY, boxSize, boxSize);
+            doc.setFontSize(10);
+            doc.text("Original Image", 60, imgY + boxSize + 5, { align: "center" });
         } catch (e) {
-            console.warn("Cover image failed:", e);
+            console.warn("Original image failed:", e);
         }
     }
 
+    // 2. PIXEL PREVIEW (Right) - Draws a mini-version of the Editor Grid
+    const grid = data.dmcGrid;
+    const rows = grid.length;
+    const cols = grid[0].length;
+    const pCellSize = boxSize / Math.max(rows, cols);
+    const pX0 = 110 + (boxSize - (cols * pCellSize)) / 2;
+    const pY0 = imgY + (boxSize - (rows * pCellSize)) / 2;
+
+    // Draw background for the preview box
+    doc.setFillColor(240, 240, 240);
+    doc.rect(110, imgY, boxSize, boxSize, 'F');
+
+    for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+            const code = String(grid[y][x]);
+            if (code === "0") continue;
+            const entry = data.palette.find(p => p.code === code);
+            if (entry) {
+                doc.setFillColor(entry.rgb[0], entry.rgb[1], entry.rgb[2]);
+                doc.rect(pX0 + (x * pCellSize), pY0 + (y * pCellSize), pCellSize, pCellSize, 'F');
+            }
+        }
+    }
+    doc.setFontSize(10);
+    doc.text("Editor Preview", 150, imgY + boxSize + 5, { align: "center" });
+
+    // 3. STATS
+    doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
-    doc.text(`Total Stitches: ${data.totalStitches.toLocaleString()}`, 105, 160, { align: "center" });
-    doc.text(`Stitched Area: ${data.stitchedSize.w} x ${data.stitchedSize.h} stitches`, 105, 170, { align: "center" });
-    doc.text(`Fabric Count: ${data.fabricCount}-count Aida`, 105, 180, { align: "center" });
+    const statsY = imgY + boxSize + 25;
+
+    doc.text(`Total Stitches: ${data.totalStitches.toLocaleString()}`, 105, statsY, { align: "center" });
+    doc.text(`Stitched Area: ${data.stitchedSize.w} x ${data.stitchedSize.h} stitches`, 105, statsY + 10, { align: "center" });
+    doc.text(`Fabric Count: ${data.fabricCount}-count Aida`, 105, statsY + 20, { align: "center" });
 }
 
 /**
@@ -143,8 +172,8 @@ function drawGrid(doc, x0, y0, w, h, size) {
  */
 function drawLegendPage(doc, data, isPK) {
     doc.addPage();
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(18);
+    doc.setFont("courier", "bold");
+    doc.setFontSize(14);
     doc.setTextColor(0);
     doc.text(isPK ? "Pattern Keeper Legend" : "Symbol Legend", 20, 20);
 
