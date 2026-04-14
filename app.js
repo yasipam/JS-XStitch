@@ -582,7 +582,7 @@ function setupExportButtons() {
     // --- PNG EXPORT ---
     if (exportPngBtn) {
         exportPngBtn.onclick = () => {
-            const rgbGrid = state.mappedRgbGrid;
+            const rgbGrid = state.mappedRgbGrid; 
             if (!rgbGrid) {
                 console.error("No grid data available to export.");
                 return;
@@ -600,9 +600,9 @@ function setupExportButtons() {
             }
             const isStamped = stampedToggle ? stampedToggle.checked : false;
             exportOXS(
-                state.mappedDmcGrid,
-                DMC_RGB,
-                "kriss_kross_pattern.oxs",
+                state.mappedDmcGrid, 
+                DMC_RGB, 
+                "kriss_kross_pattern.oxs", 
                 isStamped ? state.mappedRgbGrid : null
             );
         };
@@ -761,6 +761,31 @@ window.addEventListener("load", () => {
                 countDisplay.innerHTML = `Actual Colours: ${payload.count}`;
             }
             renderThreadsTable(payload.threadStats);
+        }
+
+        // NEW: Handle live synchronization of drawing edits
+        if (type === 'SYNC_GRID_TO_PARENT') {
+            // 1. Update the RGB grid with manual edits
+            state.mappedRgbGrid = payload;
+
+            // 2. Prepare for DMC re-mapping
+            const useLab = mappingConfig.distanceMethod.startsWith("cie");
+            const distFn = getDistanceFn(mappingConfig.distanceMethod, useLab);
+
+            // 3. Map edited pixels back to DMC codes for the Export Engine
+            state.mappedDmcGrid = payload.map(row =>
+                row.map(rgb => {
+                    // Treat pure white as cloth (Code "0")
+                    if (rgb[0] === 255 && rgb[1] === 255 && rgb[2] === 255) return "0";
+
+                    // Find closest DMC thread for the hand-drawn color
+                    const match = nearestDmcColor(rgb, distFn, null, DMC_RGB);
+                    return match ? String(match[0]) : "0";
+                })
+            );
+
+            // Ensure EditorState is kept in sync for other UI components
+            state.setMappingResults(state.mappedRgbGrid, state.mappedDmcGrid);
         }
     });
 

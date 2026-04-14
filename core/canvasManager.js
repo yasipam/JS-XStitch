@@ -39,9 +39,16 @@ window.addEventListener('message', (e) => {
                 events = new EditorEvents(canvases.ui, state);
 
                 state.on("gridChanged", () => {
+                    // 1. Existing Stats Report
                     window.parent.postMessage({
                         type: 'REPORT_GRID_STATS',
                         payload: { count: state.getUniqueColorCount(), threadStats: state.getThreadStats() }
+                    }, '*');
+
+                    // 2. NEW: Send the actual live pixel data back to the parent
+                    window.parent.postMessage({
+                        type: 'SYNC_GRID_TO_PARENT',
+                        payload: state.pixelGrid.grid // The raw 2D array of [r,g,b]
                     }, '*');
                 });
             }

@@ -3,12 +3,10 @@ import { tilePattern } from "../mapping/tiling.js";
 import { DMC_RGB } from "../mapping/constants.js";
 
 export function buildExportData(state, mappingConfig, options = {}) {
-    if (!state.mappedRgbGrid || !state.mappedDmcGrid) {
-        throw new Error("No mapped grid available. Run mapping first.");
-    }
-
+    // Use the live mapped grids which now contain manual edits
     const dmcGrid = state.mappedDmcGrid;
     const rgbGrid = state.mappedRgbGrid;
+
     const height = dmcGrid.length;
     const width = dmcGrid[0].length;
 
