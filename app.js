@@ -57,7 +57,64 @@ function sendToCanvas(type, payload) {
 let cachedProjectPalette = null;
 let lastPaletteConfig = { maxSize: 0, maxColours: 0, image: null, distanceMethod: "" };
 
-async function runMapping() {
+// -----------------------------------------------------------------------------
+// USER-EDIT DIFF LAYER
+// -----------------------------------------------------------------------------
+// Stores pixels the user has manually painted over the mapped baseline.
+// Structure: Map< "x,y" -> [r,g,b] >
+// Reset to empty on upload or explicit "Reset to original".
+// Re-populated from SYNC_GRID_TO_PARENT by diffing the live canvas against
+// the last known clean baseline (state.mappedRgbGrid).
+let userEditDiff = new Map();
+
+// The baseline grid from the most recent successful runMapping call.
+// Used to detect which pixels have been manually changed.
+let lastBaselineGrid = null;
+
+/**
+ * Capture any pixels that differ between the live canvas grid and the
+ * current baseline into userEditDiff.  Called from SYNC_GRID_TO_PARENT.
+ */
+function captureUserEdits(liveGrid) {
+    if (!lastBaselineGrid) return;
+    const h = liveGrid.length;
+    const w = liveGrid[0].length;
+    if (h !== lastBaselineGrid.length || w !== lastBaselineGrid[0].length) return;
+
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            const [lr, lg, lb] = liveGrid[y][x];
+            const [br, bg, bb] = lastBaselineGrid[y][x];
+            const key = `${x},${y}`;
+            if (lr !== br || lg !== bg || lb !== bb) {
+                userEditDiff.set(key, [lr, lg, lb]);
+            } else {
+                // Pixel matches baseline — no longer a custom edit
+                userEditDiff.delete(key);
+            }
+        }
+    }
+}
+
+/**
+ * Composite: take a fresh baseline grid and re-apply all stored user edits
+ * on top of it, returning the merged grid to send to the canvas.
+ */
+function applyUserEditsToBaseline(baselineGrid) {
+    if (userEditDiff.size === 0) return baselineGrid;
+
+    // Deep-clone so we don't mutate the baseline reference
+    const merged = baselineGrid.map(row => row.map(px => [...px]));
+    for (const [key, rgb] of userEditDiff) {
+        const [x, y] = key.split(',').map(Number);
+        if (merged[y] && merged[y][x]) {
+            merged[y][x] = [...rgb];
+        }
+    }
+    return merged;
+}
+
+async function runMapping(isReset = false) {
     if (!currentImage) return;
 
     try {
@@ -87,19 +144,13 @@ async function runMapping() {
 
         if (needsNewPalette) {
             const extractedColors = buildPaletteFromImage(currentImage, maxColours);
-            cachedProjectPalette = extractedColors.map(rgb => {
-                return nearestDmcColor(rgb, distFn, dmcLibraryLab, DMC_RGB);
-            });
-
-            lastPaletteConfig = {
-                maxSize: targetSize,
-                maxColours: maxColours,
-                image: currentImage,
-                distanceMethod: distanceMethod
-            };
+            cachedProjectPalette = extractedColors.map(rgb =>
+                nearestDmcColor(rgb, distFn, dmcLibraryLab, DMC_RGB)
+            );
+            lastPaletteConfig = { maxSize: targetSize, maxColours, image: currentImage, distanceMethod };
         }
 
-        // 4. Mapping Pipeline (Always generates original DMC Grids first)
+        // 4. Generate a fresh clean baseline from the image
         const [rgbGrid, dmcGrid] = mapFullWithPalette(
             currentImage,
             targetSize,
@@ -116,46 +167,40 @@ async function runMapping() {
             mappingConfig.antiNoise
         );
 
-        // 5. Update Local State (THE SOURCE OF TRUTH FOR EXPORTS)
-        state.mappedDmcGrid = dmcGrid;
-        // We temporarily hold the original RGB grid here
-        state.mappedRgbGrid = rgbGrid;
+        // 5. On an explicit reset, wipe all stored edits so the canvas
+        //    returns to the pure mapped state.
+        if (isReset) {
+            userEditDiff.clear();
+        }
 
-        // 6. STAMPED LOGIC: Prepare the "Visual" Grid for the UI
-        let finalDisplayGrid;
-        // Inside runMapping in app.js
+        // 6. Store the new clean baseline
+        lastBaselineGrid = rgbGrid;
+        state.setMappingResults(rgbGrid, dmcGrid);
+
+        // 7. Build the display grid:
+        //    - Stamped mode: stamped visual (drawing is disabled in this mode,
+        //      so there are never user edits to preserve)
+        //    - Normal mode: baseline + user edits composited on top
+        let displayGrid;
         if (mappingConfig.stampedMode) {
             const stampedResult = buildStampedGrid(dmcGrid, { hueShift: mappingConfig.stampedHue });
-            // Send ONLY to the canvas for display
-            sendToCanvas('UPDATE_GRID', stampedResult.grid);
+            displayGrid = stampedResult.grid;
         } else {
-            sendToCanvas('UPDATE_GRID', rgbGrid);
+            displayGrid = applyUserEditsToBaseline(rgbGrid);
         }
-        // Finalize state update
-        state.setMappingResults(state.mappedRgbGrid, state.mappedDmcGrid);
 
-        // 7. Sync with Canvas Iframe
-        const payload = {
-            grid: finalDisplayGrid,
-            width: dmcGrid[0].length,
-            height: dmcGrid.length
-        };
+        // 8. Push the composited grid to the canvas
+        sendToCanvas('UPDATE_GRID', displayGrid);
 
-        // This replaces the old grid with the new visual grid (Neon or Original)
-        sendToCanvas('CMD_LOAD_GRID', payload);
+        // 9. Only reset the view on a deliberate reset/first load, not on
+        //    every slider nudge — this stops the zoom jumping around.
+        if (isReset) {
+            setTimeout(() => sendToCanvas('CMD_RESET_VIEW'), 100);
+        }
 
-        setTimeout(() => {
-            sendToCanvas('UPDATE_GRID', finalDisplayGrid);
-        }, 50);
-
-        // 8. Refresh UI
+        // 10. Refresh palette UI
         renderPalette(cachedProjectPalette);
         updatePaletteHighlights();
-
-        setTimeout(() => {
-            sendToCanvas('CMD_RESET_VIEW');
-            sendToCanvas('CMD_GET_IMAGE_DATA');
-        }, 300);
 
     } catch (error) {
         console.error("Mapping failed:", error);
@@ -359,13 +404,15 @@ function setupUpload() {
                 }
 
                 state.clear();
+                userEditDiff.clear();   // Fresh upload — no prior edits to keep
+                lastBaselineGrid = null;
                 // Tell the iframe to prepare for an 80px grid
                 sendToCanvas('INIT', {
                     width: 80,
                     height: Math.floor(80 * (img.height / img.width))
                 });
 
-                runMapping();
+                runMapping(true); // isReset=true so view resets to best-fit
             };
             img.src = base64Data;
         };
@@ -420,8 +467,9 @@ function setupResetControls() {
         resetOriginalBtn.onclick = () => {
             if (confirm("Restore original pattern and discard all edits?")) {
                 resetUIControls();
-                state.resetToMappedState();
-                runMapping();
+                userEditDiff.clear();   // Discard all pencil edits
+                lastBaselineGrid = null;
+                runMapping(true); // isReset=true so view and grid both reset
             }
         };
     }
@@ -828,9 +876,11 @@ window.addEventListener("load", () => {
             // Store the live RGB grid immediately so exports always have fresh data.
             state.mappedRgbGrid = payload;
 
+            // Diff the live canvas against the last clean baseline to track
+            // which pixels the user has manually edited.
+            captureUserEdits(payload);
+
             // Rebuild mappedDmcGrid off the hot path (export only needs it at click time).
-            // Running this synchronously was causing the colour-selection delay because
-            // it called nearestDmcColor for every pixel on every debounced stroke.
             Promise.resolve().then(() => {
                 const useLab = mappingConfig.distanceMethod.startsWith("cie");
                 const distFn = getDistanceFn(mappingConfig.distanceMethod, useLab);
