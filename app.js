@@ -4,7 +4,7 @@ import { EditorEvents } from "./core/events.js";
 import { ToolRegistry } from "./core/tools.js";
 
 // Mapping Logic
-import { mergeSimilarPaletteColors, buildPaletteFromImage, getDistanceFn, rgbToLab } from "./mapping/palette.js"; 
+import { mergeSimilarPaletteColors, buildPaletteFromImage, getDistanceFn, rgbToLab } from "./mapping/palette.js";
 import { mapFullWithPalette, nearestDmcColor } from "./mapping/mappingEngine.js";
 import { buildStampedGrid } from "./mapping/stamped.js";
 import { DMC_RGB } from "./mapping/constants.js";
@@ -179,14 +179,14 @@ function renderPalette(projectPalette = []) {
     DMC_RGB.forEach(([code, name, rgb]) => {
         const isUsed = projectCodes.has(String(code));
         const rgbStr = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
-        
+
         // 1. Grid Swatch (Only if used in project, or show all - usually show all for picker)
         const swatch = document.createElement("div");
         swatch.className = `palette-swatch ${isUsed ? 'used' : ''}`;
         swatch.dataset.code = code;
         swatch.style.backgroundColor = rgbStr;
         swatch.title = `${code}: ${name}`;
-        
+
         swatch.onclick = () => {
             state.setColor(rgb);
             sendToCanvas('SET_COLOR', rgb);
@@ -228,7 +228,7 @@ function setupPaletteUI() {
             const isHidden = listContainer.style.display === "none";
             listContainer.style.display = isHidden ? "block" : "none";
             toggleBtn.textContent = isHidden ? "CLose list ▲" : "Click to search ▼";
-            
+
             // Focus search automatically when opening
             if (isHidden && searchInput) searchInput.focus();
         };
@@ -238,7 +238,7 @@ function setupPaletteUI() {
         searchInput.oninput = () => {
             const query = searchInput.value.toLowerCase();
             const rows = document.querySelectorAll(".palette-row");
-            
+
             rows.forEach(row => {
                 const text = row.textContent.toLowerCase();
                 // Filter rows based on search text
@@ -281,66 +281,32 @@ function renderThreadsTable(threadStats) {
     threadStats.forEach(stat => {
         const currentRgb = [stat.r, stat.g, stat.b];
 
-        /** * CRITICAL FIX: Find the ORIGINAL DMC code.
-         * Instead of finding the DMC match for the neon 'currentRgb', 
-         * we look at our master PROJECT palette to see which DMC code 
-         * this stitch actually belongs to.
-         */
-        const dmcEntry = DMC_RGB.find(dmc => {
-            // If Stamped Mode is ON, we must find the original by comparing 
-            // the stitch count and existing dmcGrid data to identify the thread.
-            // A simpler reliable way is to find the match in the master DMC list 
-            // BEFORE any stamping was applied.
-            return nearestDmcColor(currentRgb, distFn, null, DMC_RGB);
-        });
+        // Resolve the DMC entry directly from the RGB value reported by the canvas.
+        // This works correctly for both mapped colours and any colours drawn manually
+        // with the pencil tool, and never relies on the stale mappedDmcGrid.
+        const dmcEntry = nearestDmcColor(currentRgb, distFn, null, DMC_RGB);
+        if (!dmcEntry) return;
 
-        // To perfectly lock it, we use the global project state mapping
-        const originalDmcCode = state.mappedDmcGrid ?
-            getOriginalDmcFromStats(stat, state.mappedDmcGrid, DMC_RGB) : "???";
+        const [code, name, originalRgb] = dmcEntry;
+        const skeins = Math.ceil(stat.count / 1600);
 
-        const projectColor = DMC_RGB.find(d => String(d[0]) === String(originalDmcCode));
-
-        if (projectColor) {
-            const [code, name, originalRgb] = projectColor;
-            const skeins = Math.ceil(stat.count / 1600);
-
-            const row = document.createElement("tr");
-            row.innerHTML = `
-                <td>
-                    <div class="table-swatch" style="background-color: rgb(${originalRgb[0]}, ${originalRgb[1]}, ${originalRgb[2]}); border: 1px solid #ccc;"></div>
-                </td>
-                <td title="${name}"><strong>${code}</strong></td>
-                <td>${stat.count}</td>
-                <td>${skeins}</td>
-            `;
-            tbody.appendChild(row);
-        }
+        const row = document.createElement("tr");
+        row.innerHTML = `
+            <td>
+                <div class="table-swatch" style="background-color: rgb(${originalRgb[0]}, ${originalRgb[1]}, ${originalRgb[2]}); border: 1px solid #ccc;"></div>
+            </td>
+            <td title="${name}"><strong>${code}</strong></td>
+            <td>${stat.count}</td>
+            <td>${skeins}</td>
+        `;
+        tbody.appendChild(row);
     });
-}
-
-/**
- * Helper to ensure we never use the stamped color to identify the thread.
- * It looks at the actual DMC grid stored in the parent state.
- */
-function getOriginalDmcFromStats(stat, dmcGrid, dmcLibrary) {
-    // We search the dmcGrid for the code that appears most often with this specific count
-    // or simply rely on the fact that dmcGrid already contains the CORRECT codes.
-    // The threadStats from the canvas should strictly be used for counts, 
-    // while dmcGrid is used for the Identity.
-    const flatGrid = dmcGrid.flat();
-    const usedCodes = [...new Set(flatGrid)].filter(c => c !== "0");
-
-    // Find the code whose stitch count matches this stat
-    return usedCodes.find(code => {
-        const count = flatGrid.filter(c => String(c) === String(code)).length;
-        return count === stat.count;
-    }) || "???";
 }
 
 // -----------------------------------------------------------------------------
 // UI SETUP
 // -----------------------------------------------------------------------------
-window.openTab = function(evt, tabName) {
+window.openTab = function (evt, tabName) {
     const contents = document.getElementsByClassName("tab-content");
     for (let i = 0; i < contents.length; i++) contents[i].style.display = "none";
 
@@ -510,7 +476,7 @@ function setupMappingControls() {
             runMapping();
         };
     }
-    
+
     // 3. Distance Radios
     const distanceRadios = document.querySelectorAll("input[name='colorDistance']");
     distanceRadios.forEach(radio => {
@@ -672,7 +638,7 @@ function setupExportButtons() {
     // --- PNG EXPORT ---
     if (exportPngBtn) {
         exportPngBtn.onclick = () => {
-            const rgbGrid = state.mappedRgbGrid; 
+            const rgbGrid = state.mappedRgbGrid;
             if (!rgbGrid) {
                 console.error("No grid data available to export.");
                 return;
@@ -690,9 +656,9 @@ function setupExportButtons() {
             }
             const isStamped = stampedToggle ? stampedToggle.checked : false;
             exportOXS(
-                state.mappedDmcGrid, 
-                DMC_RGB, 
-                "kriss_kross_pattern.oxs", 
+                state.mappedDmcGrid,
+                DMC_RGB,
+                "kriss_kross_pattern.oxs",
                 isStamped ? state.mappedRgbGrid : null
             );
         };
@@ -745,7 +711,7 @@ function exportPixelPNG(rgbGrid, filename) {
 
     // 3. Put the pixels on the canvas and trigger download
     ctx.putImageData(imageData, 0, 0);
-    
+
     const link = document.createElement('a');
     link.download = filename;
     link.href = offscreenCanvas.toDataURL("image/png");
@@ -787,7 +753,7 @@ function resetUIControls() {
 // BOOTSTRAP
 // -----------------------------------------------------------------------------
 window.addEventListener("load", () => {
-    state = new EditorState(null); 
+    state = new EditorState(null);
     const canvasFrame = document.getElementById('canvasFrame');
 
     const initializeCanvas = () => {
@@ -800,7 +766,7 @@ window.addEventListener("load", () => {
         if (state.pixelGrid.grid) {
             sendToCanvas('UPDATE_GRID', state.pixelGrid.grid);
         }
-        
+
         canvasFrame.contentWindow.focus();
     };
 
@@ -824,7 +790,7 @@ window.addEventListener("load", () => {
         const activeEl = document.activeElement;
         if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
             if (activeEl.type !== 'range' && activeEl.type !== 'checkbox') {
-                return; 
+                return;
             }
         }
 
@@ -856,33 +822,31 @@ window.addEventListener("load", () => {
         }
 
         if (type === 'SYNC_GRID_TO_PARENT') {
-            // CRITICAL FIX: If we are in Stamped Mode, the canvas is holding NEON colors.
-            // We must NOT sync these back to the parent state, or they will overwrite 
-            // our original DMC pattern data and destroy the export.
-            if (mappingConfig.stampedMode) {
-                console.log("Sync blocked: Stamped Mode is active to protect original DMC data.");
-                return;
-            }
+            // Block sync in Stamped Mode to protect original DMC data.
+            if (mappingConfig.stampedMode) return;
 
-            // Normal sync logic only runs when Stamped Mode is OFF
+            // Store the live RGB grid immediately so exports always have fresh data.
             state.mappedRgbGrid = payload;
 
-            const useLab = mappingConfig.distanceMethod.startsWith("cie");
-            const distFn = getDistanceFn(mappingConfig.distanceMethod, useLab);
-
-            state.mappedDmcGrid = payload.map(row =>
-                row.map(rgb => {
-                    if (rgb[0] === 255 && rgb[1] === 255 && rgb[2] === 255) return "0";
-                    const match = nearestDmcColor(rgb, distFn, null, DMC_RGB);
-                    return match ? String(match[0]) : "0";
-                })
-            );
-
-            state.setMappingResults(state.mappedRgbGrid, state.mappedDmcGrid);
+            // Rebuild mappedDmcGrid off the hot path (export only needs it at click time).
+            // Running this synchronously was causing the colour-selection delay because
+            // it called nearestDmcColor for every pixel on every debounced stroke.
+            Promise.resolve().then(() => {
+                const useLab = mappingConfig.distanceMethod.startsWith("cie");
+                const distFn = getDistanceFn(mappingConfig.distanceMethod, useLab);
+                state.mappedDmcGrid = payload.map(row =>
+                    row.map(rgb => {
+                        if (rgb[0] === 255 && rgb[1] === 255 && rgb[2] === 255) return "0";
+                        const match = nearestDmcColor(rgb, distFn, null, DMC_RGB);
+                        return match ? String(match[0]) : "0";
+                    })
+                );
+                state.setMappingResults(state.mappedRgbGrid, state.mappedDmcGrid);
+            });
         }
     });
 
-    renderPalette([]); 
+    renderPalette([]);
     state.setColor([0, 0, 0]);
 
     console.log("Cross Stitch Editor Parent Shell Initialized.");
