@@ -18,6 +18,8 @@ import { exportPDF } from "./export/exportPDF.js";
 let state;
 let events;
 let currentImage = null;
+let lastBaselineGrid = null;    // Existing: stores RGB baseline
+let lastBaselineDmcGrid = null; // NEW: stores pure DMC baseline mapping
 
 // -----------------------------------------------------------------------------
 // MAPPING CONFIGURATION
@@ -66,10 +68,6 @@ let lastPaletteConfig = { maxSize: 0, maxColours: 0, image: null, distanceMethod
 // Re-populated from SYNC_GRID_TO_PARENT by diffing the live canvas against
 // the last known clean baseline (state.mappedRgbGrid).
 let userEditDiff = new Map();
-
-// The baseline grid from the most recent successful runMapping call.
-// Used to detect which pixels have been manually changed.
-let lastBaselineGrid = null;
 
 /**
  * Capture any pixels that differ between the live canvas grid and the
@@ -174,7 +172,9 @@ async function runMapping(isReset = false) {
         }
 
         // 6. Store the new clean baseline
+        // CRITICAL: Store the fresh clean baseline for both RGB and DMC
         lastBaselineGrid = rgbGrid;
+        lastBaselineDmcGrid = dmcGrid; // Save the DMC version
         state.setMappingResults(rgbGrid, dmcGrid);
 
         // 7. Build the edit-inclusive DMC grid (baseline + user edits mapped to DMC)
@@ -694,31 +694,29 @@ function setupExportButtons() {
 
     if (exportPdfBtn) {
         exportPdfBtn.onclick = async () => {
-            const selectedMode = modeSelect.value;
-            mappingConfig.exportMode = selectedMode;
+            try {
+                const selectedMode = modeSelect.value;
+                // No need to manually generate stamped grid here; 
+                // buildExportData.js already handles it based on mappingConfig.stampedMode.
 
-            // CRITICAL FIX: If stamped mode, regenerate stamped grid NOW
-            let rgbGridForExport = state.mappedRgbGrid;
-            if (mappingConfig.stampedMode && state.mappedDmcGrid) {
-                const stampedResult = buildStampedGrid(state.mappedDmcGrid, {
-                    hueShift: mappingConfig.stampedHue
+                const data = buildExportData(state, mappingConfig, {
+                    fabricCount: fabricSelect.value,
+                    mode: selectedMode
+                    // Removed overrideRgbGrid; let buildExportData regenerate it if needed
                 });
-                rgbGridForExport = stampedResult.grid;
-            }
 
-            const data = buildExportData(state, mappingConfig, {
-                fabricCount: fabricSelect.value,
-                mode: selectedMode,
-                overrideRgbGrid: rgbGridForExport  // Pass it explicitly
-            });
+                // Ensure the select exists before accessing .value to prevent crashes
+                const exportType = pdfTypeSelect ? pdfTypeSelect.value : 'PRINTABLE';
 
-            // Trigger the export with the specific type (PRINTABLE or STANDARD)
-            const exportType = pdfTypeSelect.value;
-            await exportPDF(data, exportType);
+                console.log(`Starting PDF Export: ${exportType}`);
+                await exportPDF(data, exportType);
 
-            // Handle Pattern Keeper add-on if checked
-            if (pkCheckbox && pkCheckbox.checked) {
-                await exportPDF(data, 'PK');
+                if (pkCheckbox && pkCheckbox.checked) {
+                    await exportPDF(data, 'PK');
+                }
+            } catch (error) {
+                console.error("PDF Export failed:", error);
+                alert("Could not generate PDF. Check console for details.");
             }
         };
     }
@@ -921,57 +919,76 @@ window.addEventListener("load", () => {
         const { type, payload } = e.data;
 
         if (type === 'REPORT_GRID_STATS') {
-            if (mappingConfig.stampedMode && state.mappedDmcGrid) {
-                // RE-CALCULATE STATS FROM DMC GRID INSTEAD OF NEON CANVAS COLORS
+            const countDisplay = document.getElementById("actualColoursUsed");
+
+            // ALWAYS use the mappedDmcGrid as the source of truth for counts.
+            // This ensures the sidebar stays identical in both Stamped and Normal modes.
+            if (state.mappedDmcGrid) {
                 const counts = {};
                 state.mappedDmcGrid.flat().forEach(code => {
-                    if (code === "0") return;
-                    counts[code] = (counts[code] || 0) + 1;
+                    const sCode = String(code);
+                    if (sCode === "0") return; // Skip cloth
+                    counts[sCode] = (counts[sCode] || 0) + 1;
                 });
 
                 const threadStats = Object.entries(counts).map(([code, count]) => {
                     const dmcEntry = DMC_RGB.find(d => String(d[0]) === code);
+                    if (!dmcEntry) return null;
+
                     return {
+                        code: code,
                         r: dmcEntry[2][0],
                         g: dmcEntry[2][1],
                         b: dmcEntry[2][2],
                         count: count
                     };
-                });
+                }).filter(stat => stat !== null);
 
-                const countDisplay = document.getElementById("actualColoursUsed");
-                if (countDisplay) countDisplay.innerHTML = `Actual Colours: ${threadStats.length}`;
+                // Update the "Actual Colours: X" UI text
+                if (countDisplay) {
+                    countDisplay.innerHTML = `Actual Colours: ${threadStats.length}`;
+                }
+
+                // Refresh the sidebar table
                 renderThreadsTable(threadStats);
-            } else {
-                // Standard behavior
-                const countDisplay = document.getElementById("actualColoursUsed");
-                if (countDisplay) countDisplay.innerHTML = `Actual Colours: ${payload.count}`;
-                renderThreadsTable(payload.threadStats);
             }
         }
 
         if (type === 'SYNC_GRID_TO_PARENT') {
-            // Block sync in Stamped Mode to protect original DMC data.
+            // CRITICAL: If Stamped Mode is ON, drawing is disabled and the canvas 
+            // is showing neon colors. We MUST NOT process these as edits.
             if (mappingConfig.stampedMode) return;
 
-            // Store the live RGB grid immediately so exports always have fresh data.
             state.mappedRgbGrid = payload;
-
-            // Diff the live canvas against the last clean baseline to track
-            // which pixels the user has manually edited.
             captureUserEdits(payload);
 
-            // Rebuild mappedDmcGrid off the hot path (export only needs it at click time).
+            // PATCH THE DMC GRID (Instead of destructive full re-mapping)
             Promise.resolve().then(() => {
+                if (!lastBaselineDmcGrid) return;
+
                 const useLab = mappingConfig.distanceMethod.startsWith("cie");
                 const distFn = getDistanceFn(mappingConfig.distanceMethod, useLab);
-                state.mappedDmcGrid = payload.map(row =>
-                    row.map(rgb => {
-                        if (rgb[0] === 255 && rgb[1] === 255 && rgb[2] === 255) return "0";
-                        const match = nearestDmcColor(rgb, distFn, null, DMC_RGB);
-                        return match ? String(match[0]) : "0";
-                    })
-                );
+                const labCache = useLab ? DMC_RGB.map(d => rgbToLab([d[2]])[0]) : null;
+
+                // 1. Start with the original baseline DMC codes
+                const liveDmcGrid = lastBaselineDmcGrid.map(row => [...row]);
+
+                // 2. Patch ONLY the pixels that the user has manually edited
+                for (const [key, rgb] of userEditDiff) {
+                    const [x, y] = key.split(',').map(Number);
+                    if (liveDmcGrid[y] && liveDmcGrid[y][x] !== undefined) {
+                        if (rgb[0] === 255 && rgb[1] === 255 && rgb[2] === 255) {
+                            liveDmcGrid[y][x] = "0"; // Handle manual erasures
+                        } else {
+                            // Only map the specific edited pixel to its nearest DMC code
+                            const match = nearestDmcColor(rgb, distFn, labCache, DMC_RGB);
+                            liveDmcGrid[y][x] = match ? String(match[0]) : "0";
+                        }
+                    }
+                }
+
+                // 3. Update the state for the export logic to use
+                state.mappedDmcGrid = liveDmcGrid;
                 state.setMappingResults(state.mappedRgbGrid, state.mappedDmcGrid);
             });
         }

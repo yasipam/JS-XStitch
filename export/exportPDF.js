@@ -225,8 +225,8 @@ function drawLegendPage(doc, data, isPK) {
                 doc.rect(data.stampedMode ? 155 : 175, y - 4, 10, 5, 'S');
             }
 
-            // Render Stamped Swatch
-            if (data.stampedMode && p.stampedRgb) {
+            // Render Stamped Swatch - CRITICAL: Check both stampedMode AND p.stampedRgb exists
+            if (data.stampedMode && p.stampedRgb && Array.isArray(p.stampedRgb)) {
                 doc.setFillColor(p.stampedRgb[0], p.stampedRgb[1], p.stampedRgb[2]);
                 doc.rect(180, y - 4, 10, 5, 'F');
                 doc.setDrawColor(200);

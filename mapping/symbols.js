@@ -60,11 +60,16 @@ export function symbolsTooSimilar(sym1, sym2) {
  */
 export function isSafeSymbol(symbol, code, assigned, codeToRgb) {
     const thisRgb = codeToRgb[code];
+    // If the current code has no RGB data, we can't do distance checks; assume safe.
     if (!thisRgb) return true;
 
     for (const [otherCode, otherSymbol] of Object.entries(assigned)) {
         const otherRgb = codeToRgb[otherCode];
-        // If colors are visually similar, ensure symbols are NOT in the same family [cite: 3]
+
+        // CRITICAL FIX: Skip comparison if the other color data is missing
+        if (!otherRgb) continue;
+
+        // If colors are visually similar, ensure symbols are NOT in the same family
         if (colourDistance(thisRgb, otherRgb) < SIMILAR_COLOUR_THRESHOLD) {
             if (symbolsTooSimilar(symbol, otherSymbol)) return false;
         }

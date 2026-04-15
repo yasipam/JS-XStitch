@@ -8,32 +8,30 @@ import { buildStampedGrid } from "../mapping/stamped.js";
  * Fix: Explicitly generates and passes the stamped grid for visual rendering
  * while maintaining original DMC identity for the legend.
  */
+// export/buildExportData.js
+
 export function buildExportData(state, mappingConfig, options = {}) {
     if (!state.mappedDmcGrid) {
         throw new Error("No mapped grid available. Run mapping first.");
     }
 
     const dmcGrid = state.mappedDmcGrid;
-    // Use override if provided (PDF stamped mode), otherwise use synced state
-    const originalRgbGrid = options.overrideRgbGrid || state.mappedRgbGrid;
-    const isStamped = mappingConfig.stampedMode; // [cite: 4]
+    const isStamped = mappingConfig.stampedMode;
 
-    const height = dmcGrid.length;
-    const width = dmcGrid[0].length;
-
-    // 2. GENERATE THE VISUAL GRID AND LOOKUP MAP FOR EXPORT
-    let exportVisualGrid = originalRgbGrid;
+    // 1. GENERATE VISUAL GRID
+    let exportVisualGrid = state.mappedRgbGrid;
     let stampedLookup = {};
 
     if (isStamped) {
-        // Re-generate the high-contrast grid to ensure PDF pattern pages match UI [cite: 8]
-        // Note: We use the .grid property because buildStampedGrid returns {grid, lookup}
+        // Re-generate the high-contrast grid and lookup map
         const stampedResult = buildStampedGrid(dmcGrid, { hueShift: mappingConfig.stampedHue });
         exportVisualGrid = stampedResult.grid;
-        stampedLookup = stampedResult.lookup; // This is the direct code -> neon map
+        stampedLookup = stampedResult.lookup;
     }
 
-    // 3. CALCULATE STITCHED AREA
+    // 2. CALCULATE STITCHED AREA
+    const height = dmcGrid.length;
+    const width = dmcGrid[0].length;
     let minX = width, maxX = 0, minY = height, maxY = 0;
     let totalStitches = 0;
     for (let y = 0; y < height; y++) {
@@ -46,26 +44,24 @@ export function buildExportData(state, mappingConfig, options = {}) {
         }
     }
 
-    // 4. BUILD PALETTE (Locked to Original DMC Data + Baked Stamped Colors)
+    // 3. BUILD PALETTE with Stamped Colors included
     const usedCodes = new Set(dmcGrid.flat().map(String));
     const palette = DMC_RGB.filter(d => usedCodes.has(String(d[0]))).map(d => {
         const code = String(d[0]);
-        // Count occurrences of this specific code in the grid
         const count = dmcGrid.flat().filter(c => String(c) === code).length;
 
         return {
             code: code,
-            name: d[1] || "Unknown", // Guarantee a string for .substring()
-            rgb: d[2],               // [R, G, B]
+            name: d[1] || "Unknown",
+            rgb: d[2],
             stampedRgb: isStamped ? (stampedLookup[code] || null) : null,
             count: count
         };
     });
-    
-    // 5. CONSTRUCT EXPORT OBJECT
+
     return {
         dmcGrid,
-        rgbGrid: exportVisualGrid, // Used for drawing the pattern pages [cite: 3]
+        rgbGrid: exportVisualGrid,
         symbolMap: buildSymbolMap(dmcGrid, DMC_RGB, options.type === 'PK'),
         palette,
         totalStitches,
@@ -75,9 +71,8 @@ export function buildExportData(state, mappingConfig, options = {}) {
         },
         canvasSize: { w: width, h: height },
         fabricCount: parseInt(options.fabricCount) || 14,
-        exportMode: mappingConfig.exportMode || options.mode || "cross",
+        exportMode: options.mode || mappingConfig.exportMode || "cross",
         stampedMode: isStamped,
-        originalImage: state.originalImageURL,
-        processedImage: state.processedImageURL
+        originalImage: state.originalImageURL
     };
 }
