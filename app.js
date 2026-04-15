@@ -326,19 +326,23 @@ function renderThreadsTable(threadStats) {
     if (!tbody) return;
     tbody.innerHTML = "";
 
-    // 1. Sort by stitch count descending
     threadStats.sort((a, b) => b.count - a.count);
-
-    // 2. Setup distance function for lookup
     const distFn = getDistanceFn("euclidean", false);
 
     threadStats.forEach(stat => {
-        const currentRgb = [stat.r, stat.g, stat.b];
+        let dmcEntry = null;
 
-        // Resolve the DMC entry directly from the RGB value reported by the canvas.
-        // This works correctly for both mapped colours and any colours drawn manually
-        // with the pencil tool, and never relies on the stale mappedDmcGrid.
-        const dmcEntry = nearestDmcColor(currentRgb, distFn, null, DMC_RGB);
+        // USE CODE IF PROVIDED: Avoids redundant distance math on every draw
+        if (stat.code) {
+            dmcEntry = DMC_RGB.find(d => String(d[0]) === String(stat.code));
+        }
+
+        // Fallback for non-stamped legacy stats
+        if (!dmcEntry) {
+            const currentRgb = [stat.r, stat.g, stat.b];
+            dmcEntry = nearestDmcColor(currentRgb, distFn, null, DMC_RGB);
+        }
+
         if (!dmcEntry) return;
 
         const [code, name, originalRgb] = dmcEntry;
@@ -356,6 +360,38 @@ function renderThreadsTable(threadStats) {
         tbody.appendChild(row);
     });
 }
+
+function updateSidebarFromState() {
+    if (!state || !state.mappedDmcGrid) return;
+
+    const countDisplay = document.getElementById("actualColoursUsed");
+    const counts = {};
+
+    state.mappedDmcGrid.flat().forEach(code => {
+        const sCode = String(code);
+        if (sCode === "0") return; // Skip cloth
+        counts[sCode] = (counts[sCode] || 0) + 1;
+    });
+
+    const threadStats = Object.entries(counts).map(([code, count]) => {
+        const dmcEntry = DMC_RGB.find(d => String(d[0]) === code);
+        if (!dmcEntry) return null;
+
+        return {
+            code: code,
+            r: dmcEntry[2][0],
+            g: dmcEntry[2][1],
+            b: dmcEntry[2][2],
+            count: count
+        };
+    }).filter(s => s !== null);
+
+    if (countDisplay) {
+        countDisplay.innerHTML = `Actual Colours: ${threadStats.length}`;
+    }
+    renderThreadsTable(threadStats);
+}
+
 
 // -----------------------------------------------------------------------------
 // UI SETUP
@@ -898,39 +934,8 @@ window.addEventListener("load", () => {
         const { type, payload } = e.data;
 
         if (type === 'REPORT_GRID_STATS') {
-            const countDisplay = document.getElementById("actualColoursUsed");
-
-            // ALWAYS use the mappedDmcGrid as the source of truth for counts.
-            // This ensures the sidebar stays identical in both Stamped and Normal modes.
-            if (state.mappedDmcGrid) {
-                const counts = {};
-                state.mappedDmcGrid.flat().forEach(code => {
-                    const sCode = String(code);
-                    if (sCode === "0") return; // Skip cloth
-                    counts[sCode] = (counts[sCode] || 0) + 1;
-                });
-
-                const threadStats = Object.entries(counts).map(([code, count]) => {
-                    const dmcEntry = DMC_RGB.find(d => String(d[0]) === code);
-                    if (!dmcEntry) return null;
-
-                    return {
-                        code: code,
-                        r: dmcEntry[2][0],
-                        g: dmcEntry[2][1],
-                        b: dmcEntry[2][2],
-                        count: count
-                    };
-                }).filter(stat => stat !== null);
-
-                // Update the "Actual Colours: X" UI text
-                if (countDisplay) {
-                    countDisplay.innerHTML = `Actual Colours: ${threadStats.length}`;
-                }
-
-                // Refresh the sidebar table
-                renderThreadsTable(threadStats);
-            }
+            // Use the Parent's unified source of truth for counts
+            updateSidebarFromState();
         }
 
         if (type === 'SYNC_GRID_TO_PARENT') {
@@ -950,7 +955,8 @@ window.addEventListener("load", () => {
                 const labCache = useLab ? DMC_RGB.map(d => rgbToLab([d[2]])[0]) : null;
 
                 // 1. Start with the original baseline DMC codes
-                const liveDmcGrid = lastBaselineDmcGrid.map(row => [...row]);
+                // Use String() cloning to prevent the character-splitting bug
+                const liveDmcGrid = lastBaselineDmcGrid.map(row => row.map(c => String(c)));
 
                 // 2. Patch ONLY the pixels that the user has manually edited
                 for (const [key, rgb] of userEditDiff) {
@@ -969,6 +975,9 @@ window.addEventListener("load", () => {
                 // 3. Update the state for the export logic to use
                 state.mappedDmcGrid = liveDmcGrid;
                 state.setMappingResults(state.mappedRgbGrid, state.mappedDmcGrid);
+
+                // 4. CRITICAL FIX: Refresh the sidebar counts now that patching is finished
+                updateSidebarFromState();
             });
         }
     });
