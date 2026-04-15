@@ -48,37 +48,15 @@ export class LayeredRenderer {
         if (!grid || !grid.grid) return;
 
         const dpr = window.devicePixelRatio || 1;
-        const w = this.canvases.bg.width / dpr;
-        const h = this.canvases.bg.height / dpr;
+        ctx.fillStyle = "#c1c1c1";
+        ctx.fillRect(0, 0, this.canvases.bg.width / dpr, this.canvases.bg.height / dpr);
 
-        // --- 1. DRAW THE CHECKERED PATTERN ---
-        const checkSize = 10;
-        ctx.fillStyle = "#dddddd"; // Light gray
-        ctx.fillRect(0, 0, w, h);
-
-        ctx.fillStyle = "#ffffff"; // White toggled
-        for (let y = 0; y < h; y += checkSize) {
-            for (let x = 0; x < w; x += checkSize) {
-                if ((x / checkSize + y / checkSize) % 2 === 0) {
-                    ctx.fillRect(x, y, checkSize, checkSize);
-                }
-            }
-        }
-
-        // --- 2. DRAW THE PIXELS ---
         for (let y = 0; y < grid.height; y++) {
             for (let x = 0; x < grid.width; x++) {
                 const [r, g, b] = grid.grid[y][x];
-
-                // OPTIONAL: Skip drawing if it's pure white (to let checks show)
-                // If you want white pixels to be "solid", remove this IF statement.
-                if (r === 255 && g === 255 && b === 255) continue;
-
                 ctx.fillStyle = `rgb(${r},${g},${b})`;
                 const px = Math.floor(this.offsetX + x * this.zoom);
                 const py = Math.floor(this.offsetY + y * this.zoom);
-
-                // The +0.3 prevents sub-pixel gaps when zooming
                 ctx.fillRect(px, py, Math.ceil(this.zoom) + 0.3, Math.ceil(this.zoom) + 0.3);
             }
         }
