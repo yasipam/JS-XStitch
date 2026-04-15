@@ -189,6 +189,24 @@ async function runMapping(isReset = false) {
             displayGrid = applyUserEditsToBaseline(rgbGrid);
         }
 
+        // New Logic:
+        // 7. Build the display grid
+        const baseWithEdits = applyUserEditsToBaseline(rgbGrid);
+
+        if (mappingConfig.stampedMode) {
+            // Generate mapping from DMC grid [cite: 192]
+            const stampedResult = buildStampedGrid(dmcGrid, { hueShift: mappingConfig.stampedHue });
+
+            // Map the composited RGB grid (including edits) through the stamped lookup
+            displayGrid = baseWithEdits.map(row => row.map(rgb => {
+                const dmcMatch = nearestDmcColor(rgb, distFn, dmcLibraryLab, DMC_RGB);
+                const code = dmcMatch ? String(dmcMatch[0]) : "0";
+                return stampedResult.lookup[code] || rgb; // Use neon color or fallback to actual
+            }));
+        } else {
+            displayGrid = baseWithEdits;
+        }
+
         // 8. Push the composited grid to the canvas
         sendToCanvas('UPDATE_GRID', displayGrid);
 
