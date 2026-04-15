@@ -50,18 +50,18 @@ export function buildExportData(state, mappingConfig, options = {}) {
     const usedCodes = new Set(dmcGrid.flat().map(String));
     const palette = DMC_RGB.filter(d => usedCodes.has(String(d[0]))).map(d => {
         const code = String(d[0]);
+        // Count occurrences of this specific code in the grid
         const count = dmcGrid.flat().filter(c => String(c) === code).length;
 
         return {
             code: code,
-            name: d[1],
-            rgb: d[2], // Source of Truth thread color [cite: 1]
-            stampedRgb: isStamped ? (stampedLookup[code] || null) : null, // Baked high-contrast color
-            count: count,
-            skeins: Math.ceil(count / 1600)
+            name: d[1] || "Unknown", // Guarantee a string for .substring()
+            rgb: d[2],               // [R, G, B]
+            stampedRgb: isStamped ? (stampedLookup[code] || null) : null,
+            count: count
         };
     });
-
+    
     // 5. CONSTRUCT EXPORT OBJECT
     return {
         dmcGrid,

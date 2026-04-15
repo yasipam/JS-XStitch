@@ -205,34 +205,32 @@ function drawLegendPage(doc, data, isPK) {
     doc.setFont(activeFont, "normal");
 
     data.palette.forEach(p => {
-        // Ensure text is black for every row
-        doc.setTextColor(0);
+        doc.setTextColor(0); // Prevents color bleed from swatches to text
 
         const sym = data.symbolMap[p.code] || "?";
+        const name = String(p.name || ""); // Safety cast
+        const count = String(p.count || 0);
+
         doc.text(sym, 22, y);
         doc.text(p.code, 40, y);
-        doc.text(p.name.substring(0, 30), 60, y);
-        doc.text(String(p.count), 135, y);
+        doc.text(name.substring(0, 30), 60, y);
+        doc.text(count, 135, y);
 
         if (!isPK) {
-            if (data.stampedMode && p.stampedRgb) {
-                // COLUMN A: Original (155)
+            // Render Original DMC Swatch
+            if (p.rgb) {
                 doc.setFillColor(p.rgb[0], p.rgb[1], p.rgb[2]);
-                doc.rect(155, y - 4, 10, 5, 'F');
+                doc.rect(data.stampedMode ? 155 : 175, y - 4, 10, 5, 'F');
                 doc.setDrawColor(200);
-                doc.rect(155, y - 4, 10, 5, 'S');
+                doc.rect(data.stampedMode ? 155 : 175, y - 4, 10, 5, 'S');
+            }
 
-                // COLUMN B: Stamped (180)
+            // Render Stamped Swatch
+            if (data.stampedMode && p.stampedRgb) {
                 doc.setFillColor(p.stampedRgb[0], p.stampedRgb[1], p.stampedRgb[2]);
                 doc.rect(180, y - 4, 10, 5, 'F');
                 doc.setDrawColor(200);
                 doc.rect(180, y - 4, 10, 5, 'S');
-            } else {
-                // Single Column
-                doc.setFillColor(p.rgb[0], p.rgb[1], p.rgb[2]);
-                doc.rect(175, y - 4, 10, 5, 'F');
-                doc.setDrawColor(200);
-                doc.rect(175, y - 4, 10, 5, 'S');
             }
         }
 
