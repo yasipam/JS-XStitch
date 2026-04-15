@@ -619,18 +619,30 @@ function setupMappingControls() {
         }
 
         stampedToggle.onchange = () => {
-            // A. Update the master configuration object
             mappingConfig.stampedMode = stampedToggle.checked;
 
-            // B. Update UI visibility
             if (stampedControls) {
-                stampedControls.style.display = stampedToggle.checked ? "block" : "none";
+                stampedControls.style.display = mappingConfig.stampedMode ? "block" : "none";
             }
 
-            // C. CRITICAL: Trigger runMapping immediately.
-            // Your existing runMapping() will see mappingConfig.stampedMode is now true,
-            // generate the stampedGrid, and send UPDATE_GRID to the canvas, 
-            // while preserving the original DMC grids in the state for the export.
+            // DISABLING TOOLS
+            const drawingTools = ["pencil", "eraser", "fill", "picker"];
+            drawingTools.forEach(id => {
+                const btn = document.getElementById(id === "picker" ? "toolPicker" : id + "Btn");
+                if (btn) {
+                    btn.disabled = mappingConfig.stampedMode;
+                    btn.classList.remove("active");
+                }
+            });
+
+            if (mappingConfig.stampedMode) {
+                // Force switch to Pan tool so the user can't draw
+                state.setTool("pan");
+                sendToCanvas('SET_TOOL', "pan");
+                const panBtn = document.getElementById("panBtn"); // Ensure you have this ID in HTML
+                if (panBtn) panBtn.classList.add("active");
+            }
+
             runMapping();
         };
     }
@@ -909,13 +921,33 @@ window.addEventListener("load", () => {
         const { type, payload } = e.data;
 
         if (type === 'REPORT_GRID_STATS') {
-            const countDisplay = document.getElementById("actualColoursUsed");
-            if (countDisplay) {
-                countDisplay.innerHTML = `Actual Colours: ${payload.count}`;
-            }
+            if (mappingConfig.stampedMode && state.mappedDmcGrid) {
+                // RE-CALCULATE STATS FROM DMC GRID INSTEAD OF NEON CANVAS COLORS
+                const counts = {};
+                state.mappedDmcGrid.flat().forEach(code => {
+                    if (code === "0") return;
+                    counts[code] = (counts[code] || 0) + 1;
+                });
 
-            // Pass the stats to the rendering function
-            renderThreadsTable(payload.threadStats);
+                const threadStats = Object.entries(counts).map(([code, count]) => {
+                    const dmcEntry = DMC_RGB.find(d => String(d[0]) === code);
+                    return {
+                        r: dmcEntry[2][0],
+                        g: dmcEntry[2][1],
+                        b: dmcEntry[2][2],
+                        count: count
+                    };
+                });
+
+                const countDisplay = document.getElementById("actualColoursUsed");
+                if (countDisplay) countDisplay.innerHTML = `Actual Colours: ${threadStats.length}`;
+                renderThreadsTable(threadStats);
+            } else {
+                // Standard behavior
+                const countDisplay = document.getElementById("actualColoursUsed");
+                if (countDisplay) countDisplay.innerHTML = `Actual Colours: ${payload.count}`;
+                renderThreadsTable(payload.threadStats);
+            }
         }
 
         if (type === 'SYNC_GRID_TO_PARENT') {
