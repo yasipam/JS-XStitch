@@ -148,11 +148,9 @@ async function runMapping(isReset = false) {
             lastPaletteConfig = { maxSize: targetSize, maxColours, image: currentImage, distanceMethod };
         }
 
-        // 4. Generate a fresh clean baseline from the image
+        // 4. Generate fresh baseline
         const [rgbGrid, dmcGrid] = mapFullWithPalette(
-            currentImage,
-            targetSize,
-            cachedProjectPalette,
+            currentImage, targetSize, cachedProjectPalette,
             1.0 + (mappingConfig.brightnessInt / 10),
             1.0 + (mappingConfig.saturationInt / 10),
             1.0 + (mappingConfig.contrastInt / 10),
@@ -165,26 +163,24 @@ async function runMapping(isReset = false) {
             mappingConfig.antiNoise
         );
 
-        // 5. On an explicit reset, wipe all stored edits so the canvas
-        //    returns to the pure mapped state.
-        if (isReset) {
-            userEditDiff.clear();
-        }
+        if (isReset) userEditDiff.clear();
 
-        // 6. Store the new clean baseline
-        // CRITICAL: Store the fresh clean baseline for both RGB and DMC
+        // 6. Store Clean Baseline
         lastBaselineGrid = rgbGrid;
-        lastBaselineDmcGrid = dmcGrid; // Save the DMC version
+        lastBaselineDmcGrid = dmcGrid;
         state.setMappingResults(rgbGrid, dmcGrid);
 
-        // 7. Build the edit-inclusive DMC grid (baseline + user edits mapped to DMC)
+        // 7. Build Unified DMC Grid (Baseline + User Edits)
         let liveDmcGrid;
         if (userEditDiff.size > 0) {
             const useLab = mappingConfig.distanceMethod.startsWith("cie");
             const distFn = getDistanceFn(mappingConfig.distanceMethod, useLab);
-            const labCache = useLab ? DMC_RGB.map(d => rgbToLab(d[2])) : null;
+            // FIX: Wrap RGB in array for lab conversion
+            const labCache = useLab ? DMC_RGB.map(d => rgbToLab([d[2]])[0]) : null;
 
-            liveDmcGrid = dmcGrid.map(row => row.map(c => [...c]));
+            // FIX: Clone strings correctly (do NOT use [...c])
+            liveDmcGrid = dmcGrid.map(row => row.map(c => String(c)));
+
             for (const [key, rgb] of userEditDiff) {
                 const [x, y] = key.split(',').map(Number);
                 if (liveDmcGrid[y] && liveDmcGrid[y][x] !== undefined) {
@@ -200,10 +196,9 @@ async function runMapping(isReset = false) {
             liveDmcGrid = dmcGrid;
         }
 
-        // Store the live DMC grid (includes edits) so exports always use fresh data
         state.mappedDmcGrid = liveDmcGrid;
 
-        // 8. Build display grid from the live DMC grid
+        // 8. Build Display Grid
         let displayGrid;
         if (mappingConfig.stampedMode) {
             const stampedResult = buildStampedGrid(liveDmcGrid, { hueShift: mappingConfig.stampedHue });
@@ -212,14 +207,7 @@ async function runMapping(isReset = false) {
             displayGrid = applyUserEditsToBaseline(rgbGrid);
         }
 
-        // 9. Push the composited grid to the canvas
         sendToCanvas('UPDATE_GRID', displayGrid);
-
-        if (isReset) {
-            setTimeout(() => sendToCanvas('CMD_RESET_VIEW'), 100);
-        }
-
-        // 10. Refresh palette UI
         renderPalette(cachedProjectPalette);
         updatePaletteHighlights();
 
@@ -695,20 +683,12 @@ function setupExportButtons() {
     if (exportPdfBtn) {
         exportPdfBtn.onclick = async () => {
             try {
-                const selectedMode = modeSelect.value;
-                // No need to manually generate stamped grid here; 
-                // buildExportData.js already handles it based on mappingConfig.stampedMode.
-
                 const data = buildExportData(state, mappingConfig, {
                     fabricCount: fabricSelect.value,
-                    mode: selectedMode
-                    // Removed overrideRgbGrid; let buildExportData regenerate it if needed
+                    mode: modeSelect.value
                 });
 
-                // Ensure the select exists before accessing .value to prevent crashes
                 const exportType = pdfTypeSelect ? pdfTypeSelect.value : 'PRINTABLE';
-
-                console.log(`Starting PDF Export: ${exportType}`);
                 await exportPDF(data, exportType);
 
                 if (pkCheckbox && pkCheckbox.checked) {
@@ -716,11 +696,10 @@ function setupExportButtons() {
                 }
             } catch (error) {
                 console.error("PDF Export failed:", error);
-                alert("Could not generate PDF. Check console for details.");
             }
         };
     }
-
+    
     // --- PNG EXPORT ---
     if (exportPngBtn) {
         exportPngBtn.onclick = () => {
