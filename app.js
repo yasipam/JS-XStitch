@@ -177,41 +177,44 @@ async function runMapping(isReset = false) {
         lastBaselineGrid = rgbGrid;
         state.setMappingResults(rgbGrid, dmcGrid);
 
-        // 7. Build the display grid:
-        //    - Stamped mode: stamped visual (drawing is disabled in this mode,
-        //      so there are never user edits to preserve)
-        //    - Normal mode: baseline + user edits composited on top
+        // 7. Build the edit-inclusive DMC grid (baseline + user edits mapped to DMC)
+        let liveDmcGrid;
+        if (userEditDiff.size > 0) {
+            const useLab = mappingConfig.distanceMethod.startsWith("cie");
+            const distFn = getDistanceFn(mappingConfig.distanceMethod, useLab);
+            const labCache = useLab ? DMC_RGB.map(d => rgbToLab(d[2])) : null;
+
+            liveDmcGrid = dmcGrid.map(row => row.map(c => [...c]));
+            for (const [key, rgb] of userEditDiff) {
+                const [x, y] = key.split(',').map(Number);
+                if (liveDmcGrid[y] && liveDmcGrid[y][x] !== undefined) {
+                    if (rgb[0] === 255 && rgb[1] === 255 && rgb[2] === 255) {
+                        liveDmcGrid[y][x] = "0";
+                    } else {
+                        const match = nearestDmcColor(rgb, distFn, labCache, DMC_RGB);
+                        liveDmcGrid[y][x] = match ? String(match[0]) : "0";
+                    }
+                }
+            }
+        } else {
+            liveDmcGrid = dmcGrid;
+        }
+
+        // Store the live DMC grid (includes edits) so exports always use fresh data
+        state.mappedDmcGrid = liveDmcGrid;
+
+        // 8. Build display grid from the live DMC grid
         let displayGrid;
         if (mappingConfig.stampedMode) {
-            const stampedResult = buildStampedGrid(dmcGrid, { hueShift: mappingConfig.stampedHue });
+            const stampedResult = buildStampedGrid(liveDmcGrid, { hueShift: mappingConfig.stampedHue });
             displayGrid = stampedResult.grid;
         } else {
             displayGrid = applyUserEditsToBaseline(rgbGrid);
         }
 
-        // New Logic:
-        // 7. Build the display grid
-        const baseWithEdits = applyUserEditsToBaseline(rgbGrid);
-
-        if (mappingConfig.stampedMode) {
-            // Generate mapping from DMC grid [cite: 192]
-            const stampedResult = buildStampedGrid(dmcGrid, { hueShift: mappingConfig.stampedHue });
-
-            // Map the composited RGB grid (including edits) through the stamped lookup
-            displayGrid = baseWithEdits.map(row => row.map(rgb => {
-                const dmcMatch = nearestDmcColor(rgb, distFn, dmcLibraryLab, DMC_RGB);
-                const code = dmcMatch ? String(dmcMatch[0]) : "0";
-                return stampedResult.lookup[code] || rgb; // Use neon color or fallback to actual
-            }));
-        } else {
-            displayGrid = baseWithEdits;
-        }
-
-        // 8. Push the composited grid to the canvas
+        // 9. Push the composited grid to the canvas
         sendToCanvas('UPDATE_GRID', displayGrid);
 
-        // 9. Only reset the view on a deliberate reset/first load, not on
-        //    every slider nudge — this stops the zoom jumping around.
         if (isReset) {
             setTimeout(() => sendToCanvas('CMD_RESET_VIEW'), 100);
         }
@@ -680,14 +683,21 @@ function setupExportButtons() {
     if (exportPdfBtn) {
         exportPdfBtn.onclick = async () => {
             const selectedMode = modeSelect.value;
-
-            // CRITICAL FIX: Update the global mappingConfig so buildExportData 
-            // captures the correct mode ('symbol', 'filled', or 'cross')
             mappingConfig.exportMode = selectedMode;
+
+            // CRITICAL FIX: If stamped mode, regenerate stamped grid NOW
+            let rgbGridForExport = state.mappedRgbGrid;
+            if (mappingConfig.stampedMode && state.mappedDmcGrid) {
+                const stampedResult = buildStampedGrid(state.mappedDmcGrid, {
+                    hueShift: mappingConfig.stampedHue
+                });
+                rgbGridForExport = stampedResult.grid;
+            }
 
             const data = buildExportData(state, mappingConfig, {
                 fabricCount: fabricSelect.value,
-                mode: selectedMode
+                mode: selectedMode,
+                overrideRgbGrid: rgbGridForExport  // Pass it explicitly
             });
 
             // Trigger the export with the specific type (PRINTABLE or STANDARD)
@@ -704,11 +714,22 @@ function setupExportButtons() {
     // --- PNG EXPORT ---
     if (exportPngBtn) {
         exportPngBtn.onclick = () => {
-            const rgbGrid = state.mappedRgbGrid;
+            // Use LIVE grid from canvas (includes user edits)
+            let rgbGrid = state.mappedRgbGrid;
+
             if (!rgbGrid) {
                 console.error("No grid data available to export.");
                 return;
             }
+
+            // Apply stamped mode if active
+            if (mappingConfig.stampedMode && state.mappedDmcGrid) {
+                const stampedResult = buildStampedGrid(state.mappedDmcGrid, {
+                    hueShift: mappingConfig.stampedHue
+                });
+                rgbGrid = stampedResult.grid;
+            }
+
             exportPixelPNG(rgbGrid, "pattern_1x1.png");
         };
     }
@@ -720,12 +741,22 @@ function setupExportButtons() {
                 console.error("No grid data available to export.");
                 return;
             }
+
+            // Regenerate stamped grid if needed
+            let stampedRgbGrid = null;
+            if (mappingConfig.stampedMode) {
+                const stampedResult = buildStampedGrid(state.mappedDmcGrid, {
+                    hueShift: mappingConfig.stampedHue
+                });
+                stampedRgbGrid = stampedResult.grid;
+            }
+
             const isStamped = stampedToggle ? stampedToggle.checked : false;
             exportOXS(
                 state.mappedDmcGrid,
                 DMC_RGB,
                 "kriss_kross_pattern.oxs",
-                isStamped ? state.mappedRgbGrid : null
+                stampedRgbGrid  // Pass the regenerated grid
             );
         };
     }

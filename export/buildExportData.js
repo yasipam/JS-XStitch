@@ -9,13 +9,13 @@ import { buildStampedGrid } from "../mapping/stamped.js";
  * while maintaining original DMC identity for the legend.
  */
 export function buildExportData(state, mappingConfig, options = {}) {
-    // 1. DATA VALIDATION
     if (!state.mappedDmcGrid) {
         throw new Error("No mapped grid available. Run mapping first.");
     }
 
-    const dmcGrid = state.mappedDmcGrid; // The "What" (DMC Codes) [cite: 1]
-    const originalRgbGrid = state.mappedRgbGrid; // Original DMC colors [cite: 1]
+    const dmcGrid = state.mappedDmcGrid;
+    // Use override if provided (PDF stamped mode), otherwise use synced state
+    const originalRgbGrid = options.overrideRgbGrid || state.mappedRgbGrid;
     const isStamped = mappingConfig.stampedMode; // [cite: 4]
 
     const height = dmcGrid.length;
