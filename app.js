@@ -888,6 +888,9 @@ function resetUIControls() {
     mappingConfig.biasBlueYellow = 0;
     mappingConfig.antiNoise = 0;
     mappingConfig.reduceIsolatedStitches = false;
+    mappingConfig.distanceMethod = "euclidean";
+    mappingConfig.minOccurrence = 1;
+    mappingConfig.stampedMode = false;
 
     const ids = ["brightness", "saturation", "contrast", "greenToMagenta", "cyanToRed", "blueToYellow", "antiNoise"];
     ids.forEach(id => {
@@ -910,6 +913,29 @@ function resetUIControls() {
 
     const isolatedToggle = document.getElementById("reduceIsolatedStitches");
     if (isolatedToggle) isolatedToggle.checked = false;
+
+    // Max Colours
+    const maxColoursSlider = document.getElementById("maxColours");
+    const maxColoursInput = document.getElementById("maxColoursInput");
+    if (maxColoursSlider) maxColoursSlider.value = 30;
+    if (maxColoursInput) maxColoursInput.value = 30;
+
+    // Color Distance (default = euclidean)
+    document.querySelectorAll("input[name='colorDistance']").forEach(radio => {
+        radio.checked = radio.value === "euclidean";
+    });
+
+    // Min Occurrence
+    const minOccurrenceInput = document.getElementById("minOccurrenceInput");
+    if (minOccurrenceInput) minOccurrenceInput.value = 1;
+
+    // Stamped Mode
+    const stampedToggle = document.getElementById("stampedMode");
+    const stampedControls = document.getElementById("stampedControls");
+    if (stampedToggle) {
+        stampedToggle.checked = false;
+        if (stampedControls) stampedControls.style.display = "none";
+    }
 }
 
 // -----------------------------------------------------------------------------
