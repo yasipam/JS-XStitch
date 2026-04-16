@@ -247,14 +247,14 @@ async function runMapping(isReset = false) {
             };
         }
 
-        // 4. Generate fresh baseline
+        // 4. Generate fresh baseline (filtering applied once via applyFilteringToGrid after user edits)
         const [rgbGrid, dmcGrid] = mapFullWithPalette(
             currentImage, targetSize, cachedProjectPalette,
             1.0 + (mappingConfig.brightnessInt / 10),
             1.0 + (mappingConfig.saturationInt / 10),
             1.0 + (mappingConfig.contrastInt / 10),
-            mappingConfig.reduceIsolatedStitches,
-            mappingConfig.minOccurrence,
+            false,
+            0,
             mappingConfig.biasGreenMagenta,
             mappingConfig.biasCyanRed,
             mappingConfig.biasBlueYellow,
@@ -591,7 +591,6 @@ function setupResetControls() {
 function setupMappingControls() {
     // 1. Size & Color Pairs
     const controlPairs = [
-        ["maxSizeSlider", "maxSizeInput", "maxSize"],
         ["maxColours", "maxColoursInput", "maxColours"]
     ];
 
@@ -612,28 +611,125 @@ function setupMappingControls() {
         }
     });
 
+    const maxSizeSlider = document.getElementById("maxSizeSlider");
+    const maxSizeInput = document.getElementById("maxSizeInput");
+
+    const handleMaxSizeChange = () => {
+        const newSize = parseInt(maxSizeSlider.value, 10);
+
+        const hasEdits = userEditDiff.size > 0;
+        const hasMinOccurrence = mappingConfig.minOccurrence !== 1;
+        const hasIsolated = mappingConfig.reduceIsolatedStitches === true;
+        const hasAntiNoise = mappingConfig.antiNoise !== 0;
+
+        if (hasEdits || hasMinOccurrence || hasIsolated || hasAntiNoise) {
+            if (!confirm("Resizing the image will remove all your current edits and reset filtering options. Continue?")) {
+                maxSizeSlider.value = mappingConfig.maxSize;
+                maxSizeInput.value = mappingConfig.maxSize;
+                return;
+            }
+
+            userEditDiff.clear();
+            lastBaselineGrid = null;
+
+            mappingConfig.maxSize = 80;
+            maxSizeSlider.value = 80;
+            maxSizeInput.value = 80;
+            mappingConfig.minOccurrence = 1;
+            mappingConfig.reduceIsolatedStitches = false;
+            mappingConfig.antiNoise = 0;
+
+            const minOccurrenceInput = document.getElementById("minOccurrenceInput");
+            if (minOccurrenceInput) minOccurrenceInput.value = 1;
+
+            const isolatedToggle = document.getElementById("reduceIsolatedStitches");
+            if (isolatedToggle) isolatedToggle.checked = false;
+
+            const antiNoiseSlider = document.getElementById("antiNoise");
+            const antiNoiseVal = document.getElementById("antiNoiseVal");
+            if (antiNoiseSlider) antiNoiseSlider.value = 0;
+            if (antiNoiseVal) antiNoiseVal.textContent = "0";
+
+            runMapping(true);
+        } else {
+            mappingConfig.maxSize = newSize;
+            runMapping();
+        }
+    };
+
+    if (maxSizeSlider) {
+        maxSizeSlider.oninput = () => {
+            maxSizeInput.value = maxSizeSlider.value;
+            handleMaxSizeChange();
+        };
+    }
+    if (maxSizeInput) {
+        maxSizeInput.oninput = () => {
+            maxSizeSlider.value = maxSizeInput.value;
+            handleMaxSizeChange();
+        };
+    }
+
     const pixelArtToggle = document.getElementById("pixelArtMode");
-    const sizeSlider = document.getElementById("maxSizeSlider");
-    const sizeInput = document.getElementById("maxSizeInput");
 
     if (pixelArtToggle) {
         pixelArtToggle.onchange = () => {
             const isPixelMode = pixelArtToggle.checked;
             mappingConfig.pixelArtMode = isPixelMode;
 
-            if (isPixelMode && currentImage) {
-                // Switch to 1:1 mapping
-                mappingConfig.maxSize = Math.max(currentImage.width, currentImage.height);
-                sizeSlider.disabled = true;
-                sizeInput.disabled = true;
-            } else {
-                // Switch back to the SLIDER value
-                sizeSlider.disabled = false;
-                sizeInput.disabled = false;
-                mappingConfig.maxSize = parseInt(sizeSlider.value, 10);
-            }
+            if (currentImage) {
+                const newSize = isPixelMode
+                    ? Math.max(currentImage.width, currentImage.height)
+                    : parseInt(maxSizeSlider.value, 10);
 
-            runMapping();
+                const hasEdits = userEditDiff.size > 0;
+                const hasMinOccurrence = mappingConfig.minOccurrence !== 1;
+                const hasIsolated = mappingConfig.reduceIsolatedStitches === true;
+                const hasAntiNoise = mappingConfig.antiNoise !== 0;
+
+                if (hasEdits || hasMinOccurrence || hasIsolated || hasAntiNoise) {
+                    if (!confirm("Switching pixel art mode will remove all your current edits and reset filtering options. Continue?")) {
+                        pixelArtToggle.checked = !isPixelMode;
+                        return;
+                    }
+
+                    userEditDiff.clear();
+                    lastBaselineGrid = null;
+
+                    mappingConfig.maxSize = 80;
+                    maxSizeSlider.value = 80;
+                    maxSizeSlider.disabled = false;
+                    maxSizeInput.disabled = false;
+                    maxSizeInput.value = 80;
+                    mappingConfig.minOccurrence = 1;
+                    mappingConfig.reduceIsolatedStitches = false;
+                    mappingConfig.antiNoise = 0;
+
+                    const minOccurrenceInput = document.getElementById("minOccurrenceInput");
+                    if (minOccurrenceInput) minOccurrenceInput.value = 1;
+
+                    const isolatedToggle = document.getElementById("reduceIsolatedStitches");
+                    if (isolatedToggle) isolatedToggle.checked = false;
+
+                    const antiNoiseSlider = document.getElementById("antiNoise");
+                    const antiNoiseVal = document.getElementById("antiNoiseVal");
+                    if (antiNoiseSlider) antiNoiseSlider.value = 0;
+                    if (antiNoiseVal) antiNoiseVal.textContent = "0";
+
+                    runMapping(true);
+                } else {
+                    mappingConfig.maxSize = newSize;
+                    runMapping();
+                }
+
+                if (isPixelMode) {
+                    maxSizeSlider.disabled = true;
+                    maxSizeInput.disabled = true;
+                } else {
+                    maxSizeSlider.disabled = false;
+                    maxSizeInput.disabled = false;
+                }
+            }
         };
     }
 
