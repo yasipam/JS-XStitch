@@ -24,6 +24,42 @@ let lastBaselineDmcGrid = null; // NEW: stores pure DMC baseline mapping
 // -----------------------------------------------------------------------------
 // MAPPING CONFIGURATION
 // -----------------------------------------------------------------------------
+
+let dmcLabCache = null;
+function getDmcLabCache(useLab) {
+    if (!useLab) return null;
+    if (!dmcLabCache) {
+        dmcLabCache = DMC_RGB.map(d => rgbToLab([d[2]])[0]);
+    }
+    return dmcLabCache;
+}
+
+function patchDmcGrid(baselineDmcGrid, edits, distanceMethod) {
+    const useLab = distanceMethod.startsWith("cie");
+    const distFn = getDistanceFn(distanceMethod, useLab);
+    const labCache = getDmcLabCache(useLab);
+
+    const liveDmcGrid = baselineDmcGrid.map(row => row.map(c => String(c)));
+
+    for (const [key, rgb] of edits) {
+        const [x, y] = key.split(',').map(Number);
+        if (liveDmcGrid[y] && liveDmcGrid[y][x] !== undefined) {
+            if (rgb[0] === 255 && rgb[1] === 255 && rgb[2] === 255) {
+                liveDmcGrid[y][x] = "0";
+            } else {
+                const match = nearestDmcColor(rgb, distFn, labCache, DMC_RGB);
+                liveDmcGrid[y][x] = match ? String(match[0]) : "0";
+            }
+        }
+    }
+    return liveDmcGrid;
+}
+
+function buildStampedRgbGrid(dmcGrid) {
+    if (!mappingConfig.stampedMode) return null;
+    return buildStampedGrid(dmcGrid, { hueShift: mappingConfig.stampedHue }).grid;
+}
+
 const mappingConfig = {
     maxSize: 80,
     maxColours: 30,
@@ -131,7 +167,7 @@ async function runMapping(isReset = false) {
         // 2. Setup Distance Functions
         const useLab = distanceMethod.startsWith("cie");
         const distFn = getDistanceFn(distanceMethod, useLab);
-        const dmcLibraryLab = useLab ? DMC_RGB.map(d => rgbToLab([d[2]])[0]) : null;
+        const dmcLibraryLab = getDmcLabCache(useLab);
 
         // 3. Palette Cache Logic
         const needsNewPalette =
@@ -194,41 +230,16 @@ async function runMapping(isReset = false) {
         state.setMappingResults(rgbGrid, dmcGrid);
 
         // 7. Build Unified DMC Grid (Baseline + User Edits)
-        let liveDmcGrid;
-        if (userEditDiff.size > 0) {
-            const useLab = mappingConfig.distanceMethod.startsWith("cie");
-            const distFn = getDistanceFn(mappingConfig.distanceMethod, useLab);
-            // FIX: Wrap RGB in array for lab conversion
-            const labCache = useLab ? DMC_RGB.map(d => rgbToLab([d[2]])[0]) : null;
-
-            // FIX: Clone strings correctly (do NOT use [...c])
-            liveDmcGrid = dmcGrid.map(row => row.map(c => String(c)));
-
-            for (const [key, rgb] of userEditDiff) {
-                const [x, y] = key.split(',').map(Number);
-                if (liveDmcGrid[y] && liveDmcGrid[y][x] !== undefined) {
-                    if (rgb[0] === 255 && rgb[1] === 255 && rgb[2] === 255) {
-                        liveDmcGrid[y][x] = "0";
-                    } else {
-                        const match = nearestDmcColor(rgb, distFn, labCache, DMC_RGB);
-                        liveDmcGrid[y][x] = match ? String(match[0]) : "0";
-                    }
-                }
-            }
-        } else {
-            liveDmcGrid = dmcGrid;
-        }
+        const liveDmcGrid = userEditDiff.size > 0
+            ? patchDmcGrid(dmcGrid, userEditDiff, mappingConfig.distanceMethod)
+            : dmcGrid;
 
         state.mappedDmcGrid = liveDmcGrid;
 
         // 8. Build Display Grid
-        let displayGrid;
-        if (mappingConfig.stampedMode) {
-            const stampedResult = buildStampedGrid(liveDmcGrid, { hueShift: mappingConfig.stampedHue });
-            displayGrid = stampedResult.grid;
-        } else {
-            displayGrid = applyUserEditsToBaseline(rgbGrid);
-        }
+        const displayGrid = mappingConfig.stampedMode
+            ? buildStampedRgbGrid(liveDmcGrid)
+            : applyUserEditsToBaseline(rgbGrid);
 
         sendToCanvas('UPDATE_GRID', displayGrid);
         renderPalette(cachedProjectPalette);
@@ -777,7 +788,6 @@ function setupExportButtons() {
     // --- PNG EXPORT ---
     if (exportPngBtn) {
         exportPngBtn.onclick = () => {
-            // Use LIVE grid from canvas (includes user edits)
             let rgbGrid = state.mappedRgbGrid;
 
             if (!rgbGrid) {
@@ -785,12 +795,8 @@ function setupExportButtons() {
                 return;
             }
 
-            // Apply stamped mode if active
             if (mappingConfig.stampedMode && state.mappedDmcGrid) {
-                const stampedResult = buildStampedGrid(state.mappedDmcGrid, {
-                    hueShift: mappingConfig.stampedHue
-                });
-                rgbGrid = stampedResult.grid;
+                rgbGrid = buildStampedRgbGrid(state.mappedDmcGrid);
             }
 
             exportPixelPNG(rgbGrid, "pattern_1x1.png");
@@ -805,21 +811,12 @@ function setupExportButtons() {
                 return;
             }
 
-            // Regenerate stamped grid if needed
-            let stampedRgbGrid = null;
-            if (mappingConfig.stampedMode) {
-                const stampedResult = buildStampedGrid(state.mappedDmcGrid, {
-                    hueShift: mappingConfig.stampedHue
-                });
-                stampedRgbGrid = stampedResult.grid;
-            }
-
-            const isStamped = stampedToggle ? stampedToggle.checked : false;
+            const stampedRgbGrid = buildStampedRgbGrid(state.mappedDmcGrid);
             exportOXS(
                 state.mappedDmcGrid,
                 DMC_RGB,
                 "kriss_kross_pattern.oxs",
-                stampedRgbGrid  // Pass the regenerated grid
+                stampedRgbGrid
             );
         };
     }
@@ -994,33 +991,8 @@ window.addEventListener("load", () => {
             Promise.resolve().then(() => {
                 if (!lastBaselineDmcGrid) return;
 
-                const useLab = mappingConfig.distanceMethod.startsWith("cie");
-                const distFn = getDistanceFn(mappingConfig.distanceMethod, useLab);
-                const labCache = useLab ? DMC_RGB.map(d => rgbToLab([d[2]])[0]) : null;
-
-                // 1. Start with the original baseline DMC codes
-                // Use String() cloning to prevent the character-splitting bug
-                const liveDmcGrid = lastBaselineDmcGrid.map(row => row.map(c => String(c)));
-
-                // 2. Patch ONLY the pixels that the user has manually edited
-                for (const [key, rgb] of userEditDiff) {
-                    const [x, y] = key.split(',').map(Number);
-                    if (liveDmcGrid[y] && liveDmcGrid[y][x] !== undefined) {
-                        if (rgb[0] === 255 && rgb[1] === 255 && rgb[2] === 255) {
-                            liveDmcGrid[y][x] = "0"; // Handle manual erasures
-                        } else {
-                            // Only map the specific edited pixel to its nearest DMC code
-                            const match = nearestDmcColor(rgb, distFn, labCache, DMC_RGB);
-                            liveDmcGrid[y][x] = match ? String(match[0]) : "0";
-                        }
-                    }
-                }
-
-                // 3. Update the state for the export logic to use
-                state.mappedDmcGrid = liveDmcGrid;
+                state.mappedDmcGrid = patchDmcGrid(lastBaselineDmcGrid, userEditDiff, mappingConfig.distanceMethod);
                 state.setMappingResults(state.mappedRgbGrid, state.mappedDmcGrid);
-
-                // 4. CRITICAL FIX: Refresh the sidebar counts now that patching is finished
                 updateSidebarFromState();
             });
         }
