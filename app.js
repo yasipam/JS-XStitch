@@ -463,24 +463,12 @@ function setupUpload() {
             img.onload = () => {
                 currentImage = img;
 
-                // 1. FORCE RESET: Always start new uploads in standard mode
-                const pixelArtToggle = document.getElementById("pixelArtMode");
+                resetUIControls();
+
                 const sizeSlider = document.getElementById("maxSizeSlider");
                 const sizeInput = document.getElementById("maxSizeInput");
-
-                if (pixelArtToggle) pixelArtToggle.checked = false;
-                mappingConfig.pixelArtMode = false;
-
-                // 2. Restore slider functionality and default size
-                if (sizeSlider) {
-                    sizeSlider.disabled = false;
-                    sizeSlider.value = 80;
-                    mappingConfig.maxSize = 80;
-                }
-                if (sizeInput) {
-                    sizeInput.value = 80;
-                    sizeInput.disabled = false;
-                }
+                if (sizeSlider) sizeSlider.disabled = false;
+                if (sizeInput) sizeInput.disabled = false;
 
                 state.clear();
                 userEditDiff.clear();   // Fresh upload — no prior edits to keep
@@ -891,6 +879,10 @@ function resetUIControls() {
     mappingConfig.distanceMethod = "euclidean";
     mappingConfig.minOccurrence = 1;
     mappingConfig.stampedMode = false;
+    mappingConfig.pixelArtMode = false;
+
+    const pixelArtToggle = document.getElementById("pixelArtMode");
+    if (pixelArtToggle) pixelArtToggle.checked = false;
 
     const ids = ["brightness", "saturation", "contrast", "greenToMagenta", "cyanToRed", "blueToYellow", "antiNoise"];
     ids.forEach(id => {
