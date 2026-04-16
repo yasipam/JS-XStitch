@@ -5,7 +5,7 @@ import { ToolRegistry } from "./core/tools.js";
 
 // Mapping Logic
 import { mergeSimilarPaletteColors, buildPaletteFromImage, getDistanceFn, rgbToLab } from "./mapping/palette.js";
-import { mapFullWithPalette, nearestDmcColor } from "./mapping/mappingEngine.js";
+import { mapFullWithPalette, nearestDmcColor, cleanupMinOccurrence, removeIsolatedStitches } from "./mapping/mappingEngine.js";
 import { buildStampedGrid } from "./mapping/stamped.js";
 import { DMC_RGB } from "./mapping/constants.js";
 import { exportOXS } from "./export/exportOXS.js";
@@ -60,6 +60,45 @@ function buildStampedRgbGrid(dmcGrid) {
     return buildStampedGrid(dmcGrid, { hueShift: mappingConfig.stampedHue }).grid;
 }
 
+const codeToRgbMap = new Map(DMC_RGB.map(([code, , rgb]) => [String(code), rgb]));
+
+function applyFilteringToGrid(dmcGrid) {
+    let filtered = dmcGrid.map(row => row.map(c => String(c)));
+
+    if (mappingConfig.reduceIsolatedStitches) {
+        const rgbGrid = filtered.map(row => row.map(c => codeToRgbMap.get(c) || [0, 0, 0]));
+        filtered = removeIsolatedStitches(filtered, rgbGrid);
+    }
+
+    if (mappingConfig.minOccurrence > 1) {
+        filtered = cleanupMinOccurrence(filtered, mappingConfig.minOccurrence, codeToRgbMap);
+    }
+
+    return filtered;
+}
+
+function reapplyFiltering() {
+    if (!state.mappedDmcGrid) return;
+
+    const filteredDmcGrid = applyFilteringToGrid(state.mappedDmcGrid);
+    const filteredRgbGrid = filteredDmcGrid.map(row => row.map(c => codeToRgbMap.get(c) || [255, 255, 255]));
+
+    lastBaselineDmcGrid = filteredDmcGrid;
+    lastBaselineGrid = filteredRgbGrid;
+    state.mappedDmcGrid = filteredDmcGrid;
+    state.mappedRgbGrid = filteredRgbGrid;
+    state.setMappingResults(filteredRgbGrid, filteredDmcGrid);
+
+    userEditDiff.clear();
+
+    const displayGrid = mappingConfig.stampedMode
+        ? buildStampedRgbGrid(filteredDmcGrid)
+        : filteredRgbGrid;
+    sendToCanvas('UPDATE_GRID', displayGrid);
+    updatePaletteHighlights();
+    updateSidebarFromState();
+}
+
 const mappingConfig = {
     maxSize: 80,
     maxColours: 30,
@@ -95,6 +134,7 @@ function sendToCanvas(type, payload) {
 // -----------------------------------------------------------------------------
 let cachedProjectPalette = null;
 let lastPaletteConfig = { maxSize: 0, maxColours: 0, image: null, distanceMethod: "" };
+let sidebarUpdateTimer = null;
 
 // -----------------------------------------------------------------------------
 // USER-EDIT DIFF LAYER
@@ -227,19 +267,24 @@ async function runMapping(isReset = false) {
         // 6. Store Clean Baseline
         lastBaselineGrid = rgbGrid;
         lastBaselineDmcGrid = dmcGrid;
-        state.setMappingResults(rgbGrid, dmcGrid);
 
-        // 7. Build Unified DMC Grid (Baseline + User Edits)
-        const liveDmcGrid = userEditDiff.size > 0
+        // 7. Build Unified DMC Grid (Baseline + User Edits + Filtering)
+        let liveDmcGrid = userEditDiff.size > 0
             ? patchDmcGrid(dmcGrid, userEditDiff, mappingConfig.distanceMethod)
             : dmcGrid;
 
+        liveDmcGrid = applyFilteringToGrid(liveDmcGrid);
         state.mappedDmcGrid = liveDmcGrid;
 
-        // 8. Build Display Grid
+        // 8. Build true-color RGB grid from DMC (always from DMC, never from stamped)
+        const liveRgbGrid = liveDmcGrid.map(row => row.map(c => codeToRgbMap.get(c) || [255, 255, 255]));
+        state.mappedRgbGrid = liveRgbGrid;
+        state.setMappingResults(liveRgbGrid, liveDmcGrid);
+
+        // 9. Display: stamp is purely visual overlay on top of true colors
         const displayGrid = mappingConfig.stampedMode
             ? buildStampedRgbGrid(liveDmcGrid)
-            : applyUserEditsToBaseline(rgbGrid);
+            : liveRgbGrid;
 
         sendToCanvas('UPDATE_GRID', displayGrid);
         renderPalette(cachedProjectPalette);
@@ -697,14 +742,18 @@ function setupMappingControls() {
             });
 
             if (mappingConfig.stampedMode) {
-                // Force switch to Pan tool so the user can't draw
                 state.setTool("pan");
                 sendToCanvas('SET_TOOL', "pan");
-                const panBtn = document.getElementById("panBtn"); // Ensure you have this ID in HTML
+                const panBtn = document.getElementById("panBtn");
                 if (panBtn) panBtn.classList.add("active");
             }
 
-            runMapping();
+            // Instant toggle: switch between stamped overlay and true colors
+            if (!state.mappedDmcGrid) return;
+            const displayGrid = mappingConfig.stampedMode
+                ? buildStampedRgbGrid(state.mappedDmcGrid)
+                : state.mappedRgbGrid;
+            sendToCanvas('UPDATE_GRID', displayGrid);
         };
     }
 
@@ -717,17 +766,16 @@ function setupMappingControls() {
 
         // Use oninput for immediate, smooth feedback as the user slides
         stampedHue.oninput = () => {
-            // A. Update the master configuration object
             mappingConfig.stampedHue = parseInt(stampedHue.value, 10);
 
-            // B. Update the text display (e.g., "180°")
             if (stampedHueVal) {
                 stampedHueVal.textContent = `${stampedHue.value}°`;
             }
 
-            // C. CRITICAL: Trigger runMapping immediately.
-            // This causes the visual neon colors to rotate smoothly in the canvas.
-            runMapping();
+            // Instant: rebuild stamped overlay and send to canvas
+            if (!state.mappedDmcGrid) return;
+            const displayGrid = buildStampedRgbGrid(state.mappedDmcGrid);
+            sendToCanvas('UPDATE_GRID', displayGrid);
         };
     }
 
@@ -737,6 +785,17 @@ function setupMappingControls() {
         minOccurrenceInput.onchange = () => {
             mappingConfig.minOccurrence = parseInt(minOccurrenceInput.value, 10) || 1;
             runMapping();
+        };
+    }
+
+    const reapplyFilterBtn = document.getElementById("reapplyFilterBtn");
+    if (reapplyFilterBtn) {
+        reapplyFilterBtn.onclick = () => {
+            if (!currentImage) {
+                alert("Please upload an image first.");
+                return;
+            }
+            reapplyFiltering();
         };
     }
 } // <--- Properly closing setupMappingControls here
@@ -799,7 +858,9 @@ function setupExportButtons() {
                 return;
             }
 
-            const stampedRgbGrid = buildStampedRgbGrid(state.mappedDmcGrid);
+            const stampedRgbGrid = mappingConfig.stampedMode
+                ? buildStampedRgbGrid(state.mappedDmcGrid)
+                : null;
             exportOXS(
                 state.mappedDmcGrid,
                 DMC_RGB,
@@ -993,25 +1054,29 @@ window.addEventListener("load", () => {
         const { type, payload } = e.data;
 
         if (type === 'REPORT_GRID_STATS') {
-            // Use the Parent's unified source of truth for counts
-            updateSidebarFromState();
+            // Debounce sidebar updates to avoid thrashing during rapid canvas updates (e.g. hue slider drag)
+            clearTimeout(sidebarUpdateTimer);
+            sidebarUpdateTimer = setTimeout(() => updateSidebarFromState(), 100);
         }
 
         if (type === 'SYNC_GRID_TO_PARENT') {
-            // CRITICAL: If Stamped Mode is ON, drawing is disabled and the canvas 
-            // is showing neon colors. We MUST NOT process these as edits.
-            if (mappingConfig.stampedMode) return;
+            // In stamped mode the canvas shows stamped colors — never overwrite the true RGB grid
+            if (!mappingConfig.stampedMode) {
+                state.mappedRgbGrid = payload;
+                captureUserEdits(payload);
+            }
 
-            state.mappedRgbGrid = payload;
-            captureUserEdits(payload);
-
-            // PATCH THE DMC GRID (Instead of destructive full re-mapping)
             Promise.resolve().then(() => {
                 if (!lastBaselineDmcGrid) return;
 
-                state.mappedDmcGrid = patchDmcGrid(lastBaselineDmcGrid, userEditDiff, mappingConfig.distanceMethod);
-                state.setMappingResults(state.mappedRgbGrid, state.mappedDmcGrid);
-                updateSidebarFromState();
+                const patchedDmcGrid = patchDmcGrid(lastBaselineDmcGrid, userEditDiff, mappingConfig.distanceMethod);
+                state.mappedDmcGrid = patchedDmcGrid;
+
+                // In stamped mode the canvas is already showing the correct stamped grid — don't re-send
+                if (!mappingConfig.stampedMode) {
+                    sendToCanvas('UPDATE_GRID', payload);
+                    updateSidebarFromState();
+                }
             });
         }
     });
