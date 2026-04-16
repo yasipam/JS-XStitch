@@ -65,29 +65,57 @@ export function rgbToLab(input) {
 export function buildPaletteFromImage(image, k) {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
-    
-    const sampleWidth = 80;
+    const sampleWidth = 100;
     const scale = sampleWidth / image.width;
     canvas.width = sampleWidth;
     canvas.height = Math.max(1, Math.floor(image.height * scale));
-    
     ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
     const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-    
-    const colors = [];
-    for (let i = 0; i < imgData.length; i += 16) {
-        if (imgData[i + 3] > 128) { // Skip transparent
-            colors.push([imgData[i], imgData[i + 1], imgData[i + 2]]);
+
+    const pixels = [];
+    for (let i = 0; i < imgData.length; i += 4) {
+        if (imgData[i + 3] > 128)
+            pixels.push([imgData[i], imgData[i + 1], imgData[i + 2]]);
+    }
+    if (pixels.length === 0) return [[255, 255, 255]];
+
+    // Median-cut: recursively split the largest-range channel
+    function cut(bucket, depth) {
+        if (depth === 0 || bucket.length === 0) {
+            if (bucket.length === 0) return [[255, 255, 255]];
+            const avg = [0, 0, 0];
+            for (const p of bucket) { avg[0] += p[0]; avg[1] += p[1]; avg[2] += p[2]; }
+            return [[Math.round(avg[0] / bucket.length),
+            Math.round(avg[1] / bucket.length),
+            Math.round(avg[2] / bucket.length)]];
         }
+        // Find channel with widest range
+        let ranges = [0, 1, 2].map(ch => {
+            let mn = 255, mx = 0;
+            for (const p of bucket) { if (p[ch] < mn) mn = p[ch]; if (p[ch] > mx) mx = p[ch]; }
+            return mx - mn;
+        });
+        const ch = ranges.indexOf(Math.max(...ranges));
+        bucket.sort((a, b) => a[ch] - b[ch]);
+        const mid = Math.floor(bucket.length / 2);
+        return [
+            ...cut(bucket.slice(0, mid), depth - 1),
+            ...cut(bucket.slice(mid), depth - 1)
+        ];
     }
 
-    const sampledPalette = [];
-    const step = Math.max(1, Math.floor(colors.length / k));
-    for (let i = 0; i < colors.length && sampledPalette.length < k; i += step) {
-        sampledPalette.push(colors[i]);
-    }
-    
-    return sampledPalette.length > 0 ? sampledPalette : [[255, 255, 255]];
+    const depth = Math.ceil(Math.log2(Math.max(k, 1)));
+    const raw = cut(pixels, depth);
+
+    // Deduplicate and trim/pad to exactly k
+    const seen = new Set();
+    const unique = raw.filter(c => {
+        const key = c.join(',');
+        if (seen.has(key)) return false;
+        seen.add(key); return true;
+    });
+    while (unique.length < k) unique.push(unique[unique.length - 1]);
+    return unique.slice(0, k);
 }
 
 // -----------------------------------------------------------------------------
