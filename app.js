@@ -27,6 +27,7 @@ let lastBaselineDmcGrid = null; // NEW: stores pure DMC baseline mapping
 const mappingConfig = {
     maxSize: 80,
     maxColours: 30,
+    mergeNearest: 0,
     brightnessInt: 0,
     saturationInt: 0,
     contrastInt: 0,
@@ -138,14 +139,36 @@ async function runMapping(isReset = false) {
             lastPaletteConfig.maxSize !== targetSize ||
             lastPaletteConfig.maxColours !== maxColours ||
             lastPaletteConfig.image !== currentImage ||
-            lastPaletteConfig.distanceMethod !== distanceMethod;
+            lastPaletteConfig.distanceMethod !== distanceMethod ||
+            lastPaletteConfig.mergeNearest !== mappingConfig.mergeNearest;  // Add this line
 
         if (needsNewPalette) {
             const extractedColors = buildPaletteFromImage(currentImage, maxColours);
-            cachedProjectPalette = extractedColors.map(rgb =>
-                nearestDmcColor(rgb, distFn, dmcLibraryLab, DMC_RGB)
-            );
-            lastPaletteConfig = { maxSize: targetSize, maxColours, image: currentImage, distanceMethod };
+
+            // NEW: Apply merge if enabled
+            if (mappingConfig.mergeNearest > 0) {
+                const threshold = mappingConfig.mergeNearest * 8; // 8, 16, 24, 32, 40
+                const merged = mergeSimilarPaletteColors(
+                    extractedColors,
+                    threshold,
+                    [] // No locked codes for now
+                );
+                cachedProjectPalette = merged.map(rgb =>
+                    nearestDmcColor(rgb, distFn, dmcLibraryLab, DMC_RGB)
+                );
+            } else {
+                cachedProjectPalette = extractedColors.map(rgb =>
+                    nearestDmcColor(rgb, distFn, dmcLibraryLab, DMC_RGB)
+                );
+            }
+
+            lastPaletteConfig = {
+                maxSize: targetSize,
+                maxColours,
+                image: currentImage,
+                distanceMethod,
+                mergeNearest: mappingConfig.mergeNearest  // Add this
+            };
         }
 
         // 4. Generate fresh baseline
@@ -570,6 +593,21 @@ function setupMappingControls() {
         };
     }
 
+    const mergeSlider = document.getElementById("mergeNearest");
+    const mergeVal = document.getElementById("mergeNearestVal");
+    if (mergeSlider) {
+        mergeSlider.oninput = () => {
+            const val = parseInt(mergeSlider.value, 10);
+            mappingConfig.mergeNearest = val;
+
+            // Update label
+            const labels = ["Off", "Light", "Mild", "Medium", "Strong", "Very Strong"];
+            mergeVal.textContent = labels[val];
+
+            runMapping();
+        };
+    }
+
     // 3. Distance Radios
     const distanceRadios = document.querySelectorAll("input[name='colorDistance']");
     distanceRadios.forEach(radio => {
@@ -843,6 +881,7 @@ function exportPixelPNG(rgbGrid, filename) {
 function resetUIControls() {
     mappingConfig.maxSize = 80;
     mappingConfig.maxColours = 30;
+    mappingConfig.mergeNearest = 0; 
     mappingConfig.pixelArtMode = false;
     mappingConfig.brightnessInt = 0;
     mappingConfig.saturationInt = 0;
@@ -863,6 +902,11 @@ function resetUIControls() {
     const sizeInput = document.getElementById("maxSizeInput");
     if (sizeSlider) sizeSlider.value = 80;
     if (sizeInput) sizeInput.value = 80;
+
+    const mergeSlider = document.getElementById("mergeNearest");
+    const mergeVal = document.getElementById("mergeNearestVal");
+    if (mergeSlider) mergeSlider.value = 0;
+    if (mergeVal) mergeVal.textContent = "Off";
 
     const antiNoiseVal = document.getElementById("antiNoiseVal");
     if (antiNoiseVal) antiNoiseVal.textContent = "0";
