@@ -60,13 +60,19 @@ function buildStampedRgbGrid(dmcGrid) {
     return buildStampedGrid(dmcGrid, { hueShift: mappingConfig.stampedHue }).grid;
 }
 
-const codeToRgbMap = new Map(DMC_RGB.map(([code, , rgb]) => [String(code), rgb]));
+const codeToRgbMap = {};
+DMC_RGB.forEach(([code, , rgb]) => { codeToRgbMap[String(code)] = rgb; });
+codeToRgbMap["0"] = [255, 255, 255];
+
+function getRgbFromCode(code) {
+    return codeToRgbMap[String(code)] || [255, 255, 255];
+}
 
 function applyFilteringToGrid(dmcGrid) {
     let filtered = dmcGrid.map(row => row.map(c => String(c)));
 
     if (mappingConfig.reduceIsolatedStitches) {
-        const rgbGrid = filtered.map(row => row.map(c => codeToRgbMap.get(c) || [0, 0, 0]));
+        const rgbGrid = filtered.map(row => row.map(c => codeToRgbMap[c] || [0, 0, 0]));
         filtered = removeIsolatedStitches(filtered, rgbGrid);
     }
 
@@ -81,7 +87,7 @@ function reapplyFiltering() {
     if (!state.mappedDmcGrid) return;
 
     const filteredDmcGrid = applyFilteringToGrid(state.mappedDmcGrid);
-    const filteredRgbGrid = filteredDmcGrid.map(row => row.map(c => codeToRgbMap.get(c) || [255, 255, 255]));
+    const filteredRgbGrid = filteredDmcGrid.map(row => row.map(c => getRgbFromCode(c)));
 
     lastBaselineDmcGrid = filteredDmcGrid;
     lastBaselineGrid = filteredRgbGrid;
@@ -277,7 +283,7 @@ async function runMapping(isReset = false) {
         state.mappedDmcGrid = liveDmcGrid;
 
         // 8. Build true-color RGB grid from DMC (always from DMC, never from stamped)
-        const liveRgbGrid = liveDmcGrid.map(row => row.map(c => codeToRgbMap.get(c) || [255, 255, 255]));
+        const liveRgbGrid = liveDmcGrid.map(row => row.map(c => getRgbFromCode(c)));
         state.mappedRgbGrid = liveRgbGrid;
         state.setMappingResults(liveRgbGrid, liveDmcGrid);
 
@@ -289,6 +295,7 @@ async function runMapping(isReset = false) {
         sendToCanvas('UPDATE_GRID', displayGrid);
         renderPalette(cachedProjectPalette);
         updatePaletteHighlights();
+        updateSidebarFromState();
 
     } catch (error) {
         console.error("Mapping failed:", error);
@@ -878,8 +885,9 @@ function setupMappingControls() {
     // 8. Min Occurrence
     const minOccurrenceInput = document.getElementById("minOccurrenceInput");
     if (minOccurrenceInput) {
-        minOccurrenceInput.onchange = () => {
-            mappingConfig.minOccurrence = parseInt(minOccurrenceInput.value, 10) || 1;
+        minOccurrenceInput.oninput = () => {
+            const val = parseInt(minOccurrenceInput.value, 10) || 1;
+            mappingConfig.minOccurrence = val;
             runMapping();
         };
     }

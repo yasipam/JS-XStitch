@@ -157,50 +157,57 @@ export function removeIsolatedStitches(dmcGrid, rgbGrid, minSame = 1, rareThresh
 }
 
 export function cleanupMinOccurrence(dmcGrid, minOccurrence, codeToRgb) {
-    if (minOccurrence <= 0) return dmcGrid;
+    if (minOccurrence <= 1) return dmcGrid;
+
     const h = dmcGrid.length;
     const w = dmcGrid[0].length;
 
     const countMap = {};
     for (let i = 0; i < h; i++) {
         for (let j = 0; j < w; j++) {
-            const code = dmcGrid[i][j];
+            const code = String(dmcGrid[i][j]);
             countMap[code] = (countMap[code] || 0) + 1;
         }
     }
 
-    const toRemove = new Set(
-        Object.entries(countMap)
-            .filter(([code, count]) => count < minOccurrence)
-            .map(([code]) => code)
-    );
+    const toRemove = new Set();
+    for (const [code, count] of Object.entries(countMap)) {
+        if (count < minOccurrence) toRemove.add(code);
+    }
 
     if (toRemove.size === 0) return dmcGrid;
-    const remaining = Object.keys(countMap).filter(code => !toRemove.has(code));
+
+    const remaining = Object.keys(countMap).filter(c => !toRemove.has(c));
     if (remaining.length === 0) return dmcGrid;
-    const remainingRGBs = remaining.map(code => codeToRgb[code]);
+
     const newGrid = dmcGrid.map(row => row.slice());
 
     for (let i = 0; i < h; i++) {
         for (let j = 0; j < w; j++) {
-            const code = dmcGrid[i][j];
+            const code = String(dmcGrid[i][j]);
             if (!toRemove.has(code)) continue;
 
-            const orig = codeToRgb[code];
-            let best = null;
+            const orig = codeToRgb[code] || [128, 128, 128];
+            let bestCode = null;
             let bestDist = Infinity;
 
-            for (let k = 0; k < remaining.length; k++) {
-                const rgb = remainingRGBs[k];
-                const d = (orig[0] - rgb[0]) ** 2 + (orig[1] - rgb[1]) ** 2 + (orig[2] - rgb[2]) ** 2;
+            for (const remCode of remaining) {
+                const rgb = codeToRgb[remCode];
+                if (!rgb) continue;
+                const dr = orig[0] - rgb[0];
+                const dg = orig[1] - rgb[1];
+                const db = orig[2] - rgb[2];
+                const d = dr * dr + dg * dg + db * db;
                 if (d < bestDist) {
                     bestDist = d;
-                    best = remaining[k];
+                    bestCode = remCode;
                 }
             }
-            newGrid[i][j] = best;
+
+            newGrid[i][j] = bestCode || code;
         }
     }
+
     return newGrid;
 }
 
