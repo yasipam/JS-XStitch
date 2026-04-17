@@ -63,8 +63,9 @@ export class EditorState {
     resetToMappedState() {
         if (!this.mappedRgbGrid) return;
         this.pixelGrid.pushUndo();
+        this.pixelGrid.redoStack = [];
         if (this.stampedMode && this.mappedDmcGrid) {
-            this.emit("requestStampedReload"); 
+            this.emit("requestStampedReload");
         } else {
             this.loadGrid(this.mappedRgbGrid);
         }
@@ -180,7 +181,9 @@ export class EditorState {
         const h = newGrid.length;
         const w = newGrid[0].length;
 
-        this.pixelGrid = new PixelGrid(w, h);
+        if (this.pixelGrid.width !== w || this.pixelGrid.height !== h) {
+            this.pixelGrid = new PixelGrid(w, h);
+        }
         this.pixelGrid.grid = newGrid.map(row => row.map(px => [...px]));
 
         if (this.renderer) {

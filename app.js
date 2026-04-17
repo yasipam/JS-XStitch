@@ -630,7 +630,7 @@ function setupMappingControls() {
         const hasAntiNoise = mappingConfig.antiNoise !== 0;
 
         if (hasEdits || hasMinOccurrence || hasIsolated || hasAntiNoise) {
-            if (!confirm("Resizing the image will remove all your current edits and reset filtering options. Continue?")) {
+            if (!confirm("Resizing the image will remove all your drawn edits and reset cleanup options. Continue?")) {
                 maxSizeSlider.value = mappingConfig.maxSize;
                 maxSizeInput.value = mappingConfig.maxSize;
                 return;
@@ -695,7 +695,7 @@ function setupMappingControls() {
                 const hasAntiNoise = mappingConfig.antiNoise !== 0;
 
                 if (hasEdits || hasMinOccurrence || hasIsolated || hasAntiNoise) {
-                    if (!confirm("Switching pixel art mode will remove all your current edits and reset filtering options. Continue?")) {
+                    if (!confirm("Switching pixel art mode will remove all your drawn edits and reset cleanup options. Continue?")) {
                         pixelArtToggle.checked = !isPixelMode;
                         return;
                     }
