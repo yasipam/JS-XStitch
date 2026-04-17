@@ -71,9 +71,12 @@ function getRgbFromCode(code) {
 function applyFilteringToGrid(dmcGrid) {
     let filtered = dmcGrid.map(row => row.map(c => String(c)));
 
-    if (mappingConfig.reduceIsolatedStitches) {
+    if (mappingConfig.isolatedAggression > 0) {
         const rgbGrid = filtered.map(row => row.map(c => codeToRgbMap[c] || [0, 0, 0]));
-        filtered = removeIsolatedStitches(filtered, rgbGrid);
+        const aggression = mappingConfig.isolatedAggression;
+        const rareThreshold = aggression <= 3 ? aggression - 1 : aggression + 2;
+        const minSame = Math.max(1, 3 - Math.floor(aggression / 3));
+        filtered = removeIsolatedStitches(filtered, rgbGrid, minSame, rareThreshold);
     }
 
     if (mappingConfig.minOccurrence > 1) {
@@ -115,7 +118,7 @@ const mappingConfig = {
     biasGreenMagenta: 0,
     biasCyanRed: 0,
     biasBlueYellow: 0,
-    reduceIsolatedStitches: false,
+    isolatedAggression: 0,
     antiNoise: 0,
     minOccurrence: 1,
     stampedMode: false,
@@ -626,7 +629,7 @@ function setupMappingControls() {
 
         const hasEdits = userEditDiff.size > 0;
         const hasMinOccurrence = mappingConfig.minOccurrence !== 1;
-        const hasIsolated = mappingConfig.reduceIsolatedStitches === true;
+        const hasIsolated = mappingConfig.isolatedAggression > 0;
         const hasAntiNoise = mappingConfig.antiNoise !== 0;
 
         if (hasEdits || hasMinOccurrence || hasIsolated || hasAntiNoise) {
@@ -643,14 +646,16 @@ function setupMappingControls() {
             maxSizeSlider.value = 80;
             maxSizeInput.value = 80;
             mappingConfig.minOccurrence = 1;
-            mappingConfig.reduceIsolatedStitches = false;
+            mappingConfig.isolatedAggression = 0;
             mappingConfig.antiNoise = 0;
 
             const minOccurrenceInput = document.getElementById("minOccurrenceInput");
             if (minOccurrenceInput) minOccurrenceInput.value = 1;
 
-            const isolatedToggle = document.getElementById("reduceIsolatedStitches");
-            if (isolatedToggle) isolatedToggle.checked = false;
+            const isolatedSlider = document.getElementById("isolatedAggression");
+            const isolatedVal = document.getElementById("isolatedAggressionVal");
+            if (isolatedSlider) isolatedSlider.value = 0;
+            if (isolatedVal) isolatedVal.textContent = "0 (Off)";
 
             const antiNoiseSlider = document.getElementById("antiNoise");
             const antiNoiseVal = document.getElementById("antiNoiseVal");
@@ -691,7 +696,7 @@ function setupMappingControls() {
 
                 const hasEdits = userEditDiff.size > 0;
                 const hasMinOccurrence = mappingConfig.minOccurrence !== 1;
-                const hasIsolated = mappingConfig.reduceIsolatedStitches === true;
+                const hasIsolated = mappingConfig.isolatedAggression > 0;
                 const hasAntiNoise = mappingConfig.antiNoise !== 0;
 
                 if (hasEdits || hasMinOccurrence || hasIsolated || hasAntiNoise) {
@@ -709,14 +714,16 @@ function setupMappingControls() {
                     maxSizeInput.disabled = false;
                     maxSizeInput.value = 80;
                     mappingConfig.minOccurrence = 1;
-                    mappingConfig.reduceIsolatedStitches = false;
+                    mappingConfig.isolatedAggression = 0;
                     mappingConfig.antiNoise = 0;
 
                     const minOccurrenceInput = document.getElementById("minOccurrenceInput");
                     if (minOccurrenceInput) minOccurrenceInput.value = 1;
 
-                    const isolatedToggle = document.getElementById("reduceIsolatedStitches");
-                    if (isolatedToggle) isolatedToggle.checked = false;
+                    const isolatedSlider = document.getElementById("isolatedAggression");
+                    const isolatedVal = document.getElementById("isolatedAggressionVal");
+                    if (isolatedSlider) isolatedSlider.value = 0;
+                    if (isolatedVal) isolatedVal.textContent = "0 (Off)";
 
                     const antiNoiseSlider = document.getElementById("antiNoise");
                     const antiNoiseVal = document.getElementById("antiNoiseVal");
@@ -796,10 +803,24 @@ function setupMappingControls() {
     });
 
     // 6. Toggles & Smoothers
-    const isolatedToggle = document.getElementById("reduceIsolatedStitches");
-    if (isolatedToggle) {
-        isolatedToggle.onchange = () => {
-            mappingConfig.reduceIsolatedStitches = isolatedToggle.checked;
+    const isolatedSlider = document.getElementById("isolatedAggression");
+    const isolatedVal = document.getElementById("isolatedAggressionVal");
+    if (isolatedSlider) {
+        isolatedSlider.oninput = () => {
+            const val = parseInt(isolatedSlider.value, 10);
+            mappingConfig.isolatedAggression = val;
+
+            if (val === 0) {
+                mappingConfig.antiNoise = 0;
+                const antiNoiseSlider = document.getElementById("antiNoise");
+                const antiNoiseVal = document.getElementById("antiNoiseVal");
+                if (antiNoiseSlider) antiNoiseSlider.value = 0;
+                if (antiNoiseVal) antiNoiseVal.textContent = "0";
+            }
+
+            if (isolatedVal) {
+                isolatedVal.textContent = val === 0 ? "0 (Off)" : `${val}`;
+            }
             runMapping();
         };
     }
@@ -811,6 +832,12 @@ function setupMappingControls() {
             const val = parseInt(antiNoiseSlider.value, 10);
             antiNoiseVal.textContent = val;
             mappingConfig.antiNoise = val;
+
+            if (val === 0) {
+                mappingConfig.isolatedAggression = 0;
+                if (isolatedSlider) isolatedSlider.value = 0;
+                if (isolatedVal) isolatedVal.textContent = "0 (Off)";
+            }
             runMapping();
         };
     }
@@ -1040,7 +1067,7 @@ function resetUIControls() {
     mappingConfig.biasCyanRed = 0;
     mappingConfig.biasBlueYellow = 0;
     mappingConfig.antiNoise = 0;
-    mappingConfig.reduceIsolatedStitches = false;
+    mappingConfig.isolatedAggression = 0;
     mappingConfig.distanceMethod = "euclidean";
     mappingConfig.minOccurrence = 1;
     mappingConfig.stampedMode = false;
@@ -1068,8 +1095,10 @@ function resetUIControls() {
     const antiNoiseVal = document.getElementById("antiNoiseVal");
     if (antiNoiseVal) antiNoiseVal.textContent = "0";
 
-    const isolatedToggle = document.getElementById("reduceIsolatedStitches");
-    if (isolatedToggle) isolatedToggle.checked = false;
+    const isolatedSlider = document.getElementById("isolatedAggression");
+    const isolatedVal = document.getElementById("isolatedAggressionVal");
+    if (isolatedSlider) isolatedSlider.value = 0;
+    if (isolatedVal) isolatedVal.textContent = "0 (Off)";
 
     // Max Colours
     const maxColoursSlider = document.getElementById("maxColours");
@@ -1176,10 +1205,8 @@ window.addEventListener("load", () => {
                 const patchedDmcGrid = patchDmcGrid(lastBaselineDmcGrid, userEditDiff, mappingConfig.distanceMethod);
                 state.mappedDmcGrid = patchedDmcGrid;
 
-                // In stamped mode the canvas is already showing the correct stamped grid — don't re-send
                 if (!mappingConfig.stampedMode) {
                     sendToCanvas('UPDATE_GRID', payload);
-                    updateSidebarFromState();
                 }
             });
         }

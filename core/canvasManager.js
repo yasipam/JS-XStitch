@@ -63,15 +63,12 @@ window.addEventListener('message', (e) => {
         case 'UPDATE_GRID':
             if (state && payload) {
                 state.loadGrid(payload);
-                state.renderer.resizeToContainer();
 
-                // CLEAR TOOL MEMORY: Prevents connecting old dots to the new grid
                 Object.values(ToolRegistry).forEach(tool => {
                     tool.lastGx = undefined;
                     tool.lastGy = undefined;
                 });
 
-                resetToBestFit();
                 if (events) events.state = state;
             }
             break;
