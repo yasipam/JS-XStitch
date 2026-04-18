@@ -287,12 +287,28 @@ async function runMapping(isReset = false) {
         state.mappedRgbGrid = liveRgbGrid;
         state.setMappingResults(liveRgbGrid, liveDmcGrid);
 
-        // 9. Display: stamp is purely visual overlay on top of true colors
+// 9. Display: stamp is purely visual overlay on top of true colors
         const displayGrid = mappingConfig.stampedMode
             ? buildStampedRgbGrid(liveDmcGrid)
             : liveRgbGrid;
 
+        // 10. Send properly to canvas - resize if dimensions changed
+        const newWidth = displayGrid[0].length;
+        const newHeight = displayGrid.length;
+        const currentGrid = state.pixelGrid;
+        const dimensionsChanged = !currentGrid ||
+            currentGrid.width !== newWidth ||
+            currentGrid.height !== newHeight;
+
+        if (dimensionsChanged) {
+            sendToCanvas('INIT', { width: newWidth, height: newHeight });
+        }
         sendToCanvas('UPDATE_GRID', displayGrid);
+
+        // Clear undo/redo - only pencil/fill tool edits should be undoable
+        state.pixelGrid.undoStack = [];
+        state.pixelGrid.redoStack = [];
+
         renderPalette(cachedProjectPalette);
         updatePaletteHighlights();
         updateSidebarFromState();
@@ -1190,10 +1206,6 @@ window.addEventListener("load", () => {
 
                 const patchedDmcGrid = patchDmcGrid(lastBaselineDmcGrid, userEditDiff, mappingConfig.distanceMethod);
                 state.mappedDmcGrid = patchedDmcGrid;
-
-                if (!mappingConfig.stampedMode) {
-                    sendToCanvas('UPDATE_GRID', payload);
-                }
             });
         }
     });

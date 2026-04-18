@@ -183,8 +183,9 @@ export class EditorState {
 
         if (this.pixelGrid.width !== w || this.pixelGrid.height !== h) {
             this.pixelGrid = new PixelGrid(w, h);
+        } else {
+            this.pixelGrid.grid = newGrid.map(row => row.map(px => [...px]));
         }
-        this.pixelGrid.grid = newGrid.map(row => row.map(px => [...px]));
 
         if (this.renderer) {
             this.renderer.setPixelGrid(this.pixelGrid);
