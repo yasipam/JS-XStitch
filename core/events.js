@@ -80,14 +80,23 @@ export class EditorEvents {
             return;
         }
 
-        if (e.button === 2 || this.evCache.length > 1) { 
-            // Right Click or Multi-touch -> Panning Mode
+        const isTouch = e.pointerType === 'touch';
+        const isMultiTouch = this.evCache.length > 1;
+
+        // Touch/Fingers: ONLY pan/zoom, no drawing
+        if (isTouch || isMultiTouch) {
+            this.isPanning = true;
+            this.isPointerDown = false;
+            this.lastPointerX = e.clientX;
+            this.lastPointerY = e.clientY;
+        } else if (e.button === 2) {
+            // Right Click -> Panning Mode
             this.isPanning = true;
             this.isPointerDown = false;
             this.lastPointerX = e.clientX;
             this.lastPointerY = e.clientY;
         } else {
-            // Left Click -> Tool Interaction
+            // Pen or Mouse Left Click -> Tool Interaction
             this.isPointerDown = true;
             this.isPanning = false;
             const tool = ToolRegistry[this.state.activeTool];
