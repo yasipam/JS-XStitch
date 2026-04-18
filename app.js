@@ -524,6 +524,50 @@ function updateSidebarFromState() {
     }
     renderThreadsTable(threadStats);
     renderPalette(threadStats.map(s => s.code));
+    updatePatternSizeDisplay();
+}
+
+function updatePatternSizeDisplay() {
+    const display = document.getElementById("patternSizeDisplay");
+    if (!display || !state || !state.mappedDmcGrid) {
+        if (display) display.textContent = "--";
+        return;
+    }
+
+    const dmcGrid = state.mappedDmcGrid;
+    const height = dmcGrid.length;
+    const width = dmcGrid[0] ? dmcGrid[0].length : 0;
+
+    let minX = width, maxX = 0, minY = height, maxY = 0;
+    let hasStitches = false;
+
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            if (String(dmcGrid[y][x]) !== "0") {
+                minX = Math.min(minX, x);
+                maxX = Math.max(maxX, x);
+                minY = Math.min(minY, y);
+                maxY = Math.max(maxY, y);
+                hasStitches = true;
+            }
+        }
+    }
+
+    if (!hasStitches) {
+        display.textContent = "--";
+        return;
+    }
+
+    const stitchW = maxX - minX + 1;
+    const stitchH = maxY - minY + 1;
+
+    const fabricSelect = document.getElementById("fabricCountSelect");
+    const fabricCount = fabricSelect ? parseInt(fabricSelect.value) || 14 : 14;
+
+    const sizeW = (stitchW / fabricCount * 2.54).toFixed(1);
+    const sizeH = (stitchH / fabricCount * 2.54).toFixed(1);
+
+    display.textContent = `${stitchW} x ${stitchH} stitches (${sizeW} x ${sizeH} cm on ${fabricCount}ct)`;
 }
 
 
@@ -1034,6 +1078,12 @@ function setupExportButtons() {
                 "kriss_kross_pattern.oxs",
                 stampedRgbGrid
             );
+        };
+    }
+
+    if (fabricSelect) {
+        fabricSelect.onchange = () => {
+            updatePatternSizeDisplay();
         };
     }
 }

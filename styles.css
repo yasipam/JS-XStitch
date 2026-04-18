@@ -152,6 +152,24 @@ label {
     font-weight: 600;
     color: var(--color-purple);
     border-bottom: 1px solid var(--border-light);
+}
+
+#patternSizePanel {
+    padding: 10px;
+    text-align: center;
+}
+
+#patternSizePanel .panelTitle {
+    font-size: 1rem;
+    border-bottom: none;
+    margin-bottom: 4px;
+}
+
+#patternSizeDisplay {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--color-purple);
+}
     padding-bottom: 4px;
     font-family: var(--font-brand);
 }
