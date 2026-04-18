@@ -1556,8 +1556,15 @@ function setupMappingControls() {
 
             // Instant toggle: switch between stamped overlay and true colors
             if (!state.mappedDmcGrid) return;
+            
+            // For OXS, get the live DMC grid with user edits
+            let dmcGrid = state.mappedDmcGrid;
+            if (isOxsLoaded && state.mappedRgbGrid) {
+                dmcGrid = getLiveDmcGridFromRgb(state.mappedRgbGrid) || state.mappedDmcGrid;
+            }
+            
             const displayGrid = mappingConfig.stampedMode
-                ? buildStampedRgbGrid(state.mappedDmcGrid)
+                ? buildStampedRgbGrid(dmcGrid)
                 : state.mappedRgbGrid;
             sendToCanvas('UPDATE_GRID', displayGrid);
         };
@@ -1580,7 +1587,14 @@ function setupMappingControls() {
 
             // Instant: rebuild stamped overlay and send to canvas
             if (!state.mappedDmcGrid) return;
-            const displayGrid = buildStampedRgbGrid(state.mappedDmcGrid);
+            
+            // For OXS, get the live DMC grid with user edits
+            let dmcGrid = state.mappedDmcGrid;
+            if (isOxsLoaded && state.mappedRgbGrid) {
+                dmcGrid = getLiveDmcGridFromRgb(state.mappedRgbGrid) || state.mappedDmcGrid;
+            }
+            
+            const displayGrid = buildStampedRgbGrid(dmcGrid);
             sendToCanvas('UPDATE_GRID', displayGrid);
         };
     }
@@ -1638,6 +1652,15 @@ function setupExportButtons() {
                     exportRgbGrid = state.mappedRgbGrid;
                 }
 
+                // For OXS with stamped mode: build stamped grid and lookup
+                let stampedLookup = {};
+                let exportVisualGrid = exportRgbGrid;
+                if (isOxsLoaded && mappingConfig.stampedMode && exportDmcGrid) {
+                    const stampedResult = buildStampedGrid(exportDmcGrid, { hueShift: mappingConfig.stampedHue });
+                    exportVisualGrid = stampedResult.grid;
+                    stampedLookup = stampedResult.lookup;
+                }
+
                 const data = buildExportData(state, mappingConfig, {
                     fabricCount: fabricSelect.value,
                     mode: modeSelect.value
@@ -1646,8 +1669,9 @@ function setupExportButtons() {
                 // Override grids with live data for OXS
                 if (isOxsLoaded) {
                     data.dmcGrid = exportDmcGrid;
-                    data.rgbGrid = exportRgbGrid;
-                    // Rebuild palette for the live grid
+                    data.rgbGrid = exportVisualGrid;
+                    
+                    // Rebuild palette with stamped colors if needed
                     const usedCodes = new Set(exportDmcGrid.flat().map(String));
                     data.palette = Object.entries(loadedOxsPalette)
                         .filter(([code]) => usedCodes.has(code))
@@ -1657,6 +1681,7 @@ function setupExportButtons() {
                                 code: code,
                                 name: entry.name,
                                 rgb: entry.rgb,
+                                stampedRgb: mappingConfig.stampedMode ? (stampedLookup[code] || null) : null,
                                 count: count
                             };
                         })
@@ -1923,9 +1948,21 @@ window.addEventListener("load", () => {
                 }
             }
 
+            // For OXS in stamped mode: the canvas sends stamped colors, we need to rebuild the display
+            if (isOxsLoaded && mappingConfig.stampedMode && state.mappedRgbGrid) {
+                const liveDmcGrid = getLiveDmcGridFromRgb(state.mappedRgbGrid);
+                if (liveDmcGrid) {
+                    const stampedGrid = buildStampedRgbGrid(liveDmcGrid);
+                    sendToCanvas('UPDATE_GRID', stampedGrid);
+                }
+                // Don't update sidebar with stamped colors - they won't match original palette
+                return;
+            }
+
             Promise.resolve().then(() => {
                 if (isOxsLoaded) {
                     // For OXS: directly use the synced grid for thread counts
+                    // (only when NOT in stamped mode - stamped colors won't match)
                     updateSidebarFromOxsGrid(payload);
                 } else if (lastBaselineDmcGrid) {
                     const patchedDmcGrid = patchDmcGrid(lastBaselineDmcGrid, userEditDiff, mappingConfig.distanceMethod);
