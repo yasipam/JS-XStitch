@@ -896,11 +896,13 @@ function rebuildRgbFromDmc() {
 }
 
 function updateSidebarFromOxsGrid(rgbGrid) {
+    console.log("updateSidebarFromOxsGrid called");
     if (!rgbGrid || !loadedOxsPalette) return;
 
     const countDisplay = document.getElementById("actualColoursUsed");
     const counts = {};
     const usedCodes = new Set();
+    const DISTANCE_THRESHOLD = 2000; // Only match if reasonably close
 
     for (let y = 0; y < rgbGrid.length; y++) {
         for (let x = 0; x < rgbGrid[0].length; x++) {
@@ -922,9 +924,18 @@ function updateSidebarFromOxsGrid(rgbGrid) {
                 }
             });
 
-            if (matchedCode) {
+            // Only count if close enough match
+            if (matchedCode && bestDist < DISTANCE_THRESHOLD) {
                 counts[matchedCode] = (counts[matchedCode] || 0) + 1;
                 usedCodes.add(matchedCode);
+            } else {
+                // New color not in palette - add it dynamically
+                console.log(`New color detected: RGB(${rgb[0]}, ${rgb[1]}, ${rgb[2]}), bestDist=${bestDist}`);
+                const newCode = findAvailableDmcCode(rgb);
+                loadedOxsPalette[newCode] = { name: `DMC ${newCode}`, rgb: rgb };
+                counts[newCode] = (counts[newCode] || 0) + 1;
+                usedCodes.add(newCode);
+                console.log(`Added new color to palette: DMC ${newCode}`);
             }
         }
     }
@@ -943,14 +954,44 @@ function updateSidebarFromOxsGrid(rgbGrid) {
 
     if (countDisplay) {
         countDisplay.innerHTML = `Actual Colours: ${threadStats.length}`;
+        console.log(`Actual Colours: ${threadStats.length}`);
     }
+
     renderThreadsTable(threadStats);
     renderPalette(Array.from(usedCodes));
 
-    const patternSizeDisplay = document.getElementById("patternSizeDisplay");
-    if (patternSizeDisplay) {
-        patternSizeDisplay.textContent = `${rgbGrid[0].length} x ${rgbGrid.length}`;
+    // Update pattern size display with full info (stitch count, dimensions, cm)
+    // For OXS, we need to get the live DMC grid to account for user edits
+    if (isOxsLoaded && state.mappedRgbGrid) {
+        const liveDmcGrid = getLiveDmcGridFromRgb(state.mappedRgbGrid);
+        if (liveDmcGrid) {
+            const originalDmcGrid = state.mappedDmcGrid;
+            state.mappedDmcGrid = liveDmcGrid;
+            updatePatternSizeDisplay();
+            state.mappedDmcGrid = originalDmcGrid;
+            return;
+        }
     }
+    updatePatternSizeDisplay();
+}
+
+function findAvailableDmcCode(rgb) {
+    // Find the closest DMC color to use as the code
+    let bestCode = "310";
+    let bestDist = Infinity;
+    
+    DMC_RGB.forEach(([code, name, dmcRgb]) => {
+        const dr = rgb[0] - dmcRgb[0];
+        const dg = rgb[1] - dmcRgb[1];
+        const db = rgb[2] - dmcRgb[2];
+        const dist = dr * dr + dg * dg + db * db;
+        if (dist < bestDist) {
+            bestDist = dist;
+            bestCode = code;
+        }
+    });
+    
+    return bestCode;
 }
 
 function getLiveDmcGridFromRgb(rgbGrid) {
