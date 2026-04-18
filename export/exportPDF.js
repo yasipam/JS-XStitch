@@ -150,7 +150,7 @@ function drawPatternPages(doc, data, isPrintable, isPK) {
                             const sym = symbolMap[code] || '?';
                             // Dynamic text color based on background luminance
                             doc.setTextColor(isPK ? 0 : (getLuminance(displayRgb) < 128 ? 255 : 0));
-                            doc.setFontSize(cellSize * 1.7);
+                            doc.setFontSize(cellSize * 2.5);
                             doc.text(sym, cx + (cellSize / 2), cy + (cellSize / 1.4), { align: "center" });
                             break;
 
@@ -215,6 +215,7 @@ function drawLegendPage(doc, data, isPK) {
         const name = String(p.name || ""); // Safety cast
         const count = String(p.count || 0);
 
+        doc.setFontSize(16)
         doc.text(sym, 22, y);
         doc.text(p.code, 40, y);
         doc.text(name.substring(0, 30), 60, y);
