@@ -121,7 +121,7 @@ const mappingConfig = {
     stampedHue: 0,
     distanceMethod: "euclidean",
     exportFabricCount: 14,
-    exportMode: "cross"
+    exportMode: "filled"
 };
 
 // -----------------------------------------------------------------------------

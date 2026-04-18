@@ -73,7 +73,7 @@ export function buildExportData(state, mappingConfig, options = {}) {
         },
         canvasSize: { w: width, h: height },
         fabricCount: parseInt(options.fabricCount) || 14,
-        exportMode: options.mode || mappingConfig.exportMode || "cross",
+        exportMode: options.mode || mappingConfig.exportMode || "filled",
         stampedMode: isStamped,
         originalImage: state.originalImageURL
     };
