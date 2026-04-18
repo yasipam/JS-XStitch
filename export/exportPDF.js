@@ -83,6 +83,10 @@ async function drawCoverPage(doc, data) {
     doc.text(`Total Stitches: ${data.totalStitches.toLocaleString()}`, 105, statsY, { align: "center" });
     doc.text(`Stitched Area: ${data.stitchedSize.w} x ${data.stitchedSize.h} stitches`, 105, statsY + 10, { align: "center" });
     doc.text(`Fabric Count: ${data.fabricCount}-count Aida`, 105, statsY + 20, { align: "center" });
+
+    const sizeW = (data.stitchedSize.w / data.fabricCount * 2.54).toFixed(1);
+    const sizeH = (data.stitchedSize.h / data.fabricCount * 2.54).toFixed(1);
+    doc.text(`Pattern Size: ${sizeW} cm x ${sizeH} cm`, 105, statsY + 30, { align: "center" });
 }
 
 /**
