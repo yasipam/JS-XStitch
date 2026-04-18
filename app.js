@@ -25,6 +25,9 @@ let lastBaselineDmcGrid = null; // NEW: stores pure DMC baseline mapping
 // OXS Import State
 let isOxsLoaded = false;
 let loadedOxsPalette = null; // Stores { code: { name, rgb } } from imported OXS
+let oxsBaselineDmcGrid = null; // Original DMC grid for OXS (to allow undo)
+let oxsBaselineRgbGrid = null; // Original RGB grid for OXS (to allow undo)
+let oxsBaselinePalette = null; // Original palette for OXS (to allow undo)
 
 // -----------------------------------------------------------------------------
 // MAPPING CONFIGURATION
@@ -623,7 +626,7 @@ function setupUpload() {
                 if (sizeSlider) sizeSlider.disabled = false;
                 if (sizeInput) sizeInput.disabled = false;
 
-                setMappingControlsEnabled(true, true);
+                setMappingControlsEnabled(true, false);
 
                 state.clear();
                 userEditDiff.clear();
@@ -682,6 +685,15 @@ function loadOxsPattern(parsed) {
     lastBaselineGrid = null;
     lastBaselineDmcGrid = null;
 
+    // Store baseline for undo functionality
+    oxsBaselineDmcGrid = dmcGrid.map(row => row.map(c => c));
+    oxsBaselineRgbGrid = rgbGrid.map(row => row.map(c => [...c]));
+    // Deep clone the palette for baseline
+    oxsBaselinePalette = {};
+    Object.entries(dmcPalette).forEach(([code, entry]) => {
+        oxsBaselinePalette[code] = { name: entry.name, rgb: [...entry.rgb] };
+    });
+
     state.originalImageURL = null;
 
     sendToCanvas('INIT', { width, height });
@@ -693,8 +705,10 @@ function loadOxsPattern(parsed) {
 
     setMappingControlsEnabled(false, true); // Disable mapping controls but enable post-processing
 
-    updatePaletteFromOxs(dmcPalette, rgbGrid);
+    const usedCodes = Object.keys(dmcPalette);
+    renderPalette(usedCodes);
 
+    updateThreadsTableFromGrid();
     updatePatternSizeDisplay();
 }
 
@@ -728,8 +742,10 @@ function updatePaletteFromOxs(dmcPalette, rgbGrid) {
     });
 }
 
-function setMappingControlsEnabled(enabled, allowPostProcessing = false) {
-    const alwaysDisable = [
+function setMappingControlsEnabled(enabled, isOxsMode = false) {
+    console.log(`setMappingControlsEnabled called: enabled=${enabled}, isOxsMode=${isOxsMode}`);
+    
+    const mappingControls = [
         "maxSizeSlider", "maxSizeInput",
         "pixelArtMode",
         "maxColours", "maxColoursInput",
@@ -745,18 +761,25 @@ function setMappingControlsEnabled(enabled, allowPostProcessing = false) {
         "reapplyFilterBtn"
     ];
 
-    alwaysDisable.forEach(id => {
+    mappingControls.forEach(id => {
         const el = document.getElementById(id);
-        if (el) el.disabled = !enabled;
+        if (el) {
+            el.disabled = !enabled || isOxsMode;
+            console.log(`  ${id} disabled = ${el.disabled}`);
+        }
     });
 
     document.querySelectorAll('input[name="colorDistance"]').forEach(radio => {
-        radio.disabled = !enabled;
+        radio.disabled = !enabled || isOxsMode;
+        console.log(`  radio ${radio.value} disabled = ${radio.disabled}`);
     });
 
     postProcessingControls.forEach(id => {
         const el = document.getElementById(id);
-        if (el) el.disabled = !(enabled && allowPostProcessing);
+        if (el) {
+            el.disabled = !(enabled || isOxsMode);
+            console.log(`  ${id} disabled = ${el.disabled}`);
+        }
     });
 }
 
@@ -796,9 +819,60 @@ function applyOxsPostProcessing(control) {
             return;
     }
 
-    sendToCanvas('LOAD_GRID', state.mappedRgbGrid);
+    sendToCanvas('UPDATE_GRID', state.mappedRgbGrid);
     updateThreadsTableFromGrid();
     updatePaletteAfterPostProcess();
+}
+
+function applyOxsPostProcessingWithUndo(control, value, prevValue = null) {
+    console.log(`applyOxsPostProcessingWithUndo: ${control} = ${value}, prevValue = ${prevValue}`);
+    
+    if (!isOxsLoaded) return;
+
+    if (!oxsBaselineDmcGrid || !oxsBaselineRgbGrid) {
+        console.log("No baseline to restore");
+        return;
+    }
+
+    // For merge: if value is less than previous, restore from baseline first
+    if (control === 'merge' && prevValue !== null && value < prevValue) {
+        console.log(`Reducing merge level from ${prevValue} to ${value} - restoring baseline first`);
+        state.mappedDmcGrid = oxsBaselineDmcGrid.map(row => row.map(c => c));
+        state.mappedRgbGrid = oxsBaselineRgbGrid.map(row => row.map(c => [...c]));
+        loadedOxsPalette = {};
+        Object.entries(oxsBaselinePalette).forEach(([code, entry]) => {
+            loadedOxsPalette[code] = { name: entry.name, rgb: [...entry.rgb] };
+        });
+        // Update canvas after restoring baseline
+        sendToCanvas('UPDATE_GRID', state.mappedRgbGrid);
+        // After restoring, apply the new lower value
+    }
+
+    // If value is 0 or false, restore from baseline completely
+    if (value === 0 || value === false) {
+        console.log("Restoring from baseline");
+        state.mappedDmcGrid = oxsBaselineDmcGrid.map(row => row.map(c => c));
+        state.mappedRgbGrid = oxsBaselineRgbGrid.map(row => row.map(c => [...c]));
+        
+        // Restore palette from baseline
+        loadedOxsPalette = {};
+        Object.entries(oxsBaselinePalette).forEach(([code, entry]) => {
+            loadedOxsPalette[code] = { name: entry.name, rgb: [...entry.rgb] };
+        });
+        
+        // Update canvas
+        sendToCanvas('UPDATE_GRID', state.mappedRgbGrid);
+        updateThreadsTableFromGrid();
+        
+        // Update palette with baseline colors
+        const usedCodes = Object.keys(loadedOxsPalette);
+        renderPalette(usedCodes);
+        return;
+    }
+
+    // Apply the operation (non-zero value)
+    console.log(`Applying ${control} with value ${value}`);
+    applyOxsPostProcessing(control);
 }
 
 function rebuildRgbFromDmc() {
@@ -819,6 +893,100 @@ function rebuildRgbFromDmc() {
     }
 
     state.mappedRgbGrid = newRgbGrid;
+}
+
+function updateSidebarFromOxsGrid(rgbGrid) {
+    if (!rgbGrid || !loadedOxsPalette) return;
+
+    const countDisplay = document.getElementById("actualColoursUsed");
+    const counts = {};
+    const usedCodes = new Set();
+
+    for (let y = 0; y < rgbGrid.length; y++) {
+        for (let x = 0; x < rgbGrid[0].length; x++) {
+            const rgb = rgbGrid[y][x];
+            const isWhite = rgb[0] === 255 && rgb[1] === 255 && rgb[2] === 255;
+            if (isWhite) continue;
+
+            let matchedCode = null;
+            let bestDist = Infinity;
+
+            Object.entries(loadedOxsPalette).forEach(([code, entry]) => {
+                const dr = rgb[0] - entry.rgb[0];
+                const dg = rgb[1] - entry.rgb[1];
+                const db = rgb[2] - entry.rgb[2];
+                const dist = dr * dr + dg * dg + db * db;
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    matchedCode = code;
+                }
+            });
+
+            if (matchedCode) {
+                counts[matchedCode] = (counts[matchedCode] || 0) + 1;
+                usedCodes.add(matchedCode);
+            }
+        }
+    }
+
+    const threadStats = Object.entries(counts).map(([code, count]) => {
+        const entry = loadedOxsPalette[code];
+        if (!entry) return null;
+        return {
+            code: code,
+            r: entry.rgb[0],
+            g: entry.rgb[1],
+            b: entry.rgb[2],
+            count: count
+        };
+    }).filter(s => s !== null);
+
+    if (countDisplay) {
+        countDisplay.innerHTML = `Actual Colours: ${threadStats.length}`;
+    }
+    renderThreadsTable(threadStats);
+    renderPalette(Array.from(usedCodes));
+
+    const patternSizeDisplay = document.getElementById("patternSizeDisplay");
+    if (patternSizeDisplay) {
+        patternSizeDisplay.textContent = `${rgbGrid[0].length} x ${rgbGrid.length}`;
+    }
+}
+
+function getLiveDmcGridFromRgb(rgbGrid) {
+    if (!rgbGrid || !loadedOxsPalette) return null;
+
+    const h = rgbGrid.length;
+    const w = rgbGrid[0].length;
+    const dmcGrid = Array.from({ length: h }, () => Array(w).fill("0"));
+
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            const rgb = rgbGrid[y][x];
+            const isWhite = rgb[0] === 255 && rgb[1] === 255 && rgb[2] === 255;
+            if (isWhite) continue;
+
+            let matchedCode = null;
+            let bestDist = Infinity;
+
+            Object.entries(loadedOxsPalette).forEach(([code, entry]) => {
+                const dr = rgb[0] - entry.rgb[0];
+                const dg = rgb[1] - entry.rgb[1];
+                const db = rgb[2] - entry.rgb[2];
+                const dist = dr * dr + dg * dg + db * db;
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    matchedCode = code;
+                }
+            });
+
+            if (matchedCode) {
+                dmcGrid[y][x] = matchedCode;
+            }
+        }
+    }
+
+    return dmcGrid;
 }
 
 function applyAntiNoiseToOxsGrid() {
@@ -1206,6 +1374,7 @@ function setupMappingControls() {
     if (mergeSlider) {
         mergeSlider.oninput = () => {
             const val = parseInt(mergeSlider.value, 10);
+            const prevVal = mappingConfig.mergeNearest;
             mappingConfig.mergeNearest = val;
 
             // Update label
@@ -1213,7 +1382,8 @@ function setupMappingControls() {
             mergeVal.textContent = labels[val];
 
             if (isOxsLoaded) {
-                applyOxsPostProcessing('merge');
+                console.log(`OXS mergeNearest slider changed from ${prevVal} to ${val}`);
+                applyOxsPostProcessingWithUndo('merge', val, prevVal);
             } else {
                 runMapping();
             }
@@ -1270,7 +1440,8 @@ function setupMappingControls() {
             mappingConfig.antiNoise = val;
 
             if (isOxsLoaded) {
-                applyOxsPostProcessing('antiNoise');
+                console.log(`OXS antiNoise slider changed to ${val}`);
+                applyOxsPostProcessingWithUndo('antiNoise', val);
             } else {
                 runMapping();
             }
@@ -1298,7 +1469,8 @@ function setupMappingControls() {
             }
 
             if (isOxsLoaded) {
-                applyOxsPostProcessing('reduceIsolatedStitches');
+                console.log(`OXS reduceIsolatedStitches toggled to ${reduceIsolatedStitchesToggle.checked}`);
+                applyOxsPostProcessingWithUndo('reduceIsolatedStitches', reduceIsolatedStitchesToggle.checked ? 1 : 0);
             } else {
                 runMapping();
             }
@@ -1386,7 +1558,9 @@ function setupMappingControls() {
     if (reapplyFilterBtn) {
         reapplyFilterBtn.onclick = () => {
             if (isOxsLoaded) {
-                applyOxsPostProcessing('minOccurrence');
+                const minOcc = parseInt(document.getElementById("minOccurrenceInput")?.value || 1, 10);
+                console.log(`OXS minOccurrence button clicked, value = ${minOcc}`);
+                applyOxsPostProcessingWithUndo('minOccurrence', minOcc);
                 return;
             }
 
@@ -1414,10 +1588,39 @@ function setupExportButtons() {
     if (exportPdfBtn) {
         exportPdfBtn.onclick = async () => {
             try {
+                let exportDmcGrid = state.mappedDmcGrid;
+                let exportRgbGrid = state.mappedRgbGrid;
+
+                // For OXS mode, get the live grid from canvas with user edits
+                if (isOxsLoaded && state.mappedRgbGrid) {
+                    exportDmcGrid = getLiveDmcGridFromRgb(state.mappedRgbGrid);
+                    exportRgbGrid = state.mappedRgbGrid;
+                }
+
                 const data = buildExportData(state, mappingConfig, {
                     fabricCount: fabricSelect.value,
                     mode: modeSelect.value
                 });
+
+                // Override grids with live data for OXS
+                if (isOxsLoaded) {
+                    data.dmcGrid = exportDmcGrid;
+                    data.rgbGrid = exportRgbGrid;
+                    // Rebuild palette for the live grid
+                    const usedCodes = new Set(exportDmcGrid.flat().map(String));
+                    data.palette = Object.entries(loadedOxsPalette)
+                        .filter(([code]) => usedCodes.has(code))
+                        .map(([code, entry]) => {
+                            const count = exportDmcGrid.flat().filter(c => String(c) === code).length;
+                            return {
+                                code: code,
+                                name: entry.name,
+                                rgb: entry.rgb,
+                                count: count
+                            };
+                        })
+                        .sort((a, b) => b.count - a.count);
+                }
 
                 const exportType = pdfTypeSelect ? pdfTypeSelect.value : 'PRINTABLE';
                 await exportPDF(data, exportType);
@@ -1457,11 +1660,18 @@ function setupExportButtons() {
                 return;
             }
 
+            let exportDmcGrid = state.mappedDmcGrid;
+
+            // For OXS mode, get the live grid from canvas with user edits
+            if (isOxsLoaded && state.mappedRgbGrid) {
+                exportDmcGrid = getLiveDmcGridFromRgb(state.mappedRgbGrid);
+            }
+
             const stampedRgbGrid = mappingConfig.stampedMode
-                ? buildStampedRgbGrid(state.mappedDmcGrid)
+                ? buildStampedRgbGrid(exportDmcGrid)
                 : null;
             exportOXS(
-                state.mappedDmcGrid,
+                exportDmcGrid,
                 DMC_RGB,
                 "kriss_kross_pattern.oxs",
                 stampedRgbGrid
@@ -1667,17 +1877,20 @@ window.addEventListener("load", () => {
             // In stamped mode the canvas shows stamped colors — never overwrite the true RGB grid
             if (!mappingConfig.stampedMode) {
                 state.mappedRgbGrid = payload;
-                captureUserEdits(payload);
+                if (!isOxsLoaded) {
+                    captureUserEdits(payload);
+                }
             }
 
             Promise.resolve().then(() => {
-                if (!lastBaselineDmcGrid) return;
-
-                const patchedDmcGrid = patchDmcGrid(lastBaselineDmcGrid, userEditDiff, mappingConfig.distanceMethod);
-                state.mappedDmcGrid = patchedDmcGrid;
-
-                // Update sidebar after mappedDmcGrid is patched with user edits
-                updateSidebarFromState();
+                if (isOxsLoaded) {
+                    // For OXS: directly use the synced grid for thread counts
+                    updateSidebarFromOxsGrid(payload);
+                } else if (lastBaselineDmcGrid) {
+                    const patchedDmcGrid = patchDmcGrid(lastBaselineDmcGrid, userEditDiff, mappingConfig.distanceMethod);
+                    state.mappedDmcGrid = patchedDmcGrid;
+                    updateSidebarFromState();
+                }
             });
         }
     });
