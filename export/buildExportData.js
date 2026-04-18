@@ -59,6 +59,8 @@ export function buildExportData(state, mappingConfig, options = {}) {
         };
     });
 
+    palette.sort((a, b) => b.count - a.count);
+
     return {
         dmcGrid,
         rgbGrid: exportVisualGrid,
