@@ -530,7 +530,7 @@ function updateSidebarFromState() {
 function updatePatternSizeDisplay() {
     const display = document.getElementById("patternSizeDisplay");
     if (!display || !state || !state.mappedDmcGrid) {
-        if (display) display.textContent = "--";
+        if (display) display.innerHTML = "--";
         return;
     }
 
@@ -539,6 +539,7 @@ function updatePatternSizeDisplay() {
     const width = dmcGrid[0] ? dmcGrid[0].length : 0;
 
     let minX = width, maxX = 0, minY = height, maxY = 0;
+    let totalStitches = 0;
     let hasStitches = false;
 
     for (let y = 0; y < height; y++) {
@@ -548,13 +549,14 @@ function updatePatternSizeDisplay() {
                 maxX = Math.max(maxX, x);
                 minY = Math.min(minY, y);
                 maxY = Math.max(maxY, y);
+                totalStitches++;
                 hasStitches = true;
             }
         }
     }
 
     if (!hasStitches) {
-        display.textContent = "--";
+        display.innerHTML = "--";
         return;
     }
 
@@ -567,7 +569,7 @@ function updatePatternSizeDisplay() {
     const sizeW = (stitchW / fabricCount * 2.54).toFixed(1);
     const sizeH = (stitchH / fabricCount * 2.54).toFixed(1);
 
-    display.textContent = `${stitchW} x ${stitchH} stitches (${sizeW} x ${sizeH} cm on ${fabricCount}ct)`;
+    display.innerHTML = `${stitchW} x ${stitchH} stitches<br>${sizeW} x ${sizeH} cm on ${fabricCount}ct<br>Total: ${totalStitches.toLocaleString()} stitches`;
 }
 
 
