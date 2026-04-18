@@ -101,7 +101,6 @@ function reapplyFiltering() {
         ? buildStampedRgbGrid(filteredDmcGrid)
         : filteredRgbGrid;
     sendToCanvas('UPDATE_GRID', displayGrid);
-    updatePaletteHighlights();
     updateSidebarFromState();
 }
 
@@ -303,14 +302,12 @@ async function runMapping(isReset = false) {
         if (dimensionsChanged) {
             sendToCanvas('INIT', { width: newWidth, height: newHeight });
         }
-        sendToCanvas('UPDATE_GRID', displayGrid);
+sendToCanvas('UPDATE_GRID', displayGrid);
 
         // Clear undo/redo - only pencil/fill tool edits should be undoable
         state.pixelGrid.undoStack = [];
         state.pixelGrid.redoStack = [];
 
-        renderPalette(cachedProjectPalette);
-        updatePaletteHighlights();
         updateSidebarFromState();
 
     } catch (error) {
@@ -321,22 +318,35 @@ async function runMapping(isReset = false) {
 // -----------------------------------------------------------------------------
 // UI RENDERING: PALETTE & THREADS
 // -----------------------------------------------------------------------------
-function renderPalette(projectPalette = []) {
+function renderPalette(usedCodes = []) {
     const paletteGrid = document.getElementById("paletteGrid");
     const paletteList = document.getElementById("paletteList");
     if (!paletteGrid || !paletteList) return;
 
-    // Clear previous entries
     paletteGrid.innerHTML = "";
     paletteList.innerHTML = "";
 
-    const projectCodes = new Set(projectPalette.map(p => String(p[0])));
+    const usedSet = new Set(usedCodes.map(String));
+
+    const usedColors = [];
+    const unusedColors = [];
 
     DMC_RGB.forEach(([code, name, rgb]) => {
-        const isUsed = projectCodes.has(String(code));
+        const isUsed = usedSet.has(String(code));
+        if (isUsed) {
+            usedColors.push([code, name, rgb]);
+        } else {
+            unusedColors.push([code, name, rgb]);
+        }
+    });
+
+    usedColors.sort((a, b) => Number(a[0]) - Number(b[0]));
+
+    const renderSwatch = (item) => {
+        const [code, name, rgb] = item;
+        const isUsed = usedSet.has(String(code));
         const rgbStr = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
 
-        // 1. Grid Swatch (Only if used in project, or show all - usually show all for picker)
         const swatch = document.createElement("div");
         swatch.className = `palette-swatch ${isUsed ? 'used' : ''}`;
         swatch.dataset.code = code;
@@ -351,7 +361,6 @@ function renderPalette(projectPalette = []) {
         };
         paletteGrid.appendChild(swatch);
 
-        // 2. Full List Row (Searchable section)
         const row = document.createElement("div");
         row.className = "palette-row";
         row.dataset.code = code;
@@ -365,12 +374,30 @@ function renderPalette(projectPalette = []) {
         row.onclick = () => {
             state.setColor(rgb);
             sendToCanvas('SET_COLOR', rgb);
-            // Also select in grid if visible
             const relatedSwatch = paletteGrid.querySelector(`[data-code="${code}"]`);
             if (relatedSwatch) relatedSwatch.click();
         };
         paletteList.appendChild(row);
-    });
+    };
+
+    if (usedColors.length > 0) {
+        const header = document.createElement("div");
+        header.className = "palette-section-header";
+        header.textContent = "IN USE";
+        paletteList.appendChild(header);
+    }
+
+    usedColors.forEach(renderSwatch);
+
+    if (unusedColors.length > 0) {
+        if (usedColors.length > 0) {
+            const header = document.createElement("div");
+            header.className = "palette-section-header";
+            header.textContent = "NOT IN USE";
+            paletteList.appendChild(header);
+        }
+        unusedColors.forEach(renderSwatch);
+    }
 }
 
 
@@ -394,33 +421,37 @@ function setupPaletteUI() {
         searchInput.oninput = () => {
             const query = searchInput.value.toLowerCase();
             const rows = document.querySelectorAll(".palette-row");
+            const headers = document.querySelectorAll(".palette-section-header");
 
             rows.forEach(row => {
                 const text = row.textContent.toLowerCase();
-                // Filter rows based on search text
                 row.style.display = text.includes(query) ? "flex" : "none";
+            });
+
+            let currentHeader = null;
+            rows.forEach(row => {
+                if (row.previousElementSibling && row.previousElementSibling.classList.contains("palette-section-header")) {
+                    currentHeader = row.previousElementSibling;
+                }
+                if (row.style.display !== "none" && currentHeader) {
+                    currentHeader.style.display = "block";
+                }
+            });
+
+            headers.forEach(header => {
+                let hasVisibleInSection = false;
+                let sibling = header.nextElementSibling;
+                while (sibling && !sibling.classList.contains("palette-section-header")) {
+                    if (sibling.style.display !== "none") {
+                        hasVisibleInSection = true;
+                        break;
+                    }
+                    sibling = sibling.nextElementSibling;
+                }
+                header.style.display = hasVisibleInSection ? "block" : "none";
             });
         };
     }
-}
-
-function updatePaletteHighlights() {
-    // CRITICAL: Always use the DMC grid for highlighting used colors, 
-    // never the RGB grid (which may be stamped)
-    const dmcGrid = state.mappedDmcGrid;
-    if (!dmcGrid) return;
-
-    const usedCodes = new Set(dmcGrid.flat().map(String));
-
-    document.querySelectorAll('.palette-swatch').forEach(swatch => {
-        const code = swatch.dataset.code;
-        // Highlight based on the presence of the DMC code, not the displayed color
-        if (usedCodes.has(code)) {
-            swatch.classList.add('used');
-        } else {
-            swatch.classList.remove('used');
-        }
-    });
 }
 
 function renderThreadsTable(threadStats) {
@@ -492,6 +523,7 @@ function updateSidebarFromState() {
         countDisplay.innerHTML = `Actual Colours: ${threadStats.length}`;
     }
     renderThreadsTable(threadStats);
+    renderPalette(threadStats.map(s => s.code));
 }
 
 
