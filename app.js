@@ -1189,9 +1189,7 @@ window.addEventListener("load", () => {
         const { type, payload } = e.data;
 
         if (type === 'REPORT_GRID_STATS') {
-            // Debounce sidebar updates to avoid thrashing during rapid canvas updates (e.g. hue slider drag)
-            clearTimeout(sidebarUpdateTimer);
-            sidebarUpdateTimer = setTimeout(() => updateSidebarFromState(), 100);
+            // Sidebar now updates in SYNC handler after mappedDmcGrid is patched
         }
 
         if (type === 'SYNC_GRID_TO_PARENT') {
@@ -1206,6 +1204,9 @@ window.addEventListener("load", () => {
 
                 const patchedDmcGrid = patchDmcGrid(lastBaselineDmcGrid, userEditDiff, mappingConfig.distanceMethod);
                 state.mappedDmcGrid = patchedDmcGrid;
+
+                // Update sidebar after mappedDmcGrid is patched with user edits
+                updateSidebarFromState();
             });
         }
     });
