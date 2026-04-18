@@ -5,10 +5,11 @@ import { ToolRegistry } from "./core/tools.js";
 
 // Mapping Logic
 import { mergeSimilarPaletteColors, buildPaletteFromImage, getDistanceFn, rgbToLab } from "./mapping/palette.js";
-import { mapFullWithPalette, nearestDmcColor, cleanupMinOccurrence, removeIsolatedStitches } from "./mapping/mappingEngine.js";
+import { mapFullWithPalette, nearestDmcColor, cleanupMinOccurrence, removeIsolatedStitches, applyAntiNoise } from "./mapping/mappingEngine.js";
 import { buildStampedGrid } from "./mapping/stamped.js";
 import { DMC_RGB } from "./mapping/constants.js";
 import { exportOXS } from "./export/exportOXS.js";
+import { parseOxsFileFromFile } from "./import/importOXS.js";
 
 // Export Logic
 import { buildExportData } from "./export/buildExportData.js";
@@ -20,6 +21,10 @@ let events;
 let currentImage = null;
 let lastBaselineGrid = null;    // Existing: stores RGB baseline
 let lastBaselineDmcGrid = null; // NEW: stores pure DMC baseline mapping
+
+// OXS Import State
+let isOxsLoaded = false;
+let loadedOxsPalette = null; // Stores { code: { name, rgb } } from imported OXS
 
 // -----------------------------------------------------------------------------
 // MAPPING CONFIGURATION
@@ -608,6 +613,8 @@ function setupUpload() {
             const img = new Image();
             img.onload = () => {
                 currentImage = img;
+                isOxsLoaded = false;
+                loadedOxsPalette = null;
 
                 resetUIControls();
 
@@ -615,6 +622,8 @@ function setupUpload() {
                 const sizeInput = document.getElementById("maxSizeInput");
                 if (sizeSlider) sizeSlider.disabled = false;
                 if (sizeInput) sizeInput.disabled = false;
+
+                setMappingControlsEnabled(true, true);
 
                 state.clear();
                 userEditDiff.clear();
@@ -631,6 +640,357 @@ function setupUpload() {
         };
         reader.readAsDataURL(file);
     };
+}
+
+function setupOxsUpload() {
+    const input = document.getElementById("oxsUpload");
+    const btn = document.getElementById("oxsImportBtn");
+    if (!input) return;
+
+    if (btn) {
+        btn.onclick = () => input.click();
+    }
+
+    input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        try {
+            const parsed = await parseOxsFileFromFile(file);
+            loadOxsPattern(parsed);
+
+            const uploader = document.getElementById("oxsUpload");
+            if (uploader) uploader.value = "";
+        } catch (err) {
+            alert("Failed to load OXS file: " + err.message);
+            console.error(err);
+        }
+    };
+}
+
+function loadOxsPattern(parsed) {
+    const { width, height, dmcGrid, rgbGrid, dmcPalette } = parsed;
+
+    isOxsLoaded = true;
+    loadedOxsPalette = dmcPalette;
+    currentImage = null;
+
+    resetUIControls();
+
+    state.clear();
+    userEditDiff.clear();
+    lastBaselineGrid = null;
+    lastBaselineDmcGrid = null;
+
+    state.originalImageURL = null;
+
+    sendToCanvas('INIT', { width, height });
+
+    state.mappedDmcGrid = dmcGrid;
+    state.mappedRgbGrid = rgbGrid;
+
+    sendToCanvas('UPDATE_GRID', rgbGrid);
+
+    setMappingControlsEnabled(false, true); // Disable mapping controls but enable post-processing
+
+    updatePaletteFromOxs(dmcPalette, rgbGrid);
+
+    updatePatternSizeDisplay();
+}
+
+function updatePaletteFromOxs(dmcPalette, rgbGrid) {
+    const paletteGrid = document.getElementById("paletteGrid");
+    if (!paletteGrid) return;
+
+    const codes = Object.keys(dmcPalette);
+    if (codes.length === 0) return;
+
+    paletteGrid.innerHTML = "";
+
+    codes.forEach(code => {
+        const { name, rgb } = dmcPalette[code];
+        const div = document.createElement("div");
+        div.className = "palette-swatch used";
+        div.style.backgroundColor = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+        div.title = `DMC ${code} - ${name}`;
+        div.dataset.code = code;
+        div.dataset.name = name;
+        div.dataset.rgb = rgb.join(",");
+
+        div.onclick = () => {
+            state.setColor(rgb);
+            sendToCanvas('SET_COLOR', rgb);
+            document.querySelectorAll('.palette-swatch').forEach(s => s.classList.remove('selected'));
+            div.classList.add('selected');
+        };
+
+        paletteGrid.appendChild(div);
+    });
+}
+
+function setMappingControlsEnabled(enabled, allowPostProcessing = false) {
+    const alwaysDisable = [
+        "maxSizeSlider", "maxSizeInput",
+        "pixelArtMode",
+        "maxColours", "maxColoursInput",
+        "brightness", "saturation", "contrast",
+        "greenToMagenta", "cyanToRed", "blueToYellow"
+    ];
+
+    const postProcessingControls = [
+        "mergeNearest",
+        "reduceIsolatedStitches",
+        "antiNoise",
+        "minOccurrenceInput",
+        "reapplyFilterBtn"
+    ];
+
+    alwaysDisable.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = !enabled;
+    });
+
+    document.querySelectorAll('input[name="colorDistance"]').forEach(radio => {
+        radio.disabled = !enabled;
+    });
+
+    postProcessingControls.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = !(enabled && allowPostProcessing);
+    });
+}
+
+function applyOxsPostProcessing(control) {
+    if (!isOxsLoaded || !state.mappedDmcGrid || !state.mappedRgbGrid) return;
+
+    const dmcGrid = state.mappedDmcGrid;
+    const rgbGrid = state.mappedRgbGrid;
+    const h = dmcGrid.length;
+    const w = dmcGrid[0].length;
+
+    switch (control) {
+        case 'reduceIsolatedStitches':
+            state.mappedDmcGrid = removeIsolatedStitches(dmcGrid, rgbGrid);
+            rebuildRgbFromDmc();
+            break;
+
+        case 'minOccurrence':
+            const minOcc = parseInt(document.getElementById("minOccurrenceInput")?.value || 1, 10);
+            const codeToRgb = {};
+            Object.entries(loadedOxsPalette).forEach(([code, entry]) => {
+                codeToRgb[code] = entry.rgb;
+            });
+            state.mappedDmcGrid = cleanupMinOccurrence(dmcGrid, minOcc, codeToRgb);
+            rebuildRgbFromDmc();
+            break;
+
+        case 'antiNoise':
+            applyAntiNoiseToOxsGrid();
+            break;
+
+        case 'merge':
+            applyMergeToOxsGrid();
+            break;
+
+        default:
+            return;
+    }
+
+    sendToCanvas('LOAD_GRID', state.mappedRgbGrid);
+    updateThreadsTableFromGrid();
+    updatePaletteAfterPostProcess();
+}
+
+function rebuildRgbFromDmc() {
+    if (!state.mappedDmcGrid || !loadedOxsPalette) return;
+
+    const dmcGrid = state.mappedDmcGrid;
+    const h = dmcGrid.length;
+    const w = dmcGrid[0].length;
+    const newRgbGrid = Array.from({ length: h }, () => Array(w).fill([255, 255, 255]));
+
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            const code = String(dmcGrid[y][x]);
+            if (code !== "0" && loadedOxsPalette[code]) {
+                newRgbGrid[y][x] = [...loadedOxsPalette[code].rgb];
+            }
+        }
+    }
+
+    state.mappedRgbGrid = newRgbGrid;
+}
+
+function applyAntiNoiseToOxsGrid() {
+    if (!state.mappedDmcGrid || !loadedOxsPalette) return;
+
+    const dmcGrid = state.mappedDmcGrid;
+    const h = dmcGrid.length;
+    const w = dmcGrid[0].length;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    const imageData = ctx.createImageData(w, h);
+
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            const code = String(dmcGrid[y][x]);
+            const rgb = (code !== "0" && loadedOxsPalette[code])
+                ? loadedOxsPalette[code].rgb
+                : [255, 255, 255];
+            const idx = (y * w + x) * 4;
+            imageData.data[idx] = rgb[0];
+            imageData.data[idx + 1] = rgb[1];
+            imageData.data[idx + 2] = rgb[2];
+            imageData.data[idx + 3] = 255;
+        }
+    }
+
+    const strength = parseInt(document.getElementById("antiNoise")?.value || 0, 10);
+    if (strength > 0) {
+        const smoothed = applyAntiNoise(imageData, strength);
+
+        const newDmcGrid = Array.from({ length: h }, () => Array(w).fill("0"));
+
+        for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+                const idx = (y * w + x) * 4;
+                const r = smoothed.data[idx];
+                const g = smoothed.data[idx + 1];
+                const b = smoothed.data[idx + 2];
+
+                let bestCode = "0";
+                let bestDist = Infinity;
+
+                Object.entries(loadedOxsPalette).forEach(([code, entry]) => {
+                    const dr = r - entry.rgb[0];
+                    const dg = g - entry.rgb[1];
+                    const db = b - entry.rgb[2];
+                    const dist = dr * dr + dg * dg + db * db;
+                    if (dist < bestDist) {
+                        bestDist = dist;
+                        bestCode = code;
+                    }
+                });
+
+                newDmcGrid[y][x] = bestCode;
+            }
+        }
+
+        state.mappedDmcGrid = newDmcGrid;
+        rebuildRgbFromDmc();
+    }
+}
+
+function applyMergeToOxsGrid() {
+    if (!state.mappedDmcGrid || !loadedOxsPalette) return;
+
+    const codes = Object.keys(loadedOxsPalette);
+    const paletteRgb = codes.map(code => loadedOxsPalette[code].rgb);
+
+    const threshold = mappingConfig.mergeNearest * 8;
+    if (threshold <= 0) return;
+
+    const paletteLab = paletteRgb.map(rgb => rgbToLab([rgb])[0]);
+
+    const groups = [];
+    const used = new Array(codes.length).fill(false);
+
+    for (let i = 0; i < codes.length; i++) {
+        if (used[i]) continue;
+
+        const group = [i];
+        used[i] = true;
+        const baseLab = paletteLab[i];
+
+        for (let j = i + 1; j < codes.length; j++) {
+            if (used[j]) continue;
+
+            const dist = Math.sqrt(
+                (baseLab[0] - paletteLab[j][0]) ** 2 +
+                (baseLab[1] - paletteLab[j][1]) ** 2 +
+                (baseLab[2] - paletteLab[j][2]) ** 2
+            );
+
+            if (dist < threshold) {
+                group.push(j);
+                used[j] = true;
+            }
+        }
+
+        groups.push(group);
+    }
+
+    const mergedPalette = {};
+    const codeRemap = {};
+
+    groups.forEach(group => {
+        const representativeIdx = group[0];
+        const representativeCode = codes[representativeIdx];
+        mergedPalette[representativeCode] = loadedOxsPalette[representativeCode];
+
+        group.forEach(idx => {
+            if (idx !== representativeIdx) {
+                codeRemap[codes[idx]] = representativeCode;
+            }
+        });
+    });
+
+    const dmcGrid = state.mappedDmcGrid;
+    const h = dmcGrid.length;
+    const w = dmcGrid[0].length;
+
+    const newDmcGrid = dmcGrid.map(row => row.map(code => {
+        const strCode = String(code);
+        return codeRemap[strCode] || strCode;
+    }));
+
+    state.mappedDmcGrid = newDmcGrid;
+    loadedOxsPalette = mergedPalette;
+    rebuildRgbFromDmc();
+}
+
+function updatePaletteAfterPostProcess() {
+    if (!loadedOxsPalette || !state.mappedRgbGrid) return;
+    updatePaletteFromOxs(loadedOxsPalette, state.mappedRgbGrid);
+}
+
+function updateThreadsTableFromGrid() {
+    if (!state.mappedDmcGrid) return;
+
+    const dmcGrid = state.mappedDmcGrid;
+    const counts = {};
+
+    for (let y = 0; y < dmcGrid.length; y++) {
+        for (let x = 0; x < dmcGrid[0].length; x++) {
+            const code = String(dmcGrid[y][x]);
+            if (code !== "0") {
+                counts[code] = (counts[code] || 0) + 1;
+            }
+        }
+    }
+
+    const tbody = document.getElementById("threadsTableBody");
+    if (!tbody) return;
+
+    tbody.innerHTML = "";
+
+    Object.entries(counts).sort((a, b) => b[1] - a[1]).forEach(([code, count]) => {
+        const dmcEntry = DMC_RGB.find(d => String(d[0]) === code);
+        const name = dmcEntry ? dmcEntry[1] : `DMC ${code}`;
+        const rgb = dmcEntry ? dmcEntry[2] : [128, 128, 128];
+
+        const row = document.createElement("tr");
+        row.innerHTML = `
+            <td style="background-color: rgb(${rgb[0]},${rgb[1]},${rgb[2]})"></td>
+            <td>${code}</td>
+            <td>${count}</td>
+            <td>${Math.ceil(count / 1000)}</td>
+        `;
+        tbody.appendChild(row);
+    });
 }
 
 function setupToolButtons() {
@@ -666,9 +1026,12 @@ function setupEditHistory() {
             if (confirm("Are you sure you want to clear the canvas?")) {
                 sendToCanvas('CMD_CLEAR');
                 currentImage = null;
+                isOxsLoaded = false;
+                loadedOxsPalette = null;
                 const uploader = document.getElementById("upload");
                 if (uploader) uploader.value = "";
                 resetUIControls();
+                setMappingControlsEnabled(false, false);
             }
         };
     }
@@ -678,6 +1041,10 @@ function setupResetControls() {
     const resetOriginalBtn = document.getElementById("resetOriginalBtn");
     if (resetOriginalBtn) {
         resetOriginalBtn.onclick = () => {
+            if (isOxsLoaded) {
+                alert("Cannot reset to original for imported OXS files. Use Clear All to start fresh.");
+                return;
+            }
             if (confirm("Restore original pattern and discard all edits?")) {
                 resetUIControls();
                 userEditDiff.clear();
@@ -845,7 +1212,11 @@ function setupMappingControls() {
             const labels = ["Off", "Light", "Mild", "Medium", "Strong", "Very Strong"];
             mergeVal.textContent = labels[val];
 
-            runMapping();
+            if (isOxsLoaded) {
+                applyOxsPostProcessing('merge');
+            } else {
+                runMapping();
+            }
         };
     }
 
@@ -897,7 +1268,12 @@ function setupMappingControls() {
             const val = parseInt(antiNoiseSlider.value, 10);
             antiNoiseVal.textContent = val;
             mappingConfig.antiNoise = val;
-            runMapping();
+
+            if (isOxsLoaded) {
+                applyOxsPostProcessing('antiNoise');
+            } else {
+                runMapping();
+            }
         };
     }
 
@@ -920,7 +1296,12 @@ function setupMappingControls() {
                 if (antiNoiseSlider) antiNoiseSlider.value = 0;
                 if (antiNoiseVal) antiNoiseVal.textContent = "0";
             }
-            runMapping();
+
+            if (isOxsLoaded) {
+                applyOxsPostProcessing('reduceIsolatedStitches');
+            } else {
+                runMapping();
+            }
         };
     }
 
@@ -1004,6 +1385,11 @@ function setupMappingControls() {
     const reapplyFilterBtn = document.getElementById("reapplyFilterBtn");
     if (reapplyFilterBtn) {
         reapplyFilterBtn.onclick = () => {
+            if (isOxsLoaded) {
+                applyOxsPostProcessing('minOccurrence');
+                return;
+            }
+
             if (!currentImage) {
                 alert("Please upload an image first.");
                 return;
@@ -1238,6 +1624,7 @@ window.addEventListener("load", () => {
     }
 
     setupUpload();
+    setupOxsUpload();
     setupToolButtons();
     setupEditHistory();
     setupResetControls();

@@ -47,6 +47,9 @@ async function drawCoverPage(doc, data) {
         } catch (e) {
             console.warn("Original image failed:", e);
         }
+    } else {
+        doc.setFontSize(10);
+        doc.text("(No original image)", 60, imgY + boxSize + 5, { align: "center" });
     }
 
     // 2. PIXEL PREVIEW (Right) - Draws a mini-version of the Editor Grid
