@@ -129,17 +129,19 @@ export class EditorEvents {
                     const zoomSensitivity = 0.5;
                     const delta = (curDiff - this.prevDiff) * zoomSensitivity;
 
-                    if (Math.abs(delta) > 1) {
+                    if (Math.abs(delta) > 5) {
                         const newZoom = delta > 0 ? this.state.zoom + 1 : this.state.zoom - 1;
                         this.state.setZoom(Math.max(1, newZoom));
                         this.prevDiff = curDiff;
                     }
 
-                    // Apply Two-Finger Pan
+                    // Apply Two-Finger Pan (with 3px deadzone to prevent accidental pans)
                     if (this.lastMidX !== undefined) {
                         const dx = curMidX - this.lastMidX;
                         const dy = curMidY - this.lastMidY;
-                        this.state.setPan(this.state.panX + dx, this.state.panY + dy);
+                        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+                            this.state.setPan(this.state.panX + dx, this.state.panY + dy);
+                        }
                     }
                 } else {
                     this.prevDiff = curDiff;
