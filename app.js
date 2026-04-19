@@ -29,6 +29,10 @@ let oxsBaselineDmcGrid = null; // Original DMC grid for OXS (to allow undo)
 let oxsBaselineRgbGrid = null; // Original RGB grid for OXS (to allow undo)
 let oxsBaselinePalette = null; // Original palette for OXS (to allow undo)
 
+// Empty Canvas Drawing Mode
+let isEmptyCanvas = false; // True when user creates new canvas without image/OXS
+let hasEmptyCanvasEdits = false; // Tracks if user has drawn on empty canvas
+
 // -----------------------------------------------------------------------------
 // MAPPING CONFIGURATION
 // -----------------------------------------------------------------------------
@@ -622,6 +626,7 @@ function setupUpload() {
             img.onload = () => {
                 currentImage = img;
                 isOxsLoaded = false;
+                isEmptyCanvas = false;
                 loadedOxsPalette = null;
 
                 resetUIControls();
@@ -674,6 +679,214 @@ function setupOxsUpload() {
             console.error(err);
         }
     };
+}
+
+function setupNewCanvas() {
+    const btn = document.getElementById("newCanvasBtn");
+    if (!btn) return;
+
+    btn.onclick = () => createEmptyCanvas(50, 50);
+}
+
+function createEmptyCanvas(width, height) {
+    console.log(`Creating empty canvas: ${width}x${height}`);
+    
+    isEmptyCanvas = true;
+    hasEmptyCanvasEdits = false;
+    isOxsLoaded = false;
+    loadedOxsPalette = null;
+    currentImage = null;
+
+    // Reset config values (without disabling controls)
+    mappingConfig.maxSize = 80;
+    mappingConfig.maxColours = 30;
+    mappingConfig.mergeNearest = 0;
+    mappingConfig.pixelArtMode = false;
+    mappingConfig.brightnessInt = 0;
+    mappingConfig.saturationInt = 0;
+    mappingConfig.contrastInt = 0;
+    mappingConfig.biasGreenMagenta = 0;
+    mappingConfig.biasCyanRed = 0;
+    mappingConfig.biasBlueYellow = 0;
+    mappingConfig.antiNoise = 0;
+    mappingConfig.reduceIsolatedStitches = false;
+    mappingConfig.distanceMethod = "euclidean";
+    mappingConfig.minOccurrence = 1;
+    mappingConfig.stampedMode = false;
+
+    state.clear();
+    userEditDiff.clear();
+    lastBaselineGrid = null;
+    lastBaselineDmcGrid = null;
+
+    state.originalImageURL = null;
+
+    // Reset UI elements to defaults (without disabling controls)
+    const pixelArtToggle = document.getElementById("pixelArtMode");
+    if (pixelArtToggle) pixelArtToggle.checked = false;
+
+    ["brightness", "saturation", "contrast", "greenToMagenta", "cyanToRed", "blueToYellow", "antiNoise"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = 0;
+    });
+
+    const sizeSlider = document.getElementById("maxSizeSlider");
+    const sizeInput = document.getElementById("maxSizeInput");
+    if (sizeSlider) sizeSlider.value = 80;
+    if (sizeInput) sizeInput.value = 80;
+
+    const mergeSlider = document.getElementById("mergeNearest");
+    const mergeVal = document.getElementById("mergeNearestVal");
+    if (mergeSlider) mergeSlider.value = 0;
+    if (mergeVal) mergeVal.textContent = "Off";
+
+    const antiNoiseVal = document.getElementById("antiNoiseVal");
+    if (antiNoiseVal) antiNoiseVal.textContent = "0";
+
+    const reduceIsolatedToggle = document.getElementById("reduceIsolatedStitches");
+    if (reduceIsolatedToggle) reduceIsolatedToggle.checked = false;
+
+    const maxColoursSlider = document.getElementById("maxColours");
+    const maxColoursInput = document.getElementById("maxColoursInput");
+    if (maxColoursSlider) maxColoursSlider.value = 30;
+    if (maxColoursInput) maxColoursInput.value = 30;
+
+    document.querySelectorAll("input[name='colorDistance']").forEach(radio => {
+        radio.checked = radio.value === "euclidean";
+    });
+
+    const minOccurrenceInput = document.getElementById("minOccurrenceInput");
+    if (minOccurrenceInput) minOccurrenceInput.value = 1;
+
+    const stampedToggle = document.getElementById("stampedMode");
+    const stampedControls = document.getElementById("stampedControls");
+    if (stampedToggle) {
+        stampedToggle.checked = false;
+        if (stampedControls) stampedControls.style.display = "none";
+    }
+
+    // Initialize empty grids (white canvas)
+    const emptyDmcGrid = Array.from({ length: height }, () => 
+        Array.from({ length: width }, () => "0")
+    );
+    const emptyRgbGrid = Array.from({ length: height }, () => 
+        Array.from({ length: width }, () => [255, 255, 255])
+    );
+
+    state.mappedDmcGrid = emptyDmcGrid;
+    state.mappedRgbGrid = emptyRgbGrid;
+
+    sendToCanvas('INIT', { width, height });
+    sendToCanvas('UPDATE_GRID', emptyRgbGrid);
+
+    // Enable all controls for empty canvas mode
+    setMappingControlsEnabled(true, false);
+
+    // Show palette and update sidebar
+    renderPalette([]);
+    updateSidebarFromEmptyCanvas();
+    updatePatternSizeDisplay();
+
+    console.log("Empty canvas created");
+}
+
+function resizeEmptyCanvas(newSize) {
+    console.log(`Resizing empty canvas to: ${newSize}x${newSize}`);
+    
+    const height = newSize;
+    const width = newSize;
+    
+    // Store existing content if smaller
+    const oldRgbGrid = state.mappedRgbGrid || [];
+    const oldDmcGrid = state.mappedDmcGrid || [];
+    const oldHeight = oldRgbGrid.length || 50;
+    const oldWidth = oldRgbGrid[0]?.length || 50;
+    
+    // Create new empty grids
+    const newDmcGrid = Array.from({ length: height }, () => 
+        Array.from({ length: width }, () => "0")
+    );
+    const newRgbGrid = Array.from({ length: height }, () => 
+        Array.from({ length: width }, () => [255, 255, 255])
+    );
+    
+    // Copy over existing content
+    for (let y = 0; y < Math.min(height, oldHeight); y++) {
+        for (let x = 0; x < Math.min(width, oldWidth); x++) {
+            if (oldRgbGrid[y] && oldRgbGrid[y][x]) {
+                newRgbGrid[y][x] = [...oldRgbGrid[y][x]];
+                newDmcGrid[y][x] = (oldDmcGrid && oldDmcGrid[y] && oldDmcGrid[y][x]) ? oldDmcGrid[y][x] : "0";
+            }
+        }
+    }
+    
+    state.mappedDmcGrid = newDmcGrid;
+    state.mappedRgbGrid = newRgbGrid;
+    
+    sendToCanvas('INIT', { width, height });
+    sendToCanvas('UPDATE_GRID', newRgbGrid);
+    
+    updateSidebarFromEmptyCanvas();
+    updatePatternSizeDisplay();
+    
+    console.log("Empty canvas resized");
+}
+
+function updateSidebarFromEmptyCanvas() {
+    if (!state.mappedRgbGrid) return;
+
+    const rgbGrid = state.mappedRgbGrid;
+    const countDisplay = document.getElementById("actualColoursUsed");
+    const counts = {};
+    const usedCodes = new Set();
+    const DISTANCE_THRESHOLD = 2000;
+
+    for (let y = 0; y < rgbGrid.length; y++) {
+        for (let x = 0; x < rgbGrid[0].length; x++) {
+            const rgb = rgbGrid[y][x];
+            const isWhite = rgb[0] === 255 && rgb[1] === 255 && rgb[2] === 255;
+            if (isWhite) continue;
+
+            let matchedCode = null;
+            let bestDist = Infinity;
+
+            DMC_RGB.forEach(([code, , dmcRgb]) => {
+                const dr = rgb[0] - dmcRgb[0];
+                const dg = rgb[1] - dmcRgb[1];
+                const db = rgb[2] - dmcRgb[2];
+                const dist = dr * dr + dg * dg + db * db;
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    matchedCode = code;
+                }
+            });
+
+            if (matchedCode && bestDist < DISTANCE_THRESHOLD) {
+                counts[matchedCode] = (counts[matchedCode] || 0) + 1;
+                usedCodes.add(matchedCode);
+            }
+        }
+    }
+
+    const threadStats = Object.entries(counts).map(([code, count]) => {
+        const dmcEntry = DMC_RGB.find(d => String(d[0]) === code);
+        if (!dmcEntry) return null;
+        return {
+            code: code,
+            r: dmcEntry[2][0],
+            g: dmcEntry[2][1],
+            b: dmcEntry[2][2],
+            count: count
+        };
+    }).filter(s => s !== null);
+
+    if (countDisplay) {
+        countDisplay.innerHTML = `Actual Colours: ${threadStats.length}`;
+    }
+
+    renderThreadsTable(threadStats);
+    renderPalette(Array.from(usedCodes));
+    updatePatternSizeDisplay();
 }
 
 function loadOxsPattern(parsed) {
@@ -966,8 +1179,8 @@ function updateSidebarFromOxsGrid(rgbGrid) {
     renderPalette(Array.from(usedCodes));
 
     // Update pattern size display with full info (stitch count, dimensions, cm)
-    // For OXS, we need to get the live DMC grid to account for user edits
-    if (isOxsLoaded && state.mappedRgbGrid) {
+    // For OXS or empty canvas, we need to get the live DMC grid to account for user edits
+    if ((isOxsLoaded || isEmptyCanvas) && state.mappedRgbGrid) {
         const liveDmcGrid = getLiveDmcGridFromRgb(state.mappedRgbGrid);
         if (liveDmcGrid) {
             const originalDmcGrid = state.mappedDmcGrid;
@@ -1332,7 +1545,14 @@ function setupMappingControls() {
             if (antiNoiseSlider) antiNoiseSlider.value = 0;
             if (antiNoiseVal) antiNoiseVal.textContent = "0";
 
-            runMapping(true);
+            if (isEmptyCanvas) {
+                resizeEmptyCanvas(80);
+            } else {
+                runMapping(true);
+            }
+        } else if (isEmptyCanvas) {
+            // Empty canvas mode - resize directly
+            resizeEmptyCanvas(newSize);
         } else {
             mappingConfig.maxSize = newSize;
             runMapping();
@@ -1905,6 +2125,7 @@ window.addEventListener("load", () => {
     }
 
     setupUpload();
+    setupNewCanvas();
     setupOxsUpload();
     setupToolButtons();
     setupEditHistory();
@@ -1969,6 +2190,53 @@ window.addEventListener("load", () => {
                     // For OXS: directly use the synced grid for thread counts
                     // (only when NOT in stamped mode - stamped colors won't match)
                     updateSidebarFromOxsGrid(payload);
+                } else if (isEmptyCanvas) {
+                    // For empty canvas mode: track edits and update sidebar
+                    console.log("Empty canvas sync received, checking for changes...");
+                    
+                    // Check if there are any non-white pixels (actual edits)
+                    let hasEdits = false;
+                    for (let y = 0; y < payload.length && !hasEdits; y++) {
+                        for (let x = 0; x < payload[0].length && !hasEdits; x++) {
+                            const rgb = payload[y][x];
+                            if (!(rgb[0] === 255 && rgb[1] === 255 && rgb[2] === 255)) {
+                                hasEdits = true;
+                            }
+                        }
+                    }
+                    
+                    console.log("Empty canvas: hasEdits =", hasEdits);
+                    
+                    if (!hasEmptyCanvasEdits && hasEdits) {
+                        hasEmptyCanvasEdits = true;
+                        setMappingControlsEnabled(false, false); // Lock after first user edit
+                        console.log("Empty canvas: actual edit made, locking controls");
+                    }
+                    state.mappedRgbGrid = payload;
+                    
+                    // Convert RGB grid to DMC codes for exports
+                    const newDmcGrid = payload.map(row => row.map(rgb => {
+                        const isWhite = rgb[0] === 255 && rgb[1] === 255 && rgb[2] === 255;
+                        if (isWhite) return "0";
+                        
+                        // Find nearest DMC
+                        let bestCode = "310";
+                        let bestDist = Infinity;
+                        DMC_RGB.forEach(([code, , dmcRgb]) => {
+                            const dr = rgb[0] - dmcRgb[0];
+                            const dg = rgb[1] - dmcRgb[1];
+                            const db = rgb[2] - dmcRgb[2];
+                            const dist = dr * dr + dg * dg + db * db;
+                            if (dist < bestDist) {
+                                bestDist = dist;
+                                bestCode = code;
+                            }
+                        });
+                        return bestCode;
+                    }));
+                    state.mappedDmcGrid = newDmcGrid;
+                    
+                    updateSidebarFromEmptyCanvas();
                 } else if (lastBaselineDmcGrid) {
                     const patchedDmcGrid = patchDmcGrid(lastBaselineDmcGrid, userEditDiff, mappingConfig.distanceMethod);
                     state.mappedDmcGrid = patchedDmcGrid;
@@ -1980,6 +2248,9 @@ window.addEventListener("load", () => {
 
     renderPalette([]);
     state.setColor([0, 0, 0]);
+
+    // Initialize with empty canvas
+    createEmptyCanvas(50, 50);
 
     console.log("Cross Stitch Editor Parent Shell Initialized.");
 });
