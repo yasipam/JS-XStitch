@@ -599,7 +599,12 @@ window.openTab = function (evt, tabName) {
 
 function setupUpload() {
     const input = document.getElementById("upload");
+    const btn = document.getElementById("uploadBtn");
     if (!input) return;
+
+    if (btn) {
+        btn.onclick = () => input.click();
+    }
 
     input.onchange = (e) => {
         const file = e.target.files[0];
