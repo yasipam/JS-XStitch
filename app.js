@@ -1782,9 +1782,9 @@ function setupMappingControls() {
             // Instant toggle: switch between stamped overlay and true colors
             if (!state.mappedDmcGrid) return;
             
-            // For OXS, get the live DMC grid with user edits
+            // For OXS and empty canvas, get the live DMC grid with user edits
             let dmcGrid = state.mappedDmcGrid;
-            if (isOxsLoaded && state.mappedRgbGrid) {
+            if ((isOxsLoaded || isEmptyCanvas) && state.mappedRgbGrid) {
                 dmcGrid = getLiveDmcGridFromRgb(state.mappedRgbGrid) || state.mappedDmcGrid;
             }
             
@@ -1871,16 +1871,16 @@ function setupExportButtons() {
                 let exportDmcGrid = state.mappedDmcGrid;
                 let exportRgbGrid = state.mappedRgbGrid;
 
-                // For OXS mode, get the live grid from canvas with user edits
-                if (isOxsLoaded && state.mappedRgbGrid) {
-                    exportDmcGrid = getLiveDmcGridFromRgb(state.mappedRgbGrid);
+                // For OXS or empty canvas mode, get the live grid from canvas with user edits
+                if ((isOxsLoaded || isEmptyCanvas) && state.mappedRgbGrid) {
+                    exportDmcGrid = getLiveDmcGridFromRgb(state.mappedRgbGrid) || exportDmcGrid;
                     exportRgbGrid = state.mappedRgbGrid;
                 }
 
-                // For OXS with stamped mode: build stamped grid and lookup
+                // For OXS or empty canvas with stamped mode: build stamped grid and lookup
                 let stampedLookup = {};
                 let exportVisualGrid = exportRgbGrid;
-                if (isOxsLoaded && mappingConfig.stampedMode && exportDmcGrid) {
+                if ((isOxsLoaded || isEmptyCanvas) && mappingConfig.stampedMode && exportDmcGrid) {
                     const stampedResult = buildStampedGrid(exportDmcGrid, { hueShift: mappingConfig.stampedHue });
                     exportVisualGrid = stampedResult.grid;
                     stampedLookup = stampedResult.lookup;
@@ -1891,26 +1891,36 @@ function setupExportButtons() {
                     mode: modeSelect.value
                 });
 
-                // Override grids with live data for OXS
-                if (isOxsLoaded) {
+                // Override grids with live data for OXS or empty canvas
+                if (isOxsLoaded || isEmptyCanvas) {
                     data.dmcGrid = exportDmcGrid;
                     data.rgbGrid = exportVisualGrid;
                     
                     // Rebuild palette with stamped colors if needed
                     const usedCodes = new Set(exportDmcGrid.flat().map(String));
-                    data.palette = Object.entries(loadedOxsPalette)
-                        .filter(([code]) => usedCodes.has(code))
-                        .map(([code, entry]) => {
-                            const count = exportDmcGrid.flat().filter(c => String(c) === code).length;
-                            return {
+                    
+                    // For empty canvas, use DMC_RGB; for OXS, use loadedOxsPalette
+                    let dataPalette = [];
+                    if (isEmptyCanvas) {
+                        dataPalette = DMC_RGB.filter(d => usedCodes.has(String(d[0]))).map(d => ({
+                            code: String(d[0]),
+                            name: d[1],
+                            rgb: d[2],
+                            stampedRgb: mappingConfig.stampedMode ? (stampedLookup[String(d[0])] || null) : null,
+                            count: exportDmcGrid.flat().filter(c => String(c) === String(d[0])).length
+                        }));
+                    } else {
+                        dataPalette = Object.entries(loadedOxsPalette)
+                            .filter(([code]) => usedCodes.has(code))
+                            .map(([code, entry]) => ({
                                 code: code,
                                 name: entry.name,
                                 rgb: entry.rgb,
                                 stampedRgb: mappingConfig.stampedMode ? (stampedLookup[code] || null) : null,
-                                count: count
-                            };
-                        })
-                        .sort((a, b) => b.count - a.count);
+                                count: exportDmcGrid.flat().filter(c => String(c) === code).length
+                            }));
+                    }
+                    data.palette = dataPalette.sort((a, b) => b.count - a.count);
                 }
 
                 const exportType = pdfTypeSelect ? pdfTypeSelect.value : 'PRINTABLE';
@@ -1935,8 +1945,13 @@ function setupExportButtons() {
                 return;
             }
 
+            // For empty canvas or OXS with stamped mode, build from live DMC grid
             if (mappingConfig.stampedMode && state.mappedDmcGrid) {
-                rgbGrid = buildStampedRgbGrid(state.mappedDmcGrid);
+                let dmcGrid = state.mappedDmcGrid;
+                if ((isEmptyCanvas || isOxsLoaded) && state.mappedRgbGrid) {
+                    dmcGrid = getLiveDmcGridFromRgb(state.mappedRgbGrid) || dmcGrid;
+                }
+                rgbGrid = buildStampedRgbGrid(dmcGrid);
             }
 
             exportPixelPNG(rgbGrid, "pattern_1x1.png");
@@ -1953,9 +1968,9 @@ function setupExportButtons() {
 
             let exportDmcGrid = state.mappedDmcGrid;
 
-            // For OXS mode, get the live grid from canvas with user edits
-            if (isOxsLoaded && state.mappedRgbGrid) {
-                exportDmcGrid = getLiveDmcGridFromRgb(state.mappedRgbGrid);
+            // For OXS or empty canvas mode, get the live grid from canvas with user edits
+            if ((isOxsLoaded || isEmptyCanvas) && state.mappedRgbGrid) {
+                exportDmcGrid = getLiveDmcGridFromRgb(state.mappedRgbGrid) || exportDmcGrid;
             }
 
             const stampedRgbGrid = mappingConfig.stampedMode
@@ -2174,8 +2189,8 @@ window.addEventListener("load", () => {
                 }
             }
 
-            // For OXS in stamped mode: the canvas sends stamped colors, we need to rebuild the display
-            if (isOxsLoaded && mappingConfig.stampedMode && state.mappedRgbGrid) {
+            // For OXS or empty canvas in stamped mode: the canvas sends stamped colors, rebuild display
+            if ((isOxsLoaded || isEmptyCanvas) && mappingConfig.stampedMode && state.mappedRgbGrid) {
                 const liveDmcGrid = getLiveDmcGridFromRgb(state.mappedRgbGrid);
                 if (liveDmcGrid) {
                     const stampedGrid = buildStampedRgbGrid(liveDmcGrid);
