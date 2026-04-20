@@ -267,9 +267,9 @@ async function runMapping(isReset = false) {
         // 4. Generate fresh baseline (filtering applied once via applyFilteringToGrid after user edits)
         const [rgbGrid, dmcGrid] = mapFullWithPalette(
             currentImage, targetSize, cachedProjectPalette,
-            1.0 + (mappingConfig.brightnessInt / 10),
-            1.0 + (mappingConfig.saturationInt / 10),
-            1.0 + (mappingConfig.contrastInt / 10),
+            mappingConfig.brightnessInt / 10,
+            mappingConfig.saturationInt / 10,
+            mappingConfig.contrastInt / 10,
             false,
             0,
             mappingConfig.biasGreenMagenta,

@@ -390,23 +390,23 @@ function clamp(v) {
 
 // mapping/palette.js
 
-export function adjustBSCBias(pixels, brightness=1, saturation=1, contrast=1, bGM=0, bCR=0, bBY=0) {
+export function adjustBSCBias(pixels, brightness=0, saturation=0, contrast=0, bGM=0, bCR=0, bBY=0) {
     return pixels.map(([r, g, b]) => {
-        // 1. Levels
-        let R = r * (brightness || 1);
-        let G = g * (brightness || 1);
-        let B = b * (brightness || 1);
+        // 1. Levels (brightness: -1 to 1, default 0 = no change)
+        let R = r + (r * brightness);
+        let G = g + (g * brightness);
+        let B = b + (b * brightness);
 
-        // 2. Saturation
+        // 2. Saturation (saturation: -1 to 1, default 0 = no change)
         const gray = 0.299 * R + 0.587 * G + 0.114 * B;
-        R = gray + (R - gray) * (saturation || 1);
-        G = gray + (G - gray) * (saturation || 1);
-        B = gray + (B - gray) * (saturation || 1);
+        R = gray + (R - gray) * (1 + saturation);
+        G = gray + (G - gray) * (1 + saturation);
+        B = gray + (B - gray) * (1 + saturation);
 
-        // 3. Contrast
-        R = (R - 128) * (contrast || 1) + 128;
-        G = (G - 128) * (contrast || 1) + 128;
-        B = (B - 128) * (contrast || 1) + 128;
+        // 3. Contrast (contrast: -1 to 1, default 0 = no change)
+        R = (R - 128) * (1 + contrast) + 128;
+        G = (G - 128) * (1 + contrast) + 128;
+        B = (B - 128) * (1 + contrast) + 128;
 
 // Increase the multiplier so that a value of 10 creates a massive shift
         const factor = 8.0; 
