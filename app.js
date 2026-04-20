@@ -685,7 +685,15 @@ function setupNewCanvas() {
     const btn = document.getElementById("newCanvasBtn");
     if (!btn) return;
 
-    btn.onclick = () => createEmptyCanvas(50, 50);
+    btn.onclick = () => {
+        const hasEdits = hasEmptyCanvasEdits || userEditDiff.size > 0 || currentImage !== null;
+        if (hasEdits) {
+            if (!confirm("You have unsaved changes. Create a new blank canvas anyway?")) {
+                return;
+            }
+        }
+        createEmptyCanvas(50, 50);
+    };
 }
 
 function createEmptyCanvas(width, height) {

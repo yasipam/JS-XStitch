@@ -79,42 +79,113 @@ export function buildPaletteFromImage(image, k) {
     }
     if (pixels.length === 0) return [[255, 255, 255]];
 
-    // Median-cut: recursively split the largest-range channel
-    function cut(bucket, depth) {
-        if (depth === 0 || bucket.length === 0) {
-            if (bucket.length === 0) return [[255, 255, 255]];
-            const avg = [0, 0, 0];
-            for (const p of bucket) { avg[0] += p[0]; avg[1] += p[1]; avg[2] += p[2]; }
-            return [[Math.round(avg[0] / bucket.length),
-            Math.round(avg[1] / bucket.length),
-            Math.round(avg[2] / bucket.length)]];
+    console.log(`[K-Means] Starting with ${pixels.length} pixels, k=${k}`);
+
+    // K-means++ initialization
+    function kMeansPlusPlus(pixels, k) {
+        const centroids = [];
+        // First centroid: random pixel
+        const firstIdx = Math.floor(Math.random() * pixels.length);
+        centroids.push([...pixels[firstIdx]]);
+
+        // Remaining centroids: weighted by distance squared
+        while (centroids.length < k) {
+            const distances = pixels.map(p => {
+                let minDist = Infinity;
+                for (const c of centroids) {
+                    const d = (p[0] - c[0]) ** 2 + (p[1] - c[1]) ** 2 + (p[2] - c[2]) ** 2;
+                    if (d < minDist) minDist = d;
+                }
+                return minDist;
+            });
+
+            const totalDist = distances.reduce((a, b) => a + b, 0);
+            let r = Math.random() * totalDist;
+            for (let i = 0; i < distances.length; i++) {
+                r -= distances[i];
+                if (r <= 0) {
+                    centroids.push([...pixels[i]]);
+                    break;
+                }
+            }
+            // Fallback if rounding error
+            if (centroids.length < k) {
+                const lastIdx = Math.floor(Math.random() * pixels.length);
+                centroids.push([...pixels[lastIdx]]);
+            }
         }
-        // Find channel with widest range
-        let ranges = [0, 1, 2].map(ch => {
-            let mn = 255, mx = 0;
-            for (const p of bucket) { if (p[ch] < mn) mn = p[ch]; if (p[ch] > mx) mx = p[ch]; }
-            return mx - mn;
-        });
-        const ch = ranges.indexOf(Math.max(...ranges));
-        bucket.sort((a, b) => a[ch] - b[ch]);
-        const mid = Math.floor(bucket.length / 2);
-        return [
-            ...cut(bucket.slice(0, mid), depth - 1),
-            ...cut(bucket.slice(mid), depth - 1)
-        ];
+
+        return centroids;
     }
 
-    const depth = Math.ceil(Math.log2(Math.max(k, 1)));
-    const raw = cut(pixels, depth);
+    // K-means clustering
+    function kMeans(pixels, k, maxIterations = 15) {
+        let centroids = kMeansPlusPlus(pixels, k);
+        console.log(`[K-Means] Initialized ${centroids.length} centroids`);
 
-    // Deduplicate and trim/pad to exactly k
+        for (let iter = 0; iter < maxIterations; iter++) {
+            // Assign pixels to nearest centroid
+            const clusters = Array.from({ length: k }, () => []);
+
+            for (const p of pixels) {
+                let minDist = Infinity;
+                let closest = 0;
+                for (let i = 0; i < centroids.length; i++) {
+                    const d = (p[0] - centroids[i][0]) ** 2 +
+                            (p[1] - centroids[i][1]) ** 2 +
+                            (p[2] - centroids[i][2]) ** 2;
+                    if (d < minDist) {
+                        minDist = d;
+                        closest = i;
+                    }
+                }
+                clusters[closest].push(p);
+            }
+
+            // Update centroids
+            let moved = 0;
+            for (let i = 0; i < k; i++) {
+                if (clusters[i].length === 0) continue;
+
+                const newCentroid = [0, 0, 0];
+                for (const p of clusters[i]) {
+                    newCentroid[0] += p[0];
+                    newCentroid[1] += p[1];
+                    newCentroid[2] += p[2];
+                }
+                newCentroid[0] = Math.round(newCentroid[0] / clusters[i].length);
+                newCentroid[1] = Math.round(newCentroid[1] / clusters[i].length);
+                newCentroid[2] = Math.round(newCentroid[2] / clusters[i].length);
+
+                moved += (centroids[i][0] - newCentroid[0]) ** 2 +
+                         (centroids[i][1] - newCentroid[1]) ** 2 +
+                         (centroids[i][2] - newCentroid[2]) ** 2;
+                centroids[i] = newCentroid;
+            }
+
+            console.log(`[K-Means] Iteration ${iter + 1}, movement=${Math.sqrt(moved).toFixed(2)}`);
+        }
+
+        return centroids;
+    }
+
+    const raw = kMeans(pixels, k);
+
+    // Deduplicate
     const seen = new Set();
     const unique = raw.filter(c => {
         const key = c.join(',');
         if (seen.has(key)) return false;
         seen.add(key); return true;
     });
-    while (unique.length < k) unique.push(unique[unique.length - 1]);
+
+    console.log(`[K-Means] Finished with ${unique.length} unique colors`);
+
+    // Pad with nearest color if needed (rare case)
+    while (unique.length < k) {
+        unique.push([...unique[unique.length - 1] || [255, 255, 255]]);
+    }
+
     return unique.slice(0, k);
 }
 
