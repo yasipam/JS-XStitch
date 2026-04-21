@@ -44,8 +44,8 @@
             <aside id="leftSidebar">
                 <h2>Image Controls</h2>
 
-                <div id="hoverPreview" style="width:24px;height:24px;border:1px solid #000;background:transparent;"></div>
-
+                <div class="panel">
+                    <h3 class="panelTitle">Size Settings</h3>
                 <div class="sliderRow">
                     <label for="maxSizeSlider">Canvas Size (px)</label>
                     <div class="sliderWithInput">
@@ -63,8 +63,6 @@
                     </div>
                 </div>
 
-                <div class="panel">
-                    <h3 class="panelTitle">Size Settings</h3>
                     <label class="toggle">
                         <input type="checkbox" id="pixelArtMode">
                         <span class="slider"></span>
@@ -79,28 +77,33 @@
                         <div id="patternSizeDisplay">--</div>
                     </div>
                 </div>
-                <div class="sliderRow">
-                    <label for="maxColours">Maximum No. Colours</label>
-                    <div class="sliderWithInput">
-                        <input type="range" id="maxColours" min="1" max="150" value="30">
-                        <input type="number" id="maxColoursInput" min="1" max="150" value="30">
-                        <div id="actualColoursUsed" style="font-size: 0.9em; color: #666; margin-top: 5px;">
-        Actual Colours: 0
-                    </div>
-                </div>
 
-                <div class="sliderRow">
-                    <label for="mergeNearest">Merge Similar Colors</label>
-                    <div class="sliderWithInput">
-                        <input type="range" id="mergeNearest" min="0" max="5" value="0" step="1">
-                        <span id="mergeNearestVal" style="min-width: 40px;">Off</span>
+                <div class="panel">
+                    <h3 class="panelTitle">Colour Mapping</h3>
+
+                    <div class="sliderRow">
+                        <label for="maxColours">Maximum No. Colours</label>
+                        <div class="sliderWithInput">
+                            <input type="range" id="maxColours" min="1" max="150" value="30">
+                            <input type="number" id="maxColoursInput" min="1" max="150" value="30">
+                            <div id="actualColoursUsed" style="font-size: 0.9em; color: #666; margin-top: 5px;">
+                                Actual Colours: 0
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="sliderRow">
+                        <label for="mergeNearest">Merge Similar Colors</label>
+                        <div class="sliderWithInput">
+                            <input type="range" id="mergeNearest" min="0" max="5" value="0" step="1">
+                            <span id="mergeNearestVal" style="min-width: 40px;">Off</span>
+                        </div>
                     </div>
                 </div>
-                
-                <hr class="divider">
 
                 <div class="panel">
                     <h3 class="panelTitle">Levels Adjustments</h3>
+
                     <label>Brightness</label>
                     <input type="range" id="brightness" min="-10" max="10" value="0">
 
@@ -113,11 +116,11 @@
 
                 <div class="panel">
                     <h3 class="panelTitle">Colour Distances</h3>
-                    
+
                     <label class="radioRow">
                         <input type="radio" name="colorDistance" value="euclidean" checked> Euclidean
                     </label>
-                    
+
                     <label class="radioRow">
                         <input type="radio" name="colorDistance" value="bt709"> BT‑709
                     </label>
@@ -137,6 +140,7 @@
 
                 <div class="panel">
                     <h3 class="panelTitle">Colour Adjustments</h3>
+
                     <label>More Green - More Magenta</label>
                     <input type="range" id="greenToMagenta" min="-10" max="10" value="0">
 
@@ -146,26 +150,29 @@
                     <label>More Yellow - More Blue</label>
                     <input type="range" id="blueToYellow" min="-10" max="10" value="0">
                 </div>
-            
-            <div class="setting-group">
-                <label>
-                    <input type="checkbox" id="reduceIsolatedStitches">
-                    Reduce Isolated Stitches
-                </label>
-            </div>
 
-            <div class="setting-group">
-                <label for="antiNoise">Anti‑Noise Smoothing (Passes)</label>
-                <input type="range" id="antiNoise" min="0" max="10" value="0">
-                <span id="antiNoiseVal">0</span>
-            </div>
+                <div class="setting-group">
+                    <label>
+                        <input type="checkbox" id="reduceIsolatedStitches">
+                        Reduce Isolated Stitches
+                    </label>
+                </div>
 
-            <div class="panel">
-                <h3 class="panelTitle">Stitch Filtering</h3>
-                <label for="minOccurrenceInput">Min. Stitches per Color</label>
-                <input type="number" id="minOccurrenceInput" min="1" value="1" style="width: 60px;">
-                <button id="reapplyFilterBtn" style="margin-top: 6px;">Re-apply Filter</button>
-            </div>
+                <div class="setting-group">
+                    <label for="antiNoise">Anti‑Noise Smoothing (Passes)</label>
+                    <input type="range" id="antiNoise" min="0" max="10" value="0">
+                    <span id="antiNoiseVal">0</span>
+                </div>
+
+                <div class="panel">
+                    <h3 class="panelTitle">Stitch Filtering</h3>
+
+                    <label for="minOccurrenceInput">Min. Stitches per Color</label>
+                    <input type="number" id="minOccurrenceInput" min="1" value="1" style="width: 60px;">
+
+                    <button id="reapplyFilterBtn" style="margin-top: 6px;">Re-apply Filter</button>
+                </div>
+
                         
             </aside>
 

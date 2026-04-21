@@ -77,6 +77,17 @@ export function buildPaletteFromImage(image, k) {
         if (imgData[i + 3] > 128)
             pixels.push([imgData[i], imgData[i + 1], imgData[i + 2]]);
     }
+
+    // Create seeded random from pixel data for deterministic results
+    let seed = 12345;
+    for (let i = 0; i < Math.min(pixels.length, 1000); i++) {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    }
+    function seededRandom() {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        return seed / 0x7fffffff;
+    }
+
     if (pixels.length === 0) return [[255, 255, 255]];
 
     console.log(`[K-Means] Starting with ${pixels.length} pixels, k=${k}`);
@@ -84,8 +95,8 @@ export function buildPaletteFromImage(image, k) {
     // K-means++ initialization
     function kMeansPlusPlus(pixels, k) {
         const centroids = [];
-        // First centroid: random pixel
-        const firstIdx = Math.floor(Math.random() * pixels.length);
+        // First centroid: seeded random pixel
+        const firstIdx = Math.floor(seededRandom() * pixels.length);
         centroids.push([...pixels[firstIdx]]);
 
         // Remaining centroids: weighted by distance squared
@@ -100,7 +111,7 @@ export function buildPaletteFromImage(image, k) {
             });
 
             const totalDist = distances.reduce((a, b) => a + b, 0);
-            let r = Math.random() * totalDist;
+            let r = seededRandom() * totalDist;
             for (let i = 0; i < distances.length; i++) {
                 r -= distances[i];
                 if (r <= 0) {
@@ -110,7 +121,7 @@ export function buildPaletteFromImage(image, k) {
             }
             // Fallback if rounding error
             if (centroids.length < k) {
-                const lastIdx = Math.floor(Math.random() * pixels.length);
+                const lastIdx = Math.floor(seededRandom() * pixels.length);
                 centroids.push([...pixels[lastIdx]]);
             }
         }

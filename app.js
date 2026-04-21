@@ -239,7 +239,9 @@ async function runMapping(isReset = false) {
             lastPaletteConfig.maxColours !== maxColours ||
             lastPaletteConfig.image !== currentImage ||
             lastPaletteConfig.distanceMethod !== distanceMethod ||
-            lastPaletteConfig.mergeNearest !== mappingConfig.mergeNearest;  // Add this line
+            lastPaletteConfig.mergeNearest !== mappingConfig.mergeNearest ||
+            lastPaletteConfig.reduceIsolatedStitches !== mappingConfig.reduceIsolatedStitches ||
+            lastPaletteConfig.minOccurrence !== mappingConfig.minOccurrence;
 
         if (needsNewPalette) {
             const extractedColors = buildPaletteFromImage(currentImage, maxColours);
@@ -266,7 +268,9 @@ async function runMapping(isReset = false) {
                 maxColours,
                 image: currentImage,
                 distanceMethod,
-                mergeNearest: mappingConfig.mergeNearest  // Add this
+                mergeNearest: mappingConfig.mergeNearest,
+                reduceIsolatedStitches: mappingConfig.reduceIsolatedStitches,
+                minOccurrence: mappingConfig.minOccurrence
             };
         }
 
