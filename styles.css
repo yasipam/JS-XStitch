@@ -170,9 +170,6 @@ label {
     font-weight: 600;
     color: var(--color-purple);
 }
-    padding-bottom: 4px;
-    font-family: var(--font-brand);
-}
 
 .divider {
     border: none;

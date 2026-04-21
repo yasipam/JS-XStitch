@@ -42,12 +42,12 @@
         <div id="layout">
 
             <aside id="leftSidebar">
-                <h2>Settings</h2>
+                <h2>Image Controls</h2>
 
                 <div id="hoverPreview" style="width:24px;height:24px;border:1px solid #000;background:transparent;"></div>
 
                 <div class="sliderRow">
-                    <label for="maxSizeSlider">Max Size (longest edge)</label>
+                    <label for="maxSizeSlider">Canvas Size (px)</label>
                     <div class="sliderWithInput">
                         <input type="range" id="maxSizeSlider" min="4" max="300" value="80">
                         <input type="number" id="maxSizeInput" min="4" max="300" value="80">
@@ -55,7 +55,7 @@
                 </div>
 
                 <div class="sliderRow">
-                    <label>Dimensions (cm)</label>
+                    <label>Stitched Area Dimensions (cm)</label>
                     <div class="sliderWithInput">
                         <input type="number" id="cmWidth" step="0.1" min="0.1" placeholder="Width">
                         <span>×</span>
@@ -64,7 +64,7 @@
                 </div>
 
                 <div class="panel">
-                    <h3 class="panelTitle">📏 Size Settings</h3>
+                    <h3 class="panelTitle">Size Settings</h3>
                     <label class="toggle">
                         <input type="checkbox" id="pixelArtMode">
                         <span class="slider"></span>
@@ -73,10 +73,12 @@
                     <p id="pixelArtWarning" style="color: #c10054; font-size: 0.8rem; display: none;">
                         Image too large for Pixel Mode (Max 300px).
                     </p>
+
+                    <div id="patternSizePanel">
+                        <div class="panelTitle">Pattern Size</div>
+                        <div id="patternSizeDisplay">--</div>
+                    </div>
                 </div>
-
-                <hr class="divider">
-
                 <div class="sliderRow">
                     <label for="maxColours">Maximum No. Colours</label>
                     <div class="sliderWithInput">
@@ -186,11 +188,6 @@
                                 <div id="paletteList"></div>
                             </div>
                             <div id="paletteGrid"></div>
-                        </div>
-                        <div class="panel" id="patternSizePanel">
-                            <div class="panelTitle">Pattern Size</div>
-                            <div id="patternSizeDisplay">--</div>
-                        </div>
                     </div>
 
                     <div id="ThreadsTab" class="tab-content" style="display: none;">
