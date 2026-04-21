@@ -480,6 +480,10 @@ function setupPaletteUI() {
 function renderThreadsTable(threadStats) {
     const tbody = document.getElementById("threadsTableBody");
     if (!tbody) return;
+    if (!threadStats || threadStats.length === 0) {
+        tbody.innerHTML = "<tr><td colspan='4' style='text-align:center;padding:20px;'>No threads found</td></tr>";
+        return;
+    }
     tbody.innerHTML = "";
 
     threadStats.sort((a, b) => b.count - a.count);
@@ -502,7 +506,6 @@ function renderThreadsTable(threadStats) {
         if (!dmcEntry) return;
 
         const [code, name, originalRgb] = dmcEntry;
-        const skeins = Math.ceil(stat.count / 1600);
 
         const row = document.createElement("tr");
         row.innerHTML = `
@@ -511,7 +514,7 @@ function renderThreadsTable(threadStats) {
             </td>
             <td title="${name}"><strong>${code}</strong></td>
             <td>${stat.count}</td>
-            <td>${skeins}</td>
+            <td>${stat.count}</td>
         `;
         tbody.appendChild(row);
     });
@@ -1456,25 +1459,19 @@ function updateThreadsTableFromGrid() {
         }
     }
 
-    const tbody = document.getElementById("threadsTableBody");
-    if (!tbody) return;
-
-    tbody.innerHTML = "";
-
-    Object.entries(counts).sort((a, b) => b[1] - a[1]).forEach(([code, count]) => {
+    const threadStats = Object.entries(counts).map(([code, count]) => {
         const dmcEntry = DMC_RGB.find(d => String(d[0]) === code);
-        const name = dmcEntry ? dmcEntry[1] : `DMC ${code}`;
-        const rgb = dmcEntry ? dmcEntry[2] : [128, 128, 128];
+        if (!dmcEntry) return null;
+        return {
+            code: code,
+            r: dmcEntry[2][0],
+            g: dmcEntry[2][1],
+            b: dmcEntry[2][2],
+            count: count
+        };
+    }).filter(s => s !== null);
 
-        const row = document.createElement("tr");
-        row.innerHTML = `
-            <td style="background-color: rgb(${rgb[0]},${rgb[1]},${rgb[2]})"></td>
-            <td>${code}</td>
-            <td>${count}</td>
-            <td>${Math.ceil(count / 1000)}</td>
-        `;
-        tbody.appendChild(row);
-    });
+    renderThreadsTable(threadStats);
 }
 
 function setupToolButtons() {

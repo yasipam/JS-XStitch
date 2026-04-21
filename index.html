@@ -102,6 +102,30 @@
                 </div>
 
                 <div class="panel">
+                    <h3 class="panelTitle">Colour Distances</h3>
+                
+                    <label class="radioRow">
+                        <input type="radio" name="colorDistance" value="euclidean" checked> Euclidean
+                    </label>
+                
+                    <label class="radioRow">
+                        <input type="radio" name="colorDistance" value="bt709"> BT‑709
+                    </label>
+                
+                    <label class="radioRow">
+                        <input type="radio" name="colorDistance" value="cie76"> CIE76
+                    </label>
+                
+                    <label class="radioRow">
+                        <input type="radio" name="colorDistance" value="cie94"> CIE94
+                    </label>
+                
+                    <label class="radioRow">
+                        <input type="radio" name="colorDistance" value="ciede2000"> CIEDE2000
+                    </label>
+                </div>
+
+                <div class="panel">
                     <h3 class="panelTitle">Levels Adjustments</h3>
 
                     <label>Brightness</label>
@@ -114,29 +138,6 @@
                     <input type="range" id="contrast" min="-10" max="10" value="0">
                 </div>
 
-                <div class="panel">
-                    <h3 class="panelTitle">Colour Distances</h3>
-
-                    <label class="radioRow">
-                        <input type="radio" name="colorDistance" value="euclidean" checked> Euclidean
-                    </label>
-
-                    <label class="radioRow">
-                        <input type="radio" name="colorDistance" value="bt709"> BT‑709
-                    </label>
-
-                    <label class="radioRow">
-                        <input type="radio" name="colorDistance" value="cie76"> CIE76
-                    </label>
-
-                    <label class="radioRow">
-                        <input type="radio" name="colorDistance" value="cie94"> CIE94
-                    </label>
-
-                    <label class="radioRow">
-                        <input type="radio" name="colorDistance" value="ciede2000"> CIEDE2000
-                    </label>
-                </div>
 
                 <div class="panel">
                     <h3 class="panelTitle">Colour Adjustments</h3>
@@ -195,6 +196,7 @@
                                 <div id="paletteList"></div>
                             </div>
                             <div id="paletteGrid"></div>
+                        </div>
                     </div>
 
                     <div id="ThreadsTab" class="tab-content" style="display: none;">
@@ -206,7 +208,7 @@
                                         <th>Clr</th>
                                         <th>DMC</th>
                                         <th>Stitches</th>
-                                        <th>Skeins</th>
+                                        <th>Pixels</th>
                                     </tr>
                                 </thead>
                                 <tbody id="threadsTableBody"></tbody>
