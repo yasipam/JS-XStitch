@@ -146,12 +146,43 @@ label {
     gap: 8px;
 }
 
-.panelTitle {
+.panel h3.panelTitle {
     margin: 0 0 6px;
     font-size: 1.3rem; /* Matching h3 Jersey 15 */
     font-weight: 600;
     color: var(--color-purple);
     border-bottom: 1px solid var(--border-light);
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+}
+
+.panel h3.panelTitle::after {
+    content: "▼";
+    font-size: 0.8rem;
+    transition: transform 0.2s ease;
+}
+
+.panel h3.panelTitle.collapsed::after {
+    transform: rotate(-90deg);
+}
+
+.panel > .panel-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow: hidden;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+    max-height: 500px;
+}
+
+.panel > .panel-content.collapsed {
+    max-height: 0;
+    opacity: 0;
+    padding: 0;
+    margin: 0;
 }
 
 #patternSizePanel {

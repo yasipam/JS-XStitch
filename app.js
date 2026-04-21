@@ -612,6 +612,42 @@ window.openTab = function (evt, tabName) {
 
 // app.js
 
+function setupCollapsiblePanels() {
+    const panels = document.querySelectorAll('.panel');
+    panels.forEach(panel => {
+        const title = panel.querySelector('.panelTitle');
+        if (!title) return;
+
+        // Find all sibling elements after the title and wrap them in panel-content
+        const contentElements = [];
+        let current = title.nextElementSibling;
+        while (current && !current.classList.contains('panel')) {
+            contentElements.push(current);
+            current = current.nextElementSibling;
+        }
+
+        if (contentElements.length > 0) {
+            const contentWrapper = document.createElement('div');
+            contentWrapper.className = 'panel-content';
+
+            contentElements.forEach(el => {
+                contentWrapper.appendChild(el);
+            });
+
+            panel.insertBefore(contentWrapper, title.nextSibling);
+        }
+
+        // Make title clickable
+        title.addEventListener('click', () => {
+            const content = panel.querySelector('.panel-content');
+            if (content) {
+                title.classList.toggle('collapsed');
+                content.classList.toggle('collapsed');
+            }
+        });
+    });
+}
+
 function setupUpload() {
     const input = document.getElementById("upload");
     const btn = document.getElementById("uploadBtn");
@@ -2348,6 +2384,7 @@ window.addEventListener("load", () => {
         canvasFrame.onload = initializeCanvas;
     }
 
+    setupCollapsiblePanels();
     setupUpload();
     setupNewCanvas();
     setupOxsUpload();
