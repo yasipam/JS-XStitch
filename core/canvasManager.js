@@ -56,7 +56,12 @@ window.addEventListener('message', (e) => {
                     }, 250); // Delay sync until drawing pauses
                 });
             }
-            state.pixelGrid.resize(payload.width, payload.height, [255, 255, 255], false);
+            const newW = payload.width;
+            const newH = payload.height;
+            const needsResize = !state.pixelGrid || state.pixelGrid.width !== newW || state.pixelGrid.height !== newH;
+            if (needsResize) {
+                state.pixelGrid.resize(newW, newH, [255, 255, 255], false);
+            }
             resetToBestFit();
             break;
 

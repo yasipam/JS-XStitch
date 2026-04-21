@@ -33,6 +33,12 @@ let oxsBaselinePalette = null; // Original palette for OXS (to allow undo)
 let isEmptyCanvas = false; // True when user creates new canvas without image/OXS
 let hasEmptyCanvasEdits = false; // Tracks if user has drawn on empty canvas
 
+// CM Dimension Inputs
+let cmWidthInput = null;
+let cmHeightInput = null;
+let isUpdatingCmFromSlider = false;
+let isUpdatingSliderFromCm = false;
+
 // -----------------------------------------------------------------------------
 // MAPPING CONFIGURATION
 // -----------------------------------------------------------------------------
@@ -321,6 +327,7 @@ sendToCanvas('UPDATE_GRID', displayGrid);
         state.pixelGrid.redoStack = [];
 
         updateSidebarFromState();
+        populateCmFromStitchBounds();
 
     } catch (error) {
         console.error("Mapping failed:", error);
@@ -807,8 +814,8 @@ function resizeEmptyCanvas(newSize) {
     // Store existing content if smaller
     const oldRgbGrid = state.mappedRgbGrid || [];
     const oldDmcGrid = state.mappedDmcGrid || [];
-    const oldHeight = oldRgbGrid.length || 50;
-    const oldWidth = oldRgbGrid[0]?.length || 50;
+    const oldHeight = oldRgbGrid && oldRgbGrid.length > 0 ? oldRgbGrid.length : 0;
+    const oldWidth = oldRgbGrid && oldRgbGrid[0] && oldRgbGrid[0].length > 0 ? oldRgbGrid[0].length : 0;
     
     // Create new empty grids
     const newDmcGrid = Array.from({ length: height }, () => 
@@ -833,10 +840,11 @@ function resizeEmptyCanvas(newSize) {
     
     sendToCanvas('INIT', { width, height });
     sendToCanvas('UPDATE_GRID', newRgbGrid);
-    
+
     updateSidebarFromEmptyCanvas();
     updatePatternSizeDisplay();
-    
+    populateCmFromStitchBounds();
+
     console.log("Empty canvas resized");
 }
 
@@ -973,6 +981,7 @@ function setMappingControlsEnabled(enabled, isOxsMode = false) {
     
     const mappingControls = [
         "maxSizeSlider", "maxSizeInput",
+        "cmWidth", "cmHeight",
         "pixelArtMode",
         "maxColours", "maxColoursInput",
         "brightness", "saturation", "contrast",
@@ -1565,6 +1574,8 @@ function setupMappingControls() {
             mappingConfig.maxSize = newSize;
             runMapping();
         }
+
+        populateCmFromStitchBounds();
     };
 
     if (maxSizeSlider) {
@@ -1577,6 +1588,190 @@ function setupMappingControls() {
         maxSizeInput.oninput = () => {
             maxSizeSlider.value = maxSizeInput.value;
             handleMaxSizeChange();
+        };
+    }
+
+    cmWidthInput = document.getElementById("cmWidth");
+    cmHeightInput = document.getElementById("cmHeight");
+
+    function getPatternBounds() {
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        const dmcGrid = state.mappedDmcGrid;
+        if (!dmcGrid || dmcGrid.length === 0) return null;
+        const height = dmcGrid.length;
+        const width = dmcGrid[0]?.length || 0;
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                if (String(dmcGrid[y][x]) !== "0") {
+                    minX = Math.min(minX, x);
+                    maxX = Math.max(maxX, x);
+                    minY = Math.min(minY, y);
+                    maxY = Math.max(maxY, y);
+                }
+            }
+        }
+        if (!isFinite(minX)) return null;
+        return { width: maxX - minX + 1, height: maxY - minY + 1 };
+    }
+
+    function getFabricCount() {
+        const fabricSelect = document.getElementById("fabricCountSelect");
+        return fabricSelect ? parseInt(fabricSelect.value) || 14 : 14;
+    }
+
+    function populateCmFromStitchBounds() {
+        const dmcGrid = state.mappedDmcGrid;
+        if (!dmcGrid || dmcGrid.length === 0) return;
+
+        const height = dmcGrid.length;
+        const width = dmcGrid[0] ? dmcGrid[0].length : 0;
+        if (width === 0) return;
+
+        let minX = width, maxX = 0, minY = height, maxY = 0;
+        let hasStitches = false;
+
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                if (String(dmcGrid[y][x]) !== "0") {
+                    minX = Math.min(minX, x);
+                    maxX = Math.max(maxX, x);
+                    minY = Math.min(minY, y);
+                    maxY = Math.max(maxY, y);
+                    hasStitches = true;
+                }
+            }
+        }
+
+        if (!hasStitches) return;
+
+        const stitchW = maxX - minX + 1;
+        const stitchH = maxY - minY + 1;
+        const fabricCount = getFabricCount();
+
+        const cmW = parseFloat((stitchW / fabricCount * 2.54).toFixed(1));
+        const cmH = parseFloat((stitchH / fabricCount * 2.54).toFixed(1));
+
+        if (cmWidthInput && cmHeightInput) {
+            cmWidthInput.value = cmW;
+            cmHeightInput.value = cmH;
+        }
+    }
+
+    function calculateCmFromPixels(maxPixels) {
+        const bounds = getPatternBounds();
+        const fabricCount = getFabricCount();
+        if (bounds && bounds.width > 0 && bounds.height > 0) {
+            const aspectRatio = bounds.width / bounds.height;
+            const isWidthLonger = aspectRatio >= 1;
+            const longerCm = (maxPixels / fabricCount * 2.54);
+            if (isWidthLonger) {
+                return {
+                    width: parseFloat(longerCm.toFixed(1)),
+                    height: parseFloat((longerCm / aspectRatio).toFixed(1))
+                };
+            } else {
+                return {
+                    width: parseFloat((longerCm / aspectRatio).toFixed(1)),
+                    height: parseFloat(longerCm.toFixed(1))
+                };
+            }
+        }
+        const cm = (maxPixels / fabricCount * 2.54).toFixed(1);
+        return { width: parseFloat(cm), height: parseFloat(cm) };
+    }
+
+    function updateCmInputsFromSlider() {
+        if (!cmWidthInput || !cmHeightInput) return;
+        if (isUpdatingSliderFromCm) return;
+        isUpdatingCmFromSlider = true;
+        const maxSize = parseInt(maxSizeSlider.value, 10);
+        const cms = calculateCmFromPixels(maxSize);
+        cmWidthInput.value = cms.width;
+        cmHeightInput.value = cms.height;
+        isUpdatingCmFromSlider = false;
+    }
+
+    function calculatePixelsFromCm(cmW, cmH) {
+        const bounds = getPatternBounds();
+        const fabricCount = getFabricCount();
+        if (bounds && bounds.width > 0 && bounds.height > 0) {
+            const aspectRatio = bounds.width / bounds.height;
+            const widthStitches = Math.round((cmW / 2.54) * fabricCount);
+            const heightStitches = Math.round((cmH / 2.54) * fabricCount);
+            if (widthStitches >= heightStitches) {
+                return Math.min(widthStitches, 300);
+            } else {
+                return Math.min(heightStitches, 300);
+            }
+        }
+        if (!isEmptyCanvas && !isOxsLoaded) {
+            return 80;
+        }
+        const maxStitches = Math.max(
+            Math.round((cmW / 2.54) * fabricCount),
+            Math.round((cmH / 2.54) * fabricCount)
+        );
+        return Math.min(maxStitches, 300);
+    }
+
+    function handleCmWidthChange() {
+        if (!cmWidthInput || !cmHeightInput || isUpdatingCmFromSlider) return;
+        const cmW = parseFloat(cmWidthInput.value);
+        if (!cmW || cmW <= 0) return;
+        const bounds = getPatternBounds();
+        let aspectRatio = 1;
+        if (bounds && bounds.width > 0 && bounds.height > 0) {
+            aspectRatio = bounds.width / bounds.height;
+        }
+        const cmH = cmW / aspectRatio;
+        isUpdatingSliderFromCm = true;
+        cmHeightInput.value = parseFloat(cmH.toFixed(1));
+        const newMaxSize = calculatePixelsFromCm(cmW, cmH);
+        maxSizeSlider.value = newMaxSize;
+        maxSizeInput.value = newMaxSize;
+        mappingConfig.maxSize = newMaxSize;
+
+        if (isEmptyCanvas) {
+            resizeEmptyCanvas(newMaxSize);
+        } else {
+            runMapping();
+        }
+        isUpdatingSliderFromCm = false;
+    }
+
+    function handleCmHeightChange() {
+        if (!cmWidthInput || !cmHeightInput || isUpdatingCmFromSlider) return;
+        const cmH = parseFloat(cmHeightInput.value);
+        if (!cmH || cmH <= 0) return;
+        const bounds = getPatternBounds();
+        let aspectRatio = 1;
+        if (bounds && bounds.width > 0 && bounds.height > 0) {
+            aspectRatio = bounds.width / bounds.height;
+        }
+        const cmW = cmH * aspectRatio;
+        isUpdatingSliderFromCm = true;
+        cmWidthInput.value = parseFloat(cmW.toFixed(1));
+        const newMaxSize = calculatePixelsFromCm(cmW, cmH);
+        maxSizeSlider.value = newMaxSize;
+        maxSizeInput.value = newMaxSize;
+        mappingConfig.maxSize = newMaxSize;
+
+        if (isEmptyCanvas) {
+            resizeEmptyCanvas(newMaxSize);
+        } else {
+            runMapping();
+        }
+        isUpdatingSliderFromCm = false;
+    }
+
+    if (cmWidthInput) {
+        cmWidthInput.oninput = () => {
+            handleCmWidthChange();
+        };
+    }
+    if (cmHeightInput) {
+        cmHeightInput.oninput = () => {
+            handleCmHeightChange();
         };
     }
 
@@ -1611,6 +1806,7 @@ function setupMappingControls() {
                     maxSizeSlider.disabled = false;
                     maxSizeInput.disabled = false;
                     maxSizeInput.value = 80;
+                    updateCmInputsFromSlider();
                     mappingConfig.minOccurrence = 1;
                     mappingConfig.reduceIsolatedStitches = false;
                     mappingConfig.antiNoise = 0;
@@ -1996,6 +2192,7 @@ function setupExportButtons() {
     if (fabricSelect) {
         fabricSelect.onchange = () => {
             updatePatternSizeDisplay();
+            populateCmFromStitchBounds();
         };
     }
 }
