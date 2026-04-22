@@ -395,10 +395,27 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 
 .tab-content { display: none; flex-direction: column; gap: 12px; }
+#PaletteTab.tab-content {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    max-height: calc(100vh - 150px);
+}
+#ThreadsTab.tab-content {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    max-height: calc(100vh - 150px);
+}
 
 #threadsTable { width: 100%; border-collapse: collapse; font-size: 1.2rem; }
 #threadsTable th, #threadsTable td { padding: 6px 4px; text-align: center; border-bottom: 1px solid #eee; }
 #threadsTable th { text-transform: uppercase; font-size: 0.8rem; color:var(--color-label); }
+#threadsTableContainer {
+    overflow-y: auto;
+    display: block;
+    width: 100%;
+}
 .table-swatch { width: 24px; height: 16px; border: 1px solid #000; border-radius: 6px; }
 
 /* ==========================================================================
