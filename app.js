@@ -433,7 +433,7 @@ function setupPaletteUI() {
         toggleBtn.onclick = () => {
             const isHidden = listContainer.style.display === "none";
             listContainer.style.display = isHidden ? "block" : "none";
-            toggleBtn.textContent = isHidden ? "CLose list ▲" : "Click to search ▼";
+            toggleBtn.textContent = isHidden ? "Close list ▲" : "Click to search ▼";
 
             // Focus search automatically when opening
             if (isHidden && searchInput) searchInput.focus();
