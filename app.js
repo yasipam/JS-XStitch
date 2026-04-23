@@ -681,6 +681,12 @@ function setupUpload() {
 
                 resetUIControls();
 
+                const pixelArtToggle = document.getElementById("pixelArtMode");
+                if (pixelArtToggle) {
+                    const isSmallEnough = Math.max(img.width, img.height) <= 100;
+                    pixelArtToggle.disabled = !isSmallEnough;
+                }
+
                 const sizeSlider = document.getElementById("maxSizeSlider");
                 const sizeInput = document.getElementById("maxSizeInput");
                 if (sizeSlider) sizeSlider.disabled = false;
@@ -1025,7 +1031,6 @@ function setMappingControlsEnabled(enabled, isOxsMode = false) {
     const mappingControls = [
         "maxSizeSlider", "maxSizeInput",
         "cmWidth", "cmHeight",
-        "pixelArtMode",
         "maxColours", "maxColoursInput",
         "brightness", "saturation", "contrast",
         "greenToMagenta", "cyanToRed", "blueToYellow"
