@@ -119,7 +119,7 @@ label {
 
 /* Sidebars */
 #leftSidebar { 
-    width: 300px; 
+    width: 350px; 
     border-right: 1px solid var(--border-light); 
     background: var(--bg-sidebar);
     padding: 12px;
