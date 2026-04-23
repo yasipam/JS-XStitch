@@ -85,6 +85,7 @@ label {
     color: var(--color-label);
     margin-bottom: 4px;
     display: block;
+    align-items: center;
     line-height: 1.2;
 }
 
@@ -254,7 +255,7 @@ input[type="range"] {
     align-items: center;
     gap: 10px;
     cursor: pointer;
-    font-size: 1.2rem;
+    font-size: 0.9rem;
 }
 
 .toggle input { display: none; }
@@ -432,12 +433,12 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
    10. FOOTER (EXPORT BAR)
    ========================================================================== */
 #bottomPalette {
-    height: 60px;
+    height: 65px;
     background: #eee;
     border-top: 1px solid var(--border-light);
     display: flex;
     align-items: center;
-    padding: 0 20px;
+    padding: 10px;
 }
 
 #exportFooter {
@@ -447,9 +448,91 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
     justify-content: space-between;
 }
 
-.footer-group { display: flex; align-items: center; gap: 10px; font-size: 1.1rem; }
-.footer-buttons { display: flex; gap: 10px; }
+/* Reduce spacing between label + dropdown */
+.panel-content>* {
+    margin-bottom: 4px;
+}
 
+/* Style dropdowns to visually match your UI */
+select {
+    font-family: var(--font-main);
+    font-size: 0.8;
+    padding: 4px 6px;
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+    background: #fff;
+}
+
+/* Optional: reduce panel spacing globally */
+.panel {
+    gap: 3px;
+}
+
+.panel-content {
+    gap: 6px;
+}
+
+.form-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    /* controls spacing between label + dropdown */
+}
+
+.form-row label {
+    margin: 0;
+    /* remove the default bottom margin */
+    white-space: nowrap;
+    /* keeps label on one line */
+}
+
+.form-row select {
+    flex-shrink: 0;
+}
+
+.footer-group {
+    gap: 6px;
+    /* reduce spacing between items */
+    line-height: 1;
+    /* removes extra vertical padding from text */
+    padding: 0;
+    /* ensure no inherited padding */
+}
+
+.footer-group select,
+.footer-group label {
+    line-height: 1;
+    /* keeps them compact */
+    padding: 2px 4px;
+    /* optional: makes dropdowns visually tighter */
+}
+.footer-buttons { display: flex; gap: 5px; }
+
+/* Footer layout */
+.footer-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Hue controls: layout only, no forced display */
+#stampedControls {
+    align-items: center;
+    gap: 6px;
+}
+
+/* Compact slider */
+#stampedControls input[type="range"] {
+    width: 70px;
+    height: 4px;
+}
+
+#stampedControls label {
+    font-size: 0.7rem;
+    opacity: 0.6;
+    margin-right: 2px;
+    line-height: 1;
+}
 /* ==========================================================================
    11. CANVAS OPTIMIZATIONS
    ========================================================================== */
