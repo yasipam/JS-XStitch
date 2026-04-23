@@ -87,6 +87,68 @@ function getRgbFromCode(code) {
     return codeToRgbMap[String(code)] || [255, 255, 255];
 }
 
+// -----------------------------------------------------------------------------
+// TWO-STAGE MAX COLOURS ENFORCEMENT
+// Ensures maxColours limit is always honored, even after post-processing
+// -----------------------------------------------------------------------------
+function enforceMaxColors(dmcGrid, maxColours) {
+    const h = dmcGrid?.length;
+    const w = dmcGrid?.[0]?.length;
+    if (!h || !w) return dmcGrid;
+
+    const uniqueColors = new Set();
+    const colorFrequency = {};
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            const code = String(dmcGrid[y][x]);
+            uniqueColors.add(code);
+            colorFrequency[code] = (colorFrequency[code] || 0) + 1;
+        }
+    }
+
+    const currentCount = uniqueColors.size;
+    if (currentCount <= maxColours) return dmcGrid;
+
+    const sortedByFreq = Object.entries(colorFrequency)
+        .sort((a, b) => b[1] - a[1])
+        .map(([code]) => code);
+    const keepColors = new Set(sortedByFreq.slice(0, maxColours));
+    const excessColors = sortedByFreq.slice(maxColours);
+
+    const codeToRgb = codeToRgbMap;
+    const keptRgbMap = {};
+    for (const code of keepColors) {
+        keptRgbMap[code] = codeToRgb[code] || [128, 128, 128];
+    }
+
+    const result = dmcGrid.map(row => row.slice());
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            const code = String(result[y][x]);
+            if (!keepColors.has(code)) {
+                const origRgb = codeToRgb[code] || [128, 128, 128];
+                let bestCode = null;
+                let bestDist = Infinity;
+
+                for (const keepCode of keepColors) {
+                    const keepRgb = keptRgbMap[keepCode];
+                    const dr = origRgb[0] - keepRgb[0];
+                    const dg = origRgb[1] - keepRgb[1];
+                    const db = origRgb[2] - keepRgb[2];
+                    const d = dr * dr + dg * dg + db * db;
+                    if (d < bestDist) {
+                        bestDist = d;
+                        bestCode = keepCode;
+                    }
+                }
+                result[y][x] = bestCode || Array.from(keepColors)[0];
+            }
+        }
+    }
+
+    return result;
+}
+
 function applyFilteringToGrid(dmcGrid) {
     let filtered = dmcGrid.map(row => row.map(c => String(c)));
 
@@ -105,7 +167,8 @@ function applyFilteringToGrid(dmcGrid) {
 function reapplyFiltering() {
     if (!state.mappedDmcGrid) return;
 
-    const filteredDmcGrid = applyFilteringToGrid(state.mappedDmcGrid);
+    let filteredDmcGrid = applyFilteringToGrid(state.mappedDmcGrid);
+    filteredDmcGrid = enforceMaxColors(filteredDmcGrid, mappingConfig.maxColours);
     const filteredRgbGrid = filteredDmcGrid.map(row => row.map(c => getRgbFromCode(c)));
 
     lastBaselineDmcGrid = filteredDmcGrid;
@@ -238,15 +301,15 @@ async function runMapping(isReset = false) {
         const dmcLibraryLab = getDmcLabCache(useLab);
 
         // 3. Palette Cache Logic
+        // Note: reduceIsolatedStitches and minOccurrence are post-processing operations
+        // that work on the already-mapped grid - they should NOT invalidate the palette cache
         const needsNewPalette =
             cachedProjectPalette === null ||
             lastPaletteConfig.maxSize !== targetSize ||
             lastPaletteConfig.maxColours !== maxColours ||
             lastPaletteConfig.image !== currentImage ||
             lastPaletteConfig.distanceMethod !== distanceMethod ||
-            lastPaletteConfig.mergeNearest !== mappingConfig.mergeNearest ||
-            lastPaletteConfig.reduceIsolatedStitches !== mappingConfig.reduceIsolatedStitches ||
-            lastPaletteConfig.minOccurrence !== mappingConfig.minOccurrence;
+            lastPaletteConfig.mergeNearest !== mappingConfig.mergeNearest;
 
         if (needsNewPalette) {
             const extractedColors = buildPaletteFromImage(currentImage, maxColours);
@@ -273,9 +336,7 @@ async function runMapping(isReset = false) {
                 maxColours,
                 image: currentImage,
                 distanceMethod,
-                mergeNearest: mappingConfig.mergeNearest,
-                reduceIsolatedStitches: mappingConfig.reduceIsolatedStitches,
-                minOccurrence: mappingConfig.minOccurrence
+                mergeNearest: mappingConfig.mergeNearest
             };
         }
 
@@ -300,9 +361,9 @@ async function runMapping(isReset = false) {
 
         if (isReset) userEditDiff.clear();
 
-        // 6. Store Clean Baseline
-        lastBaselineGrid = rgbGrid;
-        lastBaselineDmcGrid = dmcGrid;
+        // 6. Store Clean Baseline (BEFORE filtering for proper toggle restoration)
+        lastBaselineGrid = dmcGrid.map(row => row.map(c => getRgbFromCode(c)));
+        lastBaselineDmcGrid = dmcGrid.map(row => row.map(c => String(c)));
 
         // 7. Build Unified DMC Grid (Baseline + User Edits + Filtering)
         let liveDmcGrid = userEditDiff.size > 0
@@ -310,6 +371,7 @@ async function runMapping(isReset = false) {
             : dmcGrid;
 
         liveDmcGrid = applyFilteringToGrid(liveDmcGrid);
+        liveDmcGrid = enforceMaxColors(liveDmcGrid, maxColours);
         state.mappedDmcGrid = liveDmcGrid;
 
         // 8. Build true-color RGB grid from DMC (always from DMC, never from stamped)
@@ -2077,26 +2139,35 @@ function setupMappingControls() {
         reduceIsolatedStitchesToggle.checked = mappingConfig.reduceIsolatedStitches;
 
         reduceIsolatedStitchesToggle.onchange = () => {
-            mappingConfig.reduceIsolatedStitches = reduceIsolatedStitchesToggle.checked;
-
-            const antiNoiseSlider = document.getElementById("antiNoise");
-            const antiNoiseVal = document.getElementById("antiNoiseVal");
-
-            if (reduceIsolatedStitchesToggle.checked) {
-                mappingConfig.antiNoise = Math.max(mappingConfig.antiNoise, 1);
-                if (antiNoiseSlider) antiNoiseSlider.value = mappingConfig.antiNoise;
-                if (antiNoiseVal) antiNoiseVal.textContent = mappingConfig.antiNoise;
-            } else {
-                mappingConfig.antiNoise = 0;
-                if (antiNoiseSlider) antiNoiseSlider.value = 0;
-                if (antiNoiseVal) antiNoiseVal.textContent = "0";
-            }
+            const isOn = reduceIsolatedStitchesToggle.checked;
+            mappingConfig.reduceIsolatedStitches = isOn;
 
             if (isOxsLoaded) {
-                console.log(`OXS reduceIsolatedStitches toggled to ${reduceIsolatedStitchesToggle.checked}`);
-                applyOxsPostProcessingWithUndo('reduceIsolatedStitches', reduceIsolatedStitchesToggle.checked ? 1 : 0);
-            } else {
+                console.log(`OXS reduceIsolatedStitches toggled to ${isOn}`);
+                applyOxsPostProcessingWithUndo('reduceIsolatedStitches', isOn ? 1 : 0);
+            } else if (isOn) {
+                // ON: Run full pipeline (filtering + enforcement applied in runMapping)
                 runMapping();
+            } else {
+                // OFF: Restore from PRE-filtering baseline directly
+                if (lastBaselineDmcGrid && lastBaselineGrid) {
+                    const restoredDmc = lastBaselineDmcGrid.map(row => row.slice());
+                    const restoredRgb = lastBaselineGrid.map(row => row.slice());
+
+                    lastBaselineDmcGrid = restoredDmc;
+                    lastBaselineGrid = restoredRgb;
+                    state.mappedDmcGrid = restoredDmc;
+                    state.mappedRgbGrid = restoredRgb;
+                    state.setMappingResults(restoredRgb, restoredDmc);
+
+                    const displayGrid = mappingConfig.stampedMode
+                        ? buildStampedRgbGrid(restoredDmc)
+                        : restoredRgb;
+                    sendToCanvas('UPDATE_GRID', displayGrid);
+                    updateSidebarFromState();
+                } else {
+                    runMapping();
+                }
             }
         };
     }
