@@ -135,6 +135,8 @@ const mappingConfig = {
     biasBlueYellow: 0,
     reduceIsolatedStitches: false,
     antiNoise: 0,
+    sharpenIntensity: 1,
+    sharpenRadius: 2,
     minOccurrence: 1,
     stampedMode: false,
     stampedHue: 0,
@@ -291,7 +293,9 @@ async function runMapping(isReset = false) {
             distanceMethod,
             mappingConfig.antiNoise,
             mappingConfig.ditherMode,
-            mappingConfig.ditherStrength / 25
+            mappingConfig.ditherStrength / 25,
+            mappingConfig.sharpenIntensity,
+            mappingConfig.sharpenRadius
         );
 
         if (isReset) userEditDiff.clear();
@@ -778,6 +782,8 @@ function createEmptyCanvas(width, height) {
     mappingConfig.biasCyanRed = 0;
     mappingConfig.biasBlueYellow = 0;
     mappingConfig.antiNoise = 0;
+    mappingConfig.sharpenIntensity = 1;
+    mappingConfig.sharpenRadius = 2;
     mappingConfig.reduceIsolatedStitches = false;
     mappingConfig.distanceMethod = "euclidean";
     mappingConfig.minOccurrence = 1;
@@ -811,6 +817,11 @@ function createEmptyCanvas(width, height) {
 
     const antiNoiseVal = document.getElementById("antiNoiseVal");
     if (antiNoiseVal) antiNoiseVal.textContent = "0";
+
+    const sharpenIntensityVal = document.getElementById("sharpenIntensityVal");
+    const sharpenRadiusVal = document.getElementById("sharpenRadiusVal");
+    if (sharpenIntensityVal) sharpenIntensityVal.textContent = "1";
+    if (sharpenRadiusVal) sharpenRadiusVal.textContent = "2";
 
     const reduceIsolatedToggle = document.getElementById("reduceIsolatedStitches");
     if (reduceIsolatedToggle) reduceIsolatedToggle.checked = false;
@@ -1609,6 +1620,15 @@ function setupMappingControls() {
             if (antiNoiseSlider) antiNoiseSlider.value = 0;
             if (antiNoiseVal) antiNoiseVal.textContent = "0";
 
+            const sharpenIntensitySlider = document.getElementById("sharpenIntensity");
+            const sharpenIntensityVal = document.getElementById("sharpenIntensityVal");
+            const sharpenRadiusSlider = document.getElementById("sharpenRadius");
+            const sharpenRadiusVal = document.getElementById("sharpenRadiusVal");
+            if (sharpenIntensitySlider) sharpenIntensitySlider.value = 1;
+            if (sharpenIntensityVal) sharpenIntensityVal.textContent = "1";
+            if (sharpenRadiusSlider) sharpenRadiusSlider.value = 2;
+            if (sharpenRadiusVal) sharpenRadiusVal.textContent = "2";
+
             if (isEmptyCanvas) {
                 resizeEmptyCanvas(80);
             } else {
@@ -1869,6 +1889,15 @@ function setupMappingControls() {
                     if (antiNoiseSlider) antiNoiseSlider.value = 0;
                     if (antiNoiseVal) antiNoiseVal.textContent = "0";
 
+                    const sharpenIntensitySlider = document.getElementById("sharpenIntensity");
+                    const sharpenIntensityVal = document.getElementById("sharpenIntensityVal");
+                    const sharpenRadiusSlider = document.getElementById("sharpenRadius");
+                    const sharpenRadiusVal = document.getElementById("sharpenRadiusVal");
+                    if (sharpenIntensitySlider) sharpenIntensitySlider.value = 1;
+                    if (sharpenIntensityVal) sharpenIntensityVal.textContent = "1";
+                    if (sharpenRadiusSlider) sharpenRadiusSlider.value = 2;
+                    if (sharpenRadiusVal) sharpenRadiusVal.textContent = "2";
+
                     runMapping(true);
                 } else {
                     mappingConfig.maxSize = newSize;
@@ -2004,6 +2033,39 @@ function setupMappingControls() {
             if (isOxsLoaded) {
                 console.log(`OXS antiNoise slider changed to ${val}`);
                 applyOxsPostProcessingWithUndo('antiNoise', val);
+            } else {
+                runMapping();
+            }
+        };
+    }
+
+    const sharpenIntensitySlider = document.getElementById("sharpenIntensity");
+    const sharpenIntensityVal = document.getElementById("sharpenIntensityVal");
+    const sharpenRadiusSlider = document.getElementById("sharpenRadius");
+    const sharpenRadiusVal = document.getElementById("sharpenRadiusVal");
+
+    if (sharpenIntensitySlider) {
+        sharpenIntensitySlider.oninput = () => {
+            const val = parseInt(sharpenIntensitySlider.value, 10);
+            sharpenIntensityVal.textContent = val;
+            mappingConfig.sharpenIntensity = val;
+
+            if (isOxsLoaded) {
+                applyOxsPostProcessingWithUndo('sharpenIntensity', val);
+            } else {
+                runMapping();
+            }
+        };
+    }
+
+    if (sharpenRadiusSlider) {
+        sharpenRadiusSlider.oninput = () => {
+            const val = parseFloat(sharpenRadiusSlider.value);
+            sharpenRadiusVal.textContent = val;
+            mappingConfig.sharpenRadius = val;
+
+            if (isOxsLoaded) {
+                applyOxsPostProcessingWithUndo('sharpenRadius', val);
             } else {
                 runMapping();
             }
@@ -2354,6 +2416,8 @@ function resetUIControls() {
     mappingConfig.biasCyanRed = 0;
     mappingConfig.biasBlueYellow = 0;
     mappingConfig.antiNoise = 0;
+    mappingConfig.sharpenIntensity = 1;
+    mappingConfig.sharpenRadius = 2;
     mappingConfig.reduceIsolatedStitches = false;
     mappingConfig.distanceMethod = "euclidean";
     mappingConfig.minOccurrence = 1;
@@ -2365,10 +2429,18 @@ function resetUIControls() {
     const pixelArtToggle = document.getElementById("pixelArtMode");
     if (pixelArtToggle) pixelArtToggle.checked = false;
 
-    const ids = ["brightness", "saturation", "contrast", "greenToMagenta", "cyanToRed", "blueToYellow", "antiNoise"];
+    const ids = ["brightness", "saturation", "contrast", "greenToMagenta", "cyanToRed", "blueToYellow", "antiNoise", "sharpenIntensity", "sharpenRadius"];
     ids.forEach(id => {
         const el = document.getElementById(id);
-        if (el) el.value = 0;
+        if (el) {
+            if (id === "sharpenRadius") {
+                el.value = 2;
+            } else if (id === "sharpenIntensity") {
+                el.value = 1;
+            } else {
+                el.value = 0;
+            }
+        }
     });
 
     const sizeSlider = document.getElementById("maxSizeSlider");
@@ -2383,6 +2455,11 @@ function resetUIControls() {
 
     const antiNoiseVal = document.getElementById("antiNoiseVal");
     if (antiNoiseVal) antiNoiseVal.textContent = "0";
+
+    const sharpenIntensityVal = document.getElementById("sharpenIntensityVal");
+    const sharpenRadiusVal = document.getElementById("sharpenRadiusVal");
+    if (sharpenIntensityVal) sharpenIntensityVal.textContent = "1";
+    if (sharpenRadiusVal) sharpenRadiusVal.textContent = "2";
 
     const reduceIsolatedStitchesToggle = document.getElementById("reduceIsolatedStitches");
     if (reduceIsolatedStitchesToggle) reduceIsolatedStitchesToggle.checked = false;

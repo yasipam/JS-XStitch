@@ -18,6 +18,7 @@
 import { DMC_RGB } from "./constants.js";
 import { adjustBSCBias, getDistanceFn, rgbToLab } from "./palette.js";
 import { applyDitherRGB } from "./dithering.js";
+import { applyUnsharpMask } from "./utils.js";
 
 /**
  * Finds the nearest DMC thread color for a given RGB pixel.
@@ -227,7 +228,9 @@ export function mapFullWithPalette(
     distanceMetric,
     antiNoisePasses,
     ditherMode,
-    ditherStrength
+    ditherStrength,
+    sharpenIntensity,
+    sharpenRadius
 ) {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d", { alpha: true });
@@ -246,6 +249,12 @@ export function mapFullWithPalette(
     ctx.mozImageSmoothingEnabled = false;
 
     ctx.drawImage(image, 0, 0, newW, newH);
+
+    if (sharpenIntensity > 0 && sharpenRadius > 0) {
+        const rawData = ctx.getImageData(0, 0, newW, newH);
+        const sharpenedData = applyUnsharpMask(rawData, sharpenIntensity, sharpenRadius);
+        ctx.putImageData(sharpenedData, 0, 0);
+    }
 
     if (antiNoisePasses > 0) {
         const rawData = ctx.getImageData(0, 0, newW, newH);

@@ -136,6 +136,68 @@ export function applyAntiNoise(imageData, strength) {
     return data;
 }
 
+export function applyUnsharpMask(imageData, intensity, radius) {
+    if (intensity <= 0 || radius <= 0) return imageData;
+
+    const { width, height, data } = imageData;
+    const out = new Uint8ClampedArray(data.length);
+    const amount = intensity / 10;
+
+    const kernelSize = Math.max(3, Math.ceil(radius * 2) | 1);
+    const halfKernel = Math.floor(kernelSize / 2);
+
+    function gaussianWeight(dist) {
+        const sigma = radius / 2;
+        return Math.exp(-(dist * dist) / (2 * sigma * sigma));
+    }
+
+    function blurPixel(x, y) {
+        let rSum = 0, gSum = 0, bSum = 0, wSum = 0;
+
+        for (let ky = -halfKernel; ky <= halfKernel; ky++) {
+            for (let kx = -halfKernel; kx <= halfKernel; kx++) {
+                const nx = Math.max(0, Math.min(width - 1, x + kx));
+                const ny = Math.max(0, Math.min(height - 1, y + ky));
+                const dist = Math.sqrt(kx * kx + ky * ky);
+                const weight = gaussianWeight(dist);
+
+                const i = (ny * width + nx) * 4;
+                rSum += data[i] * weight;
+                gSum += data[i + 1] * weight;
+                bSum += data[i + 2] * weight;
+                wSum += weight;
+            }
+        }
+
+        return [
+            Math.round(rSum / wSum),
+            Math.round(gSum / wSum),
+            Math.round(bSum / wSum)
+        ];
+    }
+
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const i = (y * width + x) * 4;
+            const original = [data[i], data[i + 1], data[i + 2]];
+            const blurred = blurPixel(x, y);
+
+            const sharpened = [
+                Math.min(255, Math.max(0, original[0] + amount * (original[0] - blurred[0]))),
+                Math.min(255, Math.max(0, original[1] + amount * (original[1] - blurred[1]))),
+                Math.min(255, Math.max(0, original[2] + amount * (original[2] - blurred[2])))
+            ];
+
+            out[i] = sharpened[0];
+            out[i + 1] = sharpened[1];
+            out[i + 2] = sharpened[2];
+            out[i + 3] = data[i + 3];
+        }
+    }
+
+    return new ImageData(out, width, height);
+}
+
 function medianFilter3x3(imageData) {
     const { width, height, data } = imageData;
     const out = new Uint8ClampedArray(data.length);
