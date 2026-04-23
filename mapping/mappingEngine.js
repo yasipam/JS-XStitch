@@ -17,6 +17,7 @@
 
 import { DMC_RGB } from "./constants.js";
 import { adjustBSCBias, getDistanceFn, rgbToLab } from "./palette.js";
+import { applyDitherRGB } from "./dithering.js";
 
 /**
  * Finds the nearest DMC thread color for a given RGB pixel.
@@ -224,7 +225,9 @@ export function mapFullWithPalette(
     biasCyanRed,
     biasBlueYellow,
     distanceMetric,
-    antiNoisePasses
+    antiNoisePasses,
+    ditherMode,
+    ditherStrength
 ) {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d", { alpha: true });
@@ -258,8 +261,23 @@ export function mapFullWithPalette(
         maskFlat.push(finalSourceData.data[i+3] < 128);
     }
 
+    // Convert flat to 2D for dithering (applyDitherRGB expects H x W x 3 format)
+    const rgb2D = [];
+    for (let y = 0; y < newH; y++) {
+        const row = [];
+        for (let x = 0; x < newW; x++) {
+            row.push(rgbFlat[y * newW + x]);
+        }
+        rgb2D.push(row);
+    }
+
+    const dithered2D = applyDitherRGB(rgb2D, ditherMode, ditherStrength);
+
+    // Convert 2D back to flat for BSC bias and subsequent processing
+    const ditheredFlat = dithered2D.flat();
+
     const adjustedFlat = adjustBSCBias(
-        rgbFlat, brightness, saturation, contrast, 
+        ditheredFlat, brightness, saturation, contrast, 
         biasGreenMagenta, biasCyanRed, biasBlueYellow
     );
 

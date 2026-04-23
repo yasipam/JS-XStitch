@@ -6,6 +6,7 @@ import { ToolRegistry } from "./core/tools.js";
 // Mapping Logic
 import { mergeSimilarPaletteColors, buildPaletteFromImage, getDistanceFn, rgbToLab } from "./mapping/palette.js";
 import { mapFullWithPalette, nearestDmcColor, cleanupMinOccurrence, removeIsolatedStitches, applyAntiNoise } from "./mapping/mappingEngine.js";
+import { applyDitherRGB } from "./mapping/dithering.js";
 import { buildStampedGrid } from "./mapping/stamped.js";
 import { DMC_RGB } from "./mapping/constants.js";
 import { exportOXS } from "./export/exportOXS.js";
@@ -138,6 +139,8 @@ const mappingConfig = {
     stampedMode: false,
     stampedHue: 0,
     distanceMethod: "euclidean",
+    ditherMode: "None",
+    ditherStrength: 0,
     exportFabricCount: 14,
     exportMode: "filled"
 };
@@ -286,7 +289,9 @@ async function runMapping(isReset = false) {
             mappingConfig.biasCyanRed,
             mappingConfig.biasBlueYellow,
             distanceMethod,
-            mappingConfig.antiNoise
+            mappingConfig.antiNoise,
+            mappingConfig.ditherMode,
+            mappingConfig.ditherStrength / 25
         );
 
         if (isReset) userEditDiff.clear();
@@ -1942,7 +1947,52 @@ function setupMappingControls() {
         }
     });
 
-    // 6. Toggles & Smoothers
+    // 6. Dithering Controls
+    const ditherModeSelect = document.getElementById("ditherMode");
+    const ditherStrengthSlider = document.getElementById("ditherStrength");
+    const ditherStrengthVal = document.getElementById("ditherStrengthVal");
+
+    const updateDithering = () => {
+        if (ditherModeSelect && ditherStrengthSlider) {
+            const mode = ditherModeSelect.value;
+            const isNone = mode === "None";
+
+            ditherStrengthSlider.disabled = isNone;
+
+            if (isNone) {
+                mappingConfig.ditherMode = "None";
+                mappingConfig.ditherStrength = 0;
+                ditherStrengthSlider.value = 1;
+                if (ditherStrengthVal) ditherStrengthVal.textContent = "1";
+            } else {
+                mappingConfig.ditherMode = mode;
+                const sliderVal = parseInt(ditherStrengthSlider.value, 10) || 1;
+                mappingConfig.ditherStrength = sliderVal;
+                if (ditherStrengthVal) ditherStrengthVal.textContent = String(sliderVal);
+            }
+
+            if (currentImage) {
+                runMapping();
+            }
+        }
+    };
+
+    if (ditherModeSelect) {
+        ditherModeSelect.onchange = updateDithering;
+    }
+
+    if (ditherStrengthSlider) {
+        ditherStrengthSlider.oninput = () => {
+            const val = parseInt(ditherStrengthSlider.value, 10);
+            if (ditherStrengthVal) ditherStrengthVal.textContent = val;
+            mappingConfig.ditherStrength = val;
+            if (currentImage) {
+                runMapping();
+            }
+        };
+    }
+
+    // 7. Toggles & Smoothers
     const antiNoiseSlider = document.getElementById("antiNoise");
     const antiNoiseVal = document.getElementById("antiNoiseVal");
     if (antiNoiseSlider) {
@@ -2309,6 +2359,8 @@ function resetUIControls() {
     mappingConfig.minOccurrence = 1;
     mappingConfig.stampedMode = false;
     mappingConfig.pixelArtMode = false;
+    mappingConfig.ditherMode = "None";
+    mappingConfig.ditherStrength = 0;
 
     const pixelArtToggle = document.getElementById("pixelArtMode");
     if (pixelArtToggle) pixelArtToggle.checked = false;
@@ -2357,6 +2409,17 @@ function resetUIControls() {
         stampedToggle.checked = false;
         if (stampedControls) stampedControls.style.display = "none";
     }
+
+    // Dithering Controls
+    const ditherModeSelect = document.getElementById("ditherMode");
+    const ditherStrengthSlider = document.getElementById("ditherStrength");
+    const ditherStrengthVal = document.getElementById("ditherStrengthVal");
+    if (ditherModeSelect) ditherModeSelect.value = "None";
+    if (ditherStrengthSlider) {
+        ditherStrengthSlider.disabled = true;
+        ditherStrengthSlider.value = 1;
+    }
+    if (ditherStrengthVal) ditherStrengthVal.textContent = "1";
 }
 
 // -----------------------------------------------------------------------------

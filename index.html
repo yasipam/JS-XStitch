@@ -162,6 +162,23 @@
                     <button id="reapplyFilterBtn" style="margin-top: 6px;">Re-apply Filter</button>
                 </div>
 
+                <div class="panel">
+                    <h3 class="panelTitle">Dithering</h3>
+
+                    <label for="ditherMode">Algorithm</label>
+                    <select id="ditherMode">
+                        <option value="None" selected>None</option>
+                        <option value="Ordered">Ordered Bayer 8×8</option>
+                        <option value="FloydSteinberg">Floyd–Steinberg</option>
+                        <option value="Stucki">Stucki</option>
+                        <option value="Jarvis">Jarvis</option>
+                    </select>
+
+                    <label for="ditherStrength">Strength</label>
+                    <input type="range" id="ditherStrength" min="0" max="5" value="1" disabled>
+                    <span id="ditherStrengthVal">1</span>
+                </div>
+
                         
             </aside>
 
