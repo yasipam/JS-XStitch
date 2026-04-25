@@ -22,6 +22,7 @@ let state;
 let events;
 let currentImage = null;
 let referenceImage = null;
+let bgRemoved = false; // Track if background was removed
 let pencilSize = 1;
 let eraserSize = 1;
 let lastBaselineGrid = null;
@@ -869,7 +870,9 @@ function setupBgRemover() {
 
         if (result && result.processedImage) {
             currentImage = result.processedImage;
-            referenceImage = result.processedImage;
+            bgRemoved = true;
+            btn.disabled = true;
+            btn.style.opacity = '0.5';
 
             const canvas = document.createElement('canvas');
             canvas.width = currentImage.width;
@@ -881,14 +884,13 @@ function setupBgRemover() {
             const img = new Image();
             img.onload = () => {
                 currentImage = img;
-                referenceImage = img;
 
                 const newBase64 = canvas.toDataURL('image/png');
                 state.originalImageURL = newBase64;
 
                 runMapping(true);
             };
-            img.src = base64;
+            img.src =base64;
         } else {
             statusCallback('error', 'Failed to process image');
         }
@@ -920,6 +922,8 @@ function createEmptyCanvas(width, height) {
     isOxsLoaded = false;
     loadedOxsPalette = null;
     currentImage = null;
+    referenceImage = null;
+    bgRemoved = false;
 
     // Reset config values (without disabling controls)
     mappingConfig.maxSize = 80;
@@ -1723,6 +1727,8 @@ function setupEditHistory() {
             if (confirm("Are you sure you want to clear the canvas?")) {
                 sendToCanvas('CMD_CLEAR');
                 currentImage = null;
+                referenceImage = null;
+                bgRemoved = false;
                 isOxsLoaded = false;
                 loadedOxsPalette = null;
                 const uploader = document.getElementById("upload");
@@ -1731,7 +1737,11 @@ function setupEditHistory() {
                 setMappingControlsEnabled(false, false);
                 const removeBgBtn = document.getElementById("removeBgBtn");
                 const bgRemoveStatus = document.getElementById("bgRemoveStatus");
-                if (removeBgBtn) removeBgBtn.style.display = "none";
+                if (removeBgBtn) {
+                    removeBgBtn.style.display = "none";
+                    removeBgBtn.disabled = false;
+                    removeBgBtn.style.opacity = '1';
+                }
                 if (bgRemoveStatus) bgRemoveStatus.style.display = "none";
             }
         };
@@ -1747,6 +1757,15 @@ function setupResetControls() {
                 return;
             }
             if (confirm("Restore original pattern and discard all edits?")) {
+                if (referenceImage) {
+                    currentImage = referenceImage;
+                    bgRemoved = false;
+                    const removeBgBtn = document.getElementById("removeBgBtn");
+                    if (removeBgBtn) {
+                        removeBgBtn.disabled = false;
+                        removeBgBtn.style.opacity = '1';
+                    }
+                }
                 resetUIControls();
                 userEditDiff.clear();
                 lastBaselineGrid = null;
