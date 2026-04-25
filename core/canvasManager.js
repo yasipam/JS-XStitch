@@ -63,6 +63,12 @@ window.addEventListener('message', (e) => {
             if (needsResize) {
                 state.pixelGrid.resize(newW, newH, [255, 255, 255], false);
             }
+
+            // If DMC grid included, load it
+            if (payload.dmcGrid) {
+                state.mappedDmcGrid = payload.dmcGrid;
+            }
+
             resetToBestFit();
             break;
 
@@ -135,6 +141,12 @@ window.addEventListener('message', (e) => {
                 if (tool) {
                     tool.size = payload.size;
                 }
+            }
+            break;
+
+        case 'SET_DMC_GRID':
+            if (state && payload) {
+                state.mappedDmcGrid = payload;
             }
             break;
     }

@@ -114,6 +114,33 @@ export class EditorEvents {
         const index = this.evCache.findIndex(p => p.pointerId === e.pointerId);
         if (index !== -1) this.evCache[index] = e;
 
+        // Handle hover detection (when not drawing or panning)
+        if (!this.isPointerDown && !this.isPanning && this.evCache.length < 2) {
+            const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
+            if (gx >= 0 && gy >= 0 && gx < this.state.pixelGrid.width && gy < this.state.pixelGrid.height) {
+                const dmcGrid = this.state.mappedDmcGrid;
+                const rgb = this.state.pixelGrid.grid[gy][gx];
+                // Only show for non-white pixels
+                if (!(rgb[0] === 255 && rgb[1] === 255 && rgb[2] === 255)) {
+                    const dmcCode = dmcGrid ? dmcGrid[gy][gx] : null;
+                    window.parent.postMessage({
+                        type: 'HOVER_DMC',
+                        payload: { code: dmcCode, rgb: rgb }
+                    }, '*');
+                } else {
+                    window.parent.postMessage({
+                        type: 'HOVER_DMC',
+                        payload: { code: null }
+                    }, '*');
+                }
+            } else {
+                window.parent.postMessage({
+                    type: 'HOVER_DMC',
+                    payload: { code: null }
+                }, '*');
+            }
+        }
+
         if (this.renderPending) return;
         this.renderPending = true;
 

@@ -387,7 +387,7 @@ async function runMapping(isReset = false) {
             ? buildStampedRgbGrid(liveDmcGrid)
             : liveRgbGrid;
 
-        // 10. Send properly to canvas - resize if dimensions changed
+// 10. Send properly to canvas - resize if dimensions changed
         const newWidth = displayGrid[0].length;
         const newHeight = displayGrid.length;
         const currentGrid = state.pixelGrid;
@@ -396,9 +396,11 @@ async function runMapping(isReset = false) {
             currentGrid.height !== newHeight;
 
         if (dimensionsChanged) {
-            sendToCanvas('INIT', { width: newWidth, height: newHeight });
+            sendToCanvas('INIT', { width: newWidth, height: newHeight, dmcGrid: liveDmcGrid });
+        } else {
+            sendToCanvas('SET_DMC_GRID', liveDmcGrid);
         }
-sendToCanvas('UPDATE_GRID', displayGrid);
+        sendToCanvas('UPDATE_GRID', displayGrid);
 
         // Clear undo/redo - only pencil/fill tool edits should be undoable
         state.pixelGrid.undoStack = [];
@@ -2585,8 +2587,47 @@ function exportPixelPNG(rgbGrid, filename) {
     link.click();
 }
 
+function getDmcName(code) {
+    if (!code) return null;
+    for (const [c, name, rgb] of DMC_RGB) {
+        if (c === code) return name;
+    }
+    return null;
+}
+
+function updateDmcHoverTooltip(payload) {
+    const tooltip = document.getElementById('dmcHoverInfo');
+    const swatchEl = document.getElementById('dmcHoverSwatch');
+    const codeEl = document.getElementById('dmcHoverCode');
+    const nameEl = document.getElementById('dmcHoverName');
+
+    if (!tooltip || !swatchEl || !codeEl || !nameEl) return;
+
+    const { code, rgb } = payload || {};
+
+    if (!code) {
+        tooltip.style.display = 'none';
+        return;
+    }
+
+    const name = getDmcName(code);
+    codeEl.textContent = code;
+    nameEl.textContent = name || 'Unknown';
+
+    // Set swatch color if rgb provided
+    if (rgb && Array.isArray(rgb)) {
+        swatchEl.style.backgroundColor = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+    } else {
+        swatchEl.style.backgroundColor = '#ccc';
+    }
+
+    // Set border color to match swatch
+    tooltip.style.borderColor = swatchEl.style.backgroundColor;
+
+    tooltip.style.display = 'flex';
+}
+
 function resetUIControls() {
-    mappingConfig.maxSize = 80;
     mappingConfig.maxColours = 30;
     mappingConfig.mergeNearest = 0; 
     mappingConfig.pixelArtMode = false;
@@ -2748,6 +2789,11 @@ window.addEventListener("load", () => {
 
         if (type === 'REPORT_GRID_STATS') {
             // Sidebar now updates in SYNC handler after mappedDmcGrid is patched
+        }
+
+        if (type === 'HOVER_DMC') {
+            updateDmcHoverTooltip(payload);
+            return;
         }
 
         if (type === 'SYNC_GRID_TO_PARENT') {
