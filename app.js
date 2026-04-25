@@ -759,6 +759,15 @@ function setupUpload() {
 
                 resetUIControls();
 
+                const refVisible = document.getElementById("referenceVisible");
+                const refOpacity = document.getElementById("referenceOpacity");
+                const refOpacityVal = document.getElementById("referenceOpacityVal");
+                if (refVisible) refVisible.checked = false;
+                if (refOpacity) refOpacity.value = 50;
+                if (refOpacityVal) refOpacityVal.textContent = "50%";
+                sendToCanvas('TOGGLE_REFERENCE', false);
+                sendToCanvas('SET_REFERENCE_OPACITY', 0.5);
+
                 const pixelArtToggle = document.getElementById("pixelArtMode");
                 if (pixelArtToggle) {
                     const isSmallEnough = Math.max(img.width, img.height) <= 100;
@@ -955,6 +964,15 @@ function createEmptyCanvas(width, height) {
     const bgRemoveStatus = document.getElementById("bgRemoveStatus");
     if (removeBgBtn) removeBgBtn.style.display = "none";
     if (bgRemoveStatus) bgRemoveStatus.style.display = "none";
+
+    const refVisible = document.getElementById("referenceVisible");
+    const refOpacity = document.getElementById("referenceOpacity");
+    const refOpacityVal = document.getElementById("referenceOpacityVal");
+    if (refVisible) refVisible.checked = false;
+    if (refOpacity) refOpacity.value = 50;
+    if (refOpacityVal) refOpacityVal.textContent = "50%";
+    sendToCanvas('TOGGLE_REFERENCE', false);
+    sendToCanvas('SET_REFERENCE_OPACITY', 0.5);
 
     // Reset UI elements to defaults (without disabling controls)
     const pixelArtToggle = document.getElementById("pixelArtMode");
@@ -1743,6 +1761,15 @@ function setupEditHistory() {
                     removeBgBtn.style.opacity = '1';
                 }
                 if (bgRemoveStatus) bgRemoveStatus.style.display = "none";
+
+                const refVisible = document.getElementById("referenceVisible");
+                const refOpacity = document.getElementById("referenceOpacity");
+                const refOpacityVal = document.getElementById("referenceOpacityVal");
+                if (refVisible) refVisible.checked = false;
+                if (refOpacity) refOpacity.value = 50;
+                if (refOpacityVal) refOpacityVal.textContent = "50%";
+                sendToCanvas('TOGGLE_REFERENCE', false);
+                sendToCanvas('SET_REFERENCE_OPACITY', 0.5);
             }
         };
     }
