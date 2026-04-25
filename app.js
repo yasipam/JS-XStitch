@@ -2624,7 +2624,8 @@ function setupReferenceButton() {
     }
 
     function updateReferenceImage() {
-        if (referenceImage && state && state.mappedRgbGrid) {
+        const imgToUse = bgRemoved ? currentImage : referenceImage;
+        if (imgToUse && state && state.mappedRgbGrid) {
             const gridW = state.mappedRgbGrid[0].length;
             const gridH = state.mappedRgbGrid.length;
 
@@ -2632,7 +2633,7 @@ function setupReferenceButton() {
             tempCanvas.width = gridW;
             tempCanvas.height = gridH;
             const ctx = tempCanvas.getContext('2d');
-            ctx.drawImage(referenceImage, 0, 0, gridW, gridH);
+            ctx.drawImage(imgToUse, 0, 0, gridW, gridH);
 
             const scaledImageData = tempCanvas.toDataURL("image/png");
             sendToCanvas('SET_REFERENCE_IMAGE', {
