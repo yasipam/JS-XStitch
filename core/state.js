@@ -264,9 +264,11 @@ export class EditorState {
         this.referenceImageData = imageData;
         this.referenceWidth = width;
         this.referenceHeight = height;
+        this.showReference = true;
         if (this.renderer) {
             this.renderer.setReferenceImage(imageData, width, height);
         }
+        this.emit("referenceVisibilityChanged", true);
     }
 
     toggleReference(show) {

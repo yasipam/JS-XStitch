@@ -63,6 +63,7 @@ export class LayeredRenderer {
             this.referenceImage = img;
             this.referenceWidth = width;
             this.referenceHeight = height;
+            this.showReference = true;
             this.draw();
         };
         img.src = imageData;
@@ -86,7 +87,17 @@ export class LayeredRenderer {
     draw() { this.drawReference(); this.drawBackground(); this.drawGrid(); }
 
     drawReference() {
-        if (!this.showReference || !this.referenceImage) return;
+        if (!this.showReference) {
+            const dpr = window.devicePixelRatio || 1;
+            if (this.ctxs.ref && this.canvases.ref) {
+                this.ctxs.ref.clearRect(0, 0, this.canvases.ref.width / dpr, this.canvases.ref.height / dpr);
+            }
+            if (this.ctxs.refOverlay && this.canvases.refOverlay) {
+                this.ctxs.refOverlay.clearRect(0, 0, this.canvases.refOverlay.width / dpr, this.canvases.refOverlay.height / dpr);
+            }
+            return;
+        }
+        if (!this.referenceImage) return;
 
         const isUnder = this.referencePosition === 'under';
         const ctx = isUnder ? this.ctxs.ref : this.ctxs.refOverlay;

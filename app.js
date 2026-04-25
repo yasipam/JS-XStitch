@@ -2617,6 +2617,12 @@ function setupReferenceButton() {
 
     sendToCanvas('SET_REFERENCE_POSITION', 'over');
 
+    if (state) {
+        state.on("referenceVisibilityChanged", (visible) => {
+            visibleCheckbox.checked = visible;
+        });
+    }
+
     function updateReferenceImage() {
         if (referenceImage && state && state.mappedRgbGrid) {
             const gridW = state.mappedRgbGrid[0].length;
