@@ -17,7 +17,7 @@ export class LayeredRenderer {
         this.showReference = false;
         this.referenceImage = null;
         this.referenceOpacity = 0.5;
-        this.referencePosition = 'under';
+        this.referencePosition = 'over';
         this.referenceWidth = 0;
         this.referenceHeight = 0;
 

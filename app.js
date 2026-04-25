@@ -2590,7 +2590,6 @@ function setupReferenceButton() {
     const visibleCheckbox = document.getElementById("referenceVisible");
     const opacitySlider = document.getElementById("referenceOpacity");
     const opacityVal = document.getElementById("referenceOpacityVal");
-    const positionRadios = document.getElementsByName("referencePosition");
 
     if (!btn || !dropdown) return;
 
@@ -2616,13 +2615,7 @@ function setupReferenceButton() {
         sendToCanvas('SET_REFERENCE_OPACITY', opacity);
     };
 
-    for (const radio of positionRadios) {
-        radio.onchange = () => {
-            if (radio.checked) {
-                sendToCanvas('SET_REFERENCE_POSITION', radio.value);
-            }
-        };
-    }
+    sendToCanvas('SET_REFERENCE_POSITION', 'over');
 
     function updateReferenceImage() {
         if (referenceImage && state && state.mappedRgbGrid) {
