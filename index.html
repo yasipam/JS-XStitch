@@ -28,8 +28,22 @@
             <button id="oxsImportBtn" title="Import OXS File">📥 Import OXS</button>
             <button id="clearAllBtn" title="Clear All (Ctrl+Shift+X)">🗑️ Clear All</button>
             <button id="resetOriginalBtn" title="Reset to Original Upload">↩️ Reset to Original</button>
-            <button id="pencilBtn" class="active">Pencil</button>
-            <button id="eraserBtn">Eraser</button>
+            <button id="pencilBtn" class="active">
+                <span class="tool-label">Pencil</span> <span class="tool-size">1×1</span> ▼
+                <div class="tool-dropdown">
+                    <label class="tool-radio"><input type="radio" name="pencilSize" value="1" checked> <span>1×1</span></label>
+                    <label class="tool-radio"><input type="radio" name="pencilSize" value="2"> <span>2×2</span></label>
+                    <label class="tool-radio"><input type="radio" name="pencilSize" value="3"> <span>3×3</span></label>
+                </div>
+            </button>
+            <button id="eraserBtn">
+                <span class="tool-label">Eraser</span> <span class="tool-size">1×1</span> ▼
+                <div class="tool-dropdown">
+                    <label class="tool-radio"><input type="radio" name="eraserSize" value="1" checked> <span>1×1</span></label>
+                    <label class="tool-radio"><input type="radio" name="eraserSize" value="2"> <span>2×2</span></label>
+                    <label class="tool-radio"><input type="radio" name="eraserSize" value="3"> <span>3×3</span></label>
+                </div>
+            </button>
             <button id="undoBtn" title="Undo (Ctrl+Z)">↶ Undo</button>
             <button id="redoBtn" title="Redo (Ctrl+Y)">↷ Redo</button>
             <button id="fillBtn">Fill</button>

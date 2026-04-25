@@ -6,6 +6,7 @@
 
 import { PixelGrid } from "./pixelGrid.js";
 import { LayeredRenderer } from "./canvasRenderer.js";
+import { ToolRegistry } from "./tools.js";
 
 export class EditorState {
     constructor(canvases = null) {
@@ -34,6 +35,7 @@ export class EditorState {
         this.referenceHeight = 0;
         this.referenceOpacity = 0.5;
         this.referencePosition = 'under';
+        this.toolSizes = { pencil: 1, eraser: 1, fill: 1, picker: 1 };
 
         this.history = []; 
         this.listeners = {};
@@ -96,6 +98,12 @@ export class EditorState {
     // -------------------------------------------------------------------------
     setTool(toolName) {
         this.activeTool = toolName;
+        if (this.renderer && this.renderer.canvases && this.renderer.canvases.ui) {
+            const uiCanvas = this.renderer.canvases.ui;
+            const size = this.toolSizes[toolName] || 1;
+            uiCanvas.setAttribute('data-tool', toolName);
+            uiCanvas.setAttribute('data-size', String(size));
+        }
         this.emit("toolChanged", toolName);
     }
 
@@ -283,5 +291,20 @@ export class EditorState {
             this.renderer.setReferencePosition(pos);
         }
         this.emit("referencePositionChanged", pos);
+    }
+
+    setToolSize(toolName, size) {
+        if (this.toolSizes[toolName] !== undefined) {
+            this.toolSizes[toolName] = size;
+            const tool = ToolRegistry[toolName];
+            if (tool) {
+                tool.size = size;
+            }
+            if (this.renderer && this.renderer.canvases && this.renderer.canvases.ui) {
+                this.renderer.canvases.ui.setAttribute('data-tool', toolName);
+                this.renderer.canvases.ui.setAttribute('data-size', String(size));
+            }
+            this.emit("toolSizeChanged", { tool: toolName, size });
+        }
     }
 }

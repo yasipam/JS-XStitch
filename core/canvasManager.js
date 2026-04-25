@@ -1,7 +1,6 @@
 import { EditorState } from "./state.js";
 import { EditorEvents } from "./events.js";
 import { ToolRegistry } from "./tools.js";
-
 let state;
 let events;
 let syncTimeout;
@@ -126,6 +125,16 @@ window.addEventListener('message', (e) => {
         case 'SET_REFERENCE_POSITION':
             if (state) {
                 state.setReferencePosition(payload);
+            }
+            break;
+
+        case 'SET_TOOL_SIZE':
+            if (state && payload) {
+                state.setToolSize(payload.tool, payload.size);
+                const tool = ToolRegistry[payload.tool];
+                if (tool) {
+                    tool.size = payload.size;
+                }
             }
             break;
     }

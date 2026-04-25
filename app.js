@@ -21,6 +21,8 @@ let state;
 let events;
 let currentImage = null;
 let referenceImage = null;
+let pencilSize = 1;
+let eraserSize = 1;
 let lastBaselineGrid = null;
 let lastBaselineDmcGrid = null;
 
@@ -1564,17 +1566,56 @@ function setupToolButtons() {
     tools.forEach(id => {
         const btn = document.getElementById(id === "picker" ? "toolPicker" : id + "Btn");
         if (btn) {
-            btn.onclick = () => {
+            btn.onclick = (e) => {
                 // Prevent tool switching if Stamped Mode is ON
                 if (mappingConfig.stampedMode) {
                     alert("Drawing tools are disabled in Stamped Mode. Turn off Stamped Mode to edit.");
                     return;
                 }
+
+                // Toggle dropdown for pencil/eraser
+                const dropdown = btn.querySelector('.tool-dropdown');
+                if (dropdown) {
+                    e.stopPropagation();
+                    document.querySelectorAll('.tool-dropdown.open').forEach(d => {
+                        if (d !== dropdown) d.classList.remove('open');
+                    });
+                    dropdown.classList.toggle('open');
+                }
+
                 state.setTool(id);
                 sendToCanvas('SET_TOOL', id);
                 document.querySelectorAll("#topToolbar button").forEach(b => b.classList.remove("active"));
                 btn.classList.add("active");
             };
+        }
+    });
+
+    // Setup tool size dropdowns
+    document.querySelectorAll('#pencilBtn .tool-radio input, #eraserBtn .tool-radio input').forEach(radio => {
+        radio.onclick = (e) => {
+            e.stopPropagation();
+            const btn = radio.closest('button');
+            const size = parseInt(radio.value);
+            const toolName = btn.id === 'pencilBtn' ? 'pencil' : 'eraser';
+
+            if (toolName === 'pencil') {
+                pencilSize = size;
+                btn.querySelector('.tool-size').textContent = size + '×' + size;
+            } else {
+                eraserSize = size;
+                btn.querySelector('.tool-size').textContent = size + '×' + size;
+            }
+
+            sendToCanvas('SET_TOOL_SIZE', { tool: toolName, size: size });
+            btn.querySelector('.tool-dropdown').classList.remove('open');
+        };
+    });
+
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.tool-dropdown')) {
+            document.querySelectorAll('.tool-dropdown.open').forEach(d => d.classList.remove('open'));
         }
     });
 }

@@ -7,11 +7,17 @@ export class BaseTool {
 
 export class PencilTool extends BaseTool {
     cursor = "crosshair";
+    size = 1;
     lastGx = undefined;
+    lastGxOffset = undefined;
     lastGy = undefined;
+    lastGyOffset = undefined;
 
     onPointerDown(state, gx, gy, screenX, screenY, options) {
-        if (gx < 0 || gy < 0 || gx >= state.pixelGrid.width || gy >= state.pixelGrid.height) return;
+        const size = this.size;
+        const half = Math.floor(size / 2);
+
+        if (gx - half < 0 || gy - half < 0 || gx + half >= state.pixelGrid.width || gy + half >= state.pixelGrid.height) return;
         state.pixelGrid.pushUndo();
         this.drawing = true;
 
@@ -21,14 +27,15 @@ export class PencilTool extends BaseTool {
         if (options?.shiftKey && !isFresh) {
             this.drawLine(state, this.lastGx, this.lastGy, gx, gy);
         } else {
-            state.setPixel(gx, gy, state.activeColor);
+            this.drawBlock(state, gx, gy, state.activeColor);
         }
         this.lastGx = gx; this.lastGy = gy;
     }
 
     onPointerMove(state, gx, gy) {
         if (!this.drawing) return;
-        if (gx >= 0 && gy >= 0 && gx < state.pixelGrid.width && gy < state.pixelGrid.height) {
+        const half = Math.floor(this.size / 2);
+        if (gx - half >= 0 && gy - half >= 0 && gx + half < state.pixelGrid.width && gy + half < state.pixelGrid.height) {
             if (this.lastGx !== undefined && (this.lastGx !== gx || this.lastGy !== gy)) {
                 this.drawLine(state, this.lastGx, this.lastGy, gx, gy);
                 this.lastGx = gx; this.lastGy = gy;
@@ -41,12 +48,24 @@ export class PencilTool extends BaseTool {
         this.lastGx = undefined; this.lastGy = undefined;
     }
 
+    drawBlock(state, cx, cy, color) {
+        const size = this.size;
+        const half = Math.floor(size / 2);
+        for (let dy = -half; dy < size - half; dy++) {
+            for (let dx = -half; dx < size - half; dx++) {
+                state.setPixel(cx + dx, cy + dy, color);
+            }
+        }
+    }
+
     drawLine(state, x0, y0, x1, y1) {
+        const size = this.size;
+        const half = Math.floor(size / 2);
         const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
         const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
         let err = dx - dy;
         while (true) {
-            state.setPixel(x0, y0, state.activeColor);
+            this.drawBlock(state, x0, y0, state.activeColor);
             if (x0 === x1 && y0 === y1) break;
             const e2 = 2 * err;
             if (e2 > -dy) { err -= dy; x0 += sx; }
@@ -55,22 +74,26 @@ export class PencilTool extends BaseTool {
     }
 }
 
-// Apply the same logic to EraserTool
 export class EraserTool extends BaseTool {
     cursor = "cell";
+    size = 1;
     lastGx = undefined; lastGy = undefined;
 
     onPointerDown(state, gx, gy) {
-        if (gx < 0 || gy < 0 || gx >= state.pixelGrid.width || gy >= state.pixelGrid.height) return;
+        const size = this.size;
+        const half = Math.floor(size / 2);
+
+        if (gx - half < 0 || gy - half < 0 || gx + half >= state.pixelGrid.width || gy + half >= state.pixelGrid.height) return;
         state.pixelGrid.pushUndo();
         this.erasing = true;
-        state.setPixel(gx, gy, [255, 255, 255]);
+        this.eraseBlock(state, gx, gy);
         this.lastGx = gx; this.lastGy = gy;
     }
 
     onPointerMove(state, gx, gy) {
         if (!this.erasing) return;
-        if (gx >= 0 && gy >= 0 && gx < state.pixelGrid.width && gy < state.pixelGrid.height) {
+        const half = Math.floor(this.size / 2);
+        if (gx - half >= 0 && gy - half >= 0 && gx + half < state.pixelGrid.width && gy + half < state.pixelGrid.height) {
             if (this.lastGx !== undefined && (this.lastGx !== gx || this.lastGy !== gy)) {
                 this.eraseLine(state, this.lastGx, this.lastGy, gx, gy);
                 this.lastGx = gx; this.lastGy = gy;
@@ -80,12 +103,22 @@ export class EraserTool extends BaseTool {
 
     onPointerUp() { this.erasing = false; this.lastGx = undefined; this.lastGy = undefined; }
 
+    eraseBlock(state, cx, cy) {
+        const size = this.size;
+        const half = Math.floor(size / 2);
+        for (let dy = -half; dy < size - half; dy++) {
+            for (let dx = -half; dx < size - half; dx++) {
+                state.setPixel(cx + dx, cy + dy, [255, 255, 255]);
+            }
+        }
+    }
+
     eraseLine(state, x0, y0, x1, y1) {
         const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
         const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
         let err = dx - dy;
         while (true) {
-            state.setPixel(x0, y0, [255, 255, 255]);
+            this.eraseBlock(state, x0, y0);
             if (x0 === x1 && y0 === y1) break;
             const e2 = 2 * err;
             if (e2 > -dy) { err -= dy; x0 += sx; }

@@ -23,7 +23,17 @@
         #bgLayer     { z-index: 1; } 
         #gridLayer   { z-index: 2; pointer-events: none; } /* Clicks pass through to UI layer */
         #refOverlayLayer { z-index: 3; } 
-        #uiLayer     { z-index: 4; } 
+        #uiLayer     { z-index: 4; cursor: crosshair; }
+        
+        /* Tool cursors scaled by size */
+        #uiLayer[data-size="1"] { cursor: crosshair; }
+        #uiLayer[data-size="2"] { cursor: crosshair; }
+        #uiLayer[data-size="3"] { cursor: crosshair; }
+        
+        /* Eraser cursors */
+        #uiLayer[data-tool="eraser"][data-size="1"] { cursor: cell; }
+        #uiLayer[data-tool="eraser"][data-size="2"] { cursor: cell; }
+        #uiLayer[data-tool="eraser"][data-size="3"] { cursor: cell; }
     </style>
 </head>
 <body>

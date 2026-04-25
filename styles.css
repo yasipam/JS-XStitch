@@ -305,6 +305,48 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .dropdown-container { position: relative; }
 
+#topToolbar button { position: relative; }
+
+#topToolbar button .tool-label { }
+
+#topToolbar button .tool-size {
+    font-size: 0.85em;
+    opacity: 0.8;
+}
+
+.tool-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 100px;
+    background: #fff;
+    border: 1px solid var(--border-panel);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    padding: 6px;
+    z-index: 1000;
+    margin-top: 4px;
+}
+
+.tool-dropdown.open { display: block; }
+
+.tool-radio {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-size: 0.95rem;
+}
+
+.tool-radio:hover { background: #f0f0f0; }
+
+.tool-radio input { cursor: pointer; }
+
+.tool-radio span { min-width: 30px; }
+
 .dropdown-menu {
     display: none;
     position: absolute;
