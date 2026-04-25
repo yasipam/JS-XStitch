@@ -824,7 +824,7 @@ function setupBgRemover() {
     if (!btn) return;
 
     btn.onclick = async () => {
-        if (!currentImage) return;
+        if (!currentImage || bgRemoved) return;
 
         btn.disabled = true;
 
@@ -895,7 +895,7 @@ function setupBgRemover() {
             statusCallback('error', 'Failed to process image');
         }
 
-        btn.disabled = false;
+        btn.disabled = true;
     };
 }
 
