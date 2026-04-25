@@ -346,6 +346,15 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .tool-radio span { min-width: 30px; }
 
+.tool-status {
+    font-size: 0.85rem;
+    color: #666;
+    padding: 4px 8px;
+    background: #f5f5f5;
+    border-radius: 4px;
+    margin-left: 4px;
+}
+
 /* DMC Hover Tooltip */
 .dmc-tooltip {
     display: none;

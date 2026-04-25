@@ -2,6 +2,7 @@
 import { EditorState } from "./core/state.js";
 import { EditorEvents } from "./core/events.js";
 import { ToolRegistry } from "./core/tools.js";
+import { onnxModel } from "./core/bgRemover.js";
 
 // Mapping Logic
 import { mergeSimilarPaletteColors, buildPaletteFromImage, getDistanceFn, rgbToLab } from "./mapping/palette.js";
@@ -407,7 +408,6 @@ async function runMapping(isReset = false) {
         state.pixelGrid.redoStack = [];
 
         updateSidebarFromState();
-        populateCmFromStitchBounds();
 
     } catch (error) {
         console.error("Mapping failed:", error);
@@ -771,6 +771,9 @@ function setupUpload() {
 
                 setMappingControlsEnabled(true, false);
 
+                const removeBgBtn = document.getElementById("removeBgBtn");
+                if (removeBgBtn) removeBgBtn.style.display = "inline-block";
+
                 state.clear();
                 userEditDiff.clear();
                 lastBaselineGrid = null;
@@ -811,6 +814,86 @@ function setupOxsUpload() {
             alert("Failed to load OXS file: " + err.message);
             console.error(err);
         }
+    };
+}
+
+function setupBgRemover() {
+    const btn = document.getElementById("removeBgBtn");
+    const statusEl = document.getElementById("bgRemoveStatus");
+    if (!btn) return;
+
+    btn.onclick = async () => {
+        if (!currentImage) return;
+
+        btn.disabled = true;
+
+        const statusCallback = (type, message, showProgress) => {
+            if (type === 'clear') {
+                if (statusEl) {
+                    statusEl.style.display = 'none';
+                    statusEl.innerHTML = '';
+                }
+            } else if (type === 'error') {
+                if (statusEl) {
+                    statusEl.style.display = 'inline';
+                    statusEl.textContent = message;
+                }
+                btn.disabled = false;
+            } else if (type === 'loading') {
+                if (statusEl) {
+                    statusEl.style.display = 'inline';
+                    statusEl.textContent = message;
+                }
+            }
+        };
+
+        const progressCallback = (progress) => {
+            if (statusEl) {
+                statusEl.style.display = 'inline';
+                statusEl.textContent = `Downloading model... ${progress}%`;
+            }
+        };
+
+        const success = await onnxModel.init(statusCallback, progressCallback);
+
+        if (!success) {
+            btn.disabled = false;
+            return;
+        }
+
+        if (statusEl) {
+            statusEl.textContent = 'Removing background...';
+        }
+
+        const result = await onnxModel.run(currentImage);
+
+        if (result && result.processedImage) {
+            currentImage = result.processedImage;
+            referenceImage = result.processedImage;
+
+            const canvas = document.createElement('canvas');
+            canvas.width = currentImage.width;
+            canvas.height = currentImage.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(currentImage, 0, 0);
+
+            const base64 = canvas.toDataURL('image/png');
+            const img = new Image();
+            img.onload = () => {
+                currentImage = img;
+                referenceImage = img;
+
+                const newBase64 = canvas.toDataURL('image/png');
+                state.originalImageURL = newBase64;
+
+                runMapping(true);
+            };
+            img.src = base64;
+        } else {
+            statusCallback('error', 'Failed to process image');
+        }
+
+        btn.disabled = false;
     };
 }
 
@@ -863,6 +946,11 @@ function createEmptyCanvas(width, height) {
     lastBaselineDmcGrid = null;
 
     state.originalImageURL = null;
+
+    const removeBgBtn = document.getElementById("removeBgBtn");
+    const bgRemoveStatus = document.getElementById("bgRemoveStatus");
+    if (removeBgBtn) removeBgBtn.style.display = "none";
+    if (bgRemoveStatus) bgRemoveStatus.style.display = "none";
 
     // Reset UI elements to defaults (without disabling controls)
     const pixelArtToggle = document.getElementById("pixelArtMode");
@@ -1641,6 +1729,10 @@ function setupEditHistory() {
                 if (uploader) uploader.value = "";
                 resetUIControls();
                 setMappingControlsEnabled(false, false);
+                const removeBgBtn = document.getElementById("removeBgBtn");
+                const bgRemoveStatus = document.getElementById("bgRemoveStatus");
+                if (removeBgBtn) removeBgBtn.style.display = "none";
+                if (bgRemoveStatus) bgRemoveStatus.style.display = "none";
             }
         };
     }
@@ -2760,6 +2852,7 @@ window.addEventListener("load", () => {
     setupCollapsiblePanels();
     setupUpload();
     setupNewCanvas();
+    setupBgRemover();
     setupOxsUpload();
     setupToolButtons();
     setupEditHistory();

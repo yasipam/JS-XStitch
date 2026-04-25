@@ -6,13 +6,15 @@
     <title>Cross Stitch Editor</title>
     <link rel="stylesheet" href="styles.css">
 
-    <script type="importmap">
+<script type="importmap">
     {
       "imports": {
         "jspdf": "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
       }
     }
     </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.min.js" defer async></script>
 </head>
 
 <body>
@@ -25,6 +27,8 @@
             <input type="file" id="oxsUpload" accept=".oxs" style="display:none;">
             <button id="newCanvasBtn" title="Create new empty canvas">📄 Blank Canvas</button>
             <button id="uploadBtn" title="Upload Image">🖼️ Upload Image</button>
+            <button id="removeBgBtn" title="Remove Background" style="display:none;">✂️ Remove Background</button>
+            <span id="bgRemoveStatus" class="tool-status" style="display:none;"></span>
             <button id="oxsImportBtn" title="Import OXS File">📥 Import OXS</button>
             <button id="clearAllBtn" title="Clear All (Ctrl+Shift+X)">🗑️ Clear All</button>
             <button id="resetOriginalBtn" title="Reset to Original Upload">↩️ Reset to Original</button>
