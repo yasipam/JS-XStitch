@@ -20,8 +20,9 @@ import { exportPDF } from "./export/exportPDF.js";
 let state;
 let events;
 let currentImage = null;
-let lastBaselineGrid = null;    // Existing: stores RGB baseline
-let lastBaselineDmcGrid = null; // NEW: stores pure DMC baseline mapping
+let referenceImage = null;
+let lastBaselineGrid = null;
+let lastBaselineDmcGrid = null;
 
 // OXS Import State
 let isOxsLoaded = false;
@@ -746,6 +747,7 @@ function setupUpload() {
             const img = new Image();
             img.onload = () => {
                 currentImage = img;
+                referenceImage = img;
                 isOxsLoaded = false;
                 isEmptyCanvas = false;
                 loadedOxsPalette = null;
@@ -2428,6 +2430,73 @@ function setupZoomButtons() {
     document.getElementById("resetViewBtn").onclick = () => sendToCanvas('CMD_RESET_VIEW');
 }
 
+function setupReferenceButton() {
+    const btn = document.getElementById("referenceBtn");
+    const dropdown = document.getElementById("referenceDropdown");
+    const visibleCheckbox = document.getElementById("referenceVisible");
+    const opacitySlider = document.getElementById("referenceOpacity");
+    const opacityVal = document.getElementById("referenceOpacityVal");
+    const positionRadios = document.getElementsByName("referencePosition");
+
+    if (!btn || !dropdown) return;
+
+    btn.onclick = (e) => {
+        e.stopPropagation();
+        dropdown.classList.toggle("open");
+    };
+
+    document.addEventListener("click", (e) => {
+        if (!dropdown.contains(e.target) && e.target !== btn) {
+            dropdown.classList.remove("open");
+        }
+    });
+
+    visibleCheckbox.onchange = () => {
+        const visible = visibleCheckbox.checked;
+        sendToCanvas('TOGGLE_REFERENCE', visible);
+    };
+
+    opacitySlider.oninput = () => {
+        const opacity = parseInt(opacitySlider.value) / 100;
+        opacityVal.textContent = opacitySlider.value + "%";
+        sendToCanvas('SET_REFERENCE_OPACITY', opacity);
+    };
+
+    for (const radio of positionRadios) {
+        radio.onchange = () => {
+            if (radio.checked) {
+                sendToCanvas('SET_REFERENCE_POSITION', radio.value);
+            }
+        };
+    }
+
+    function updateReferenceImage() {
+        if (referenceImage && state && state.mappedRgbGrid) {
+            const gridW = state.mappedRgbGrid[0].length;
+            const gridH = state.mappedRgbGrid.length;
+
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = gridW;
+            tempCanvas.height = gridH;
+            const ctx = tempCanvas.getContext('2d');
+            ctx.drawImage(referenceImage, 0, 0, gridW, gridH);
+
+            const scaledImageData = tempCanvas.toDataURL("image/png");
+            sendToCanvas('SET_REFERENCE_IMAGE', {
+                imageData: scaledImageData,
+                width: gridW,
+                height: gridH
+            });
+        }
+    }
+
+    window.addEventListener("message", (e) => {
+        if (e.data.type === 'SYNC_GRID_TO_PARENT') {
+            updateReferenceImage();
+        }
+    });
+}
+
 /**
  * Generates a PNG where 1 pixel = 1 stitch
  */
@@ -2607,6 +2676,7 @@ window.addEventListener("load", () => {
     setupMappingControls();
     setupExportButtons();
     setupZoomButtons();
+    setupReferenceButton();
     setupPaletteUI();
 
     // GLOBAL KEYBOARD BRIDGE

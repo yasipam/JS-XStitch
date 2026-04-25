@@ -3,8 +3,10 @@ export class LayeredRenderer {
         this.pixelGrid = pixelGrid;
         this.canvases = canvases;
         this.ctxs = {
+            ref: canvases.ref ? canvases.ref.getContext("2d") : null,
             bg: canvases.bg.getContext("2d", { alpha: false }),
             grid: canvases.grid.getContext("2d"),
+            refOverlay: canvases.refOverlay ? canvases.refOverlay.getContext("2d") : null,
             ui: canvases.ui.getContext("2d")
         };
         this.zoom = 20;
@@ -12,7 +14,16 @@ export class LayeredRenderer {
         this.offsetY = 0;
         this.showGrid = true;
 
-        Object.values(this.ctxs).forEach(ctx => ctx.imageSmoothingEnabled = false);
+        this.showReference = false;
+        this.referenceImage = null;
+        this.referenceOpacity = 0.5;
+        this.referencePosition = 'under';
+        this.referenceWidth = 0;
+        this.referenceHeight = 0;
+
+        Object.values(this.ctxs).forEach(ctx => {
+            if (ctx) ctx.imageSmoothingEnabled = false;
+        });
         window.addEventListener("resize", () => this.resizeToContainer());
         this.resizeToContainer();
     }
@@ -23,15 +34,19 @@ export class LayeredRenderer {
         const h = window.innerHeight;
 
         Object.values(this.canvases).forEach(canvas => {
-            canvas.width = w * dpr;
-            canvas.height = h * dpr;
-            canvas.style.width = `${w}px`;
-            canvas.style.height = `${h}px`;
+            if (canvas) {
+                canvas.width = w * dpr;
+                canvas.height = h * dpr;
+                canvas.style.width = `${w}px`;
+                canvas.style.height = `${h}px`;
+            }
         });
 
         Object.values(this.ctxs).forEach(ctx => {
-            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-            ctx.imageSmoothingEnabled = false;
+            if (ctx) {
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                ctx.imageSmoothingEnabled = false;
+            }
         });
         this.draw();
     }
@@ -40,7 +55,63 @@ export class LayeredRenderer {
     setZoom(z) { this.zoom = z; this.draw(); }
     setPan(x, y) { this.offsetX = x; this.offsetY = y; this.draw(); }
     toggleGrid(s) { this.showGrid = s; this.draw(); }
-    draw() { this.drawBackground(); this.drawGrid(); }
+
+    setReferenceImage(imageData, width, height) {
+        if (!imageData) return;
+        const img = new Image();
+        img.onload = () => {
+            this.referenceImage = img;
+            this.referenceWidth = width;
+            this.referenceHeight = height;
+            this.draw();
+        };
+        img.src = imageData;
+    }
+
+    toggleReference(show) {
+        this.showReference = show;
+        this.draw();
+    }
+
+    setReferenceOpacity(opacity) {
+        this.referenceOpacity = opacity;
+        this.draw();
+    }
+
+    setReferencePosition(pos) {
+        this.referencePosition = pos;
+        this.draw();
+    }
+
+    draw() { this.drawReference(); this.drawBackground(); this.drawGrid(); }
+
+    drawReference() {
+        if (!this.showReference || !this.referenceImage) return;
+
+        const isUnder = this.referencePosition === 'under';
+        const ctx = isUnder ? this.ctxs.ref : this.ctxs.refOverlay;
+        if (!ctx) return;
+
+        const dpr = window.devicePixelRatio || 1;
+        const canvas = isUnder ? this.canvases.ref : this.canvases.refOverlay;
+        if (!canvas) return;
+
+        ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+
+        const gridW = this.pixelGrid ? this.pixelGrid.width : 0;
+        const gridH = this.pixelGrid ? this.pixelGrid.height : 0;
+        const refW = this.referenceWidth;
+        const refH = this.referenceHeight;
+
+        const refImgW = Math.floor(this.offsetX + refW * this.zoom);
+        const refImgH = Math.floor(this.offsetY + refH * this.zoom);
+        const startX = Math.floor(this.offsetX);
+        const startY = Math.floor(this.offsetY);
+
+        ctx.globalAlpha = this.referenceOpacity;
+        ctx.drawImage(this.referenceImage, startX, startY, refImgW - startX, refImgH - startY);
+        ctx.globalAlpha = 1;
+    }
 
     drawBackground() {
         const ctx = this.ctxs.bg;

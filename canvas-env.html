@@ -12,22 +12,26 @@
             justify-content: center; 
         }
         
-        /* Layered stacking: BG (Stitches) -> Mid (Grid) -> Top (Interaction) */
+        /* Layered stacking: Reference Under -> BG (Stitches) -> Grid -> Reference Over -> UI (Interaction) */
         canvas { 
             position: absolute; 
             image-rendering: pixelated; /* Essential for sharp stitch edges */
             touch-action: none; 
             user-select: none;
         }
-        #bgLayer   { z-index: 1; } 
-        #gridLayer { z-index: 2; pointer-events: none; } /* Clicks pass through to UI layer */
-        #uiLayer   { z-index: 3; } 
+        #refLayer      { z-index: 0; } 
+        #bgLayer     { z-index: 1; } 
+        #gridLayer   { z-index: 2; pointer-events: none; } /* Clicks pass through to UI layer */
+        #refOverlayLayer { z-index: 3; } 
+        #uiLayer     { z-index: 4; } 
     </style>
 </head>
 <body>
     <div id="container">
+        <canvas id="refLayer" style="position: absolute; top: 0; left: 0; z-index: 0.5;"></canvas>
         <canvas id="bgLayer" style="position: absolute; top: 0; left: 0;"></canvas>
         <canvas id="gridLayer" style="position: absolute; top: 0; left: 0; pointer-events: none;"></canvas>
+        <canvas id="refOverlayLayer" style="position: absolute; top: 0; left: 0; z-index: 3.5;"></canvas>
         <canvas id="uiLayer" style="position: absolute; top: 0; left: 0;"></canvas>
     </div>
     <script type="module" src="core/canvasManager.js"></script>

@@ -27,6 +27,13 @@ export class EditorState {
         this.stampedMode = false;
         this.mappedRgbGrid = null;
         this.mappedDmcGrid = null;
+        this.showReference = false;
+        this.referenceImageData = null;
+        this.referenceImage = null;
+        this.referenceWidth = 0;
+        this.referenceHeight = 0;
+        this.referenceOpacity = 0.5;
+        this.referencePosition = 'under';
 
         this.history = []; 
         this.listeners = {};
@@ -243,5 +250,38 @@ export class EditorState {
         this.mappedRgbGrid = rgbGrid;
         this.mappedDmcGrid = dmcGrid;
         this.emit("mappingUpdated", { rgbGrid, dmcGrid });
+    }
+
+    setReferenceImage(imageData, width, height) {
+        this.referenceImageData = imageData;
+        this.referenceWidth = width;
+        this.referenceHeight = height;
+        if (this.renderer) {
+            this.renderer.setReferenceImage(imageData, width, height);
+        }
+    }
+
+    toggleReference(show) {
+        this.showReference = show;
+        if (this.renderer) {
+            this.renderer.toggleReference(show);
+        }
+        this.emit("referenceVisibilityChanged", show);
+    }
+
+    setReferenceOpacity(opacity) {
+        this.referenceOpacity = opacity;
+        if (this.renderer) {
+            this.renderer.setReferenceOpacity(opacity);
+        }
+        this.emit("referenceOpacityChanged", opacity);
+    }
+
+    setReferencePosition(pos) {
+        this.referencePosition = pos;
+        if (this.renderer) {
+            this.renderer.setReferencePosition(pos);
+        }
+        this.emit("referencePositionChanged", pos);
     }
 }

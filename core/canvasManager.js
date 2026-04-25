@@ -32,8 +32,10 @@ window.addEventListener('message', (e) => {
         case 'INIT':
             if (!state) {
                 const canvases = {
+                    ref: document.getElementById('refLayer'),
                     bg: document.getElementById('bgLayer'),
                     grid: document.getElementById('gridLayer'),
+                    refOverlay: document.getElementById('refOverlayLayer'),
                     ui: document.getElementById('uiLayer')
                 };
                 state = new EditorState(canvases);
@@ -100,6 +102,30 @@ window.addEventListener('message', (e) => {
                     shiftKey: payload.shiftKey, key: payload.key,
                     preventDefault: () => { }
                 });
+            }
+            break;
+
+        case 'SET_REFERENCE_IMAGE':
+            if (state && payload) {
+                state.setReferenceImage(payload.imageData, payload.width, payload.height);
+            }
+            break;
+
+        case 'TOGGLE_REFERENCE':
+            if (state) {
+                state.toggleReference(payload);
+            }
+            break;
+
+        case 'SET_REFERENCE_OPACITY':
+            if (state) {
+                state.setReferenceOpacity(payload);
+            }
+            break;
+
+        case 'SET_REFERENCE_POSITION':
+            if (state) {
+                state.setReferencePosition(payload);
             }
             break;
     }
