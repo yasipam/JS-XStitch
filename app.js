@@ -2726,6 +2726,15 @@ function resetUIControls() {
 // -----------------------------------------------------------------------------
 window.addEventListener("load", () => {
     state = new EditorState(null);
+
+    // Update color preview when color changes
+    state.on("colorChanged", (rgb) => {
+        const colorPreview = document.getElementById('currentColorPreview');
+        if (colorPreview) {
+            colorPreview.style.backgroundColor = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+        }
+    });
+
     const canvasFrame = document.getElementById('canvasFrame');
 
     const initializeCanvas = () => {
