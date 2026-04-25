@@ -149,5 +149,12 @@ window.addEventListener('message', (e) => {
                 state.mappedDmcGrid = payload;
             }
             break;
+
+        case 'FLOOD_FILL':
+            if (state && payload) {
+                const { gx, gy, rgb } = payload;
+                state.floodFill(gx, gy, rgb);
+            }
+            break;
     }
 });

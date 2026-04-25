@@ -13,6 +13,15 @@ export class EditorEvents {
         this.isPanning = false;
         this.renderPending = false;
 
+        // Right-click tracking for context menu
+        this.rightClickStartX = 0;
+        this.rightClickStartY = 0;
+        this.rightClickGx = -1;
+        this.rightClickGy = -1;
+        this.rightClickMoved = false;
+        this.rightClickPixelRgb = null;
+        this.PAN_THRESHOLD = 5; // pixels of movement before panning starts
+
         // Touch/Gesture Cache
         this.evCache = [];      // Stores active touch points
         this.prevDiff = -1;     // Stores distance between fingers for pinch
@@ -90,9 +99,25 @@ export class EditorEvents {
             this.lastPointerX = e.clientX;
             this.lastPointerY = e.clientY;
         } else if (e.button === 2) {
-            // Right Click -> Panning Mode
-            this.isPanning = true;
-            this.isPointerDown = false;
+            // Right Click -> Start tracking for context menu
+            // Don't start panning yet - wait to see if user drags
+            this.rightClickStartX = e.clientX;
+            this.rightClickStartY = e.clientY;
+            this.rightClickMoved = false;
+            
+            // Get the grid coordinates under the cursor
+            const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
+            this.rightClickGx = gx;
+            this.rightClickGy = gy;
+            
+            // Get the pixel color at this location
+            if (gx >= 0 && gy >= 0 && gx < this.state.pixelGrid.width && gy < this.state.pixelGrid.height) {
+                this.rightClickPixelRgb = this.state.pixelGrid.grid[gy][gx];
+            } else {
+                this.rightClickPixelRgb = null;
+            }
+            
+            // Track last position for pan detection
             this.lastPointerX = e.clientX;
             this.lastPointerY = e.clientY;
         } else {
@@ -113,6 +138,21 @@ export class EditorEvents {
         // Update pointer in gesture cache
         const index = this.evCache.findIndex(p => p.pointerId === e.pointerId);
         if (index !== -1) this.evCache[index] = e;
+
+        // Check if right-click has moved enough to trigger panning
+        if (!this.isPanning && this.rightClickGx >= 0) {
+            const dx = e.clientX - this.rightClickStartX;
+            const dy = e.clientY - this.rightClickStartY;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distance > this.PAN_THRESHOLD) {
+                // User is dragging - start panning mode
+                this.rightClickMoved = true;
+                this.isPanning = true;
+                this.lastPointerX = this.rightClickStartX;
+                this.lastPointerY = this.rightClickStartY;
+            }
+        }
 
         // Handle hover detection (when not drawing or panning)
         if (!this.isPointerDown && !this.isPanning && this.evCache.length < 2) {
@@ -219,8 +259,41 @@ export class EditorEvents {
             this.lastMidY = undefined;
         }
 
+        // Handle right-click release - show context menu if didn't drag
+        if (e.button === 2 && !this.rightClickMoved && this.rightClickGx >= 0) {
+            // Check if valid grid position and state is ready
+            if (this.rightClickGx >= 0 && this.rightClickGy >= 0 &&
+                this.state.pixelGrid &&
+                this.rightClickGx < this.state.pixelGrid.width && 
+                this.rightClickGy < this.state.pixelGrid.height) {
+                
+                // Send context menu request to parent
+                window.parent.postMessage({
+                    type: 'CONTEXT_MENU',
+                    payload: {
+                        gx: this.rightClickGx,
+                        gy: this.rightClickGy,
+                        rgb: this.rightClickPixelRgb,
+                        clientX: e.clientX,
+                        clientY: e.clientY
+                    }
+                }, '*');
+            }
+            
+            // Reset tracking
+            this.rightClickGx = -1;
+            this.rightClickGy = -1;
+            this.rightClickPixelRgb = null;
+            return;
+        }
+
         if (e.button === 2 || this.evCache.length === 0) {
             this.isPanning = false;
+            // Reset right-click tracking
+            this.rightClickGx = -1;
+            this.rightClickGy = -1;
+            this.rightClickMoved = false;
+            this.rightClickPixelRgb = null;
         }
 
         if (this.isPointerDown && this.evCache.length === 0) {

@@ -28,6 +28,9 @@
             <button id="oxsImportBtn" title="Import OXS File">📥 Import OXS</button>
             <button id="clearAllBtn" title="Clear All (Ctrl+Shift+X)">🗑️ Clear All</button>
             <button id="resetOriginalBtn" title="Reset to Original Upload">↩️ Reset to Original</button>
+            <div id="currentColorContainer" title="Current Color">
+                <div id="currentColorPreview" style="background-color: rgb(0,0,0);"></div>
+            </div>
             <button id="pencilBtn" class="active">
                 <span class="tool-label">Pencil</span> <span class="tool-size">1×1</span> ▼
                 <div class="tool-dropdown">
@@ -337,5 +340,15 @@
             </footer>
 
     <script type="module" src="app.js"></script>
+
+    <div id="contextMenu" class="context-menu">
+        <div class="context-menu-item" id="ctxPickColor">
+            <span class="ctx-color-preview"></span>
+            <span>Pick Color</span>
+        </div>
+        <div class="context-menu-item" id="ctxFill">
+            <span>Fill with Current Color</span>
+        </div>
+    </div>
 </body>
 </html>

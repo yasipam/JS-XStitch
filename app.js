@@ -2796,6 +2796,11 @@ window.addEventListener("load", () => {
             return;
         }
 
+        if (type === 'CONTEXT_MENU') {
+            showContextMenu(payload);
+            return;
+        }
+
         if (type === 'SYNC_GRID_TO_PARENT') {
             // In stamped mode the canvas shows stamped colors — never overwrite the true RGB grid
             if (!mappingConfig.stampedMode) {
@@ -2877,7 +2882,115 @@ window.addEventListener("load", () => {
         }
     });
 
+    // -------------------------------------------------------------------------
+    // CONTEXT MENU
+    // -------------------------------------------------------------------------
+    let currentContextMenuPos = null;
+
+    function showContextMenu(payload) {
+        const { gx, gy, rgb, clientX, clientY } = payload;
+        const menu = document.getElementById('contextMenu');
+        if (!menu) return;
+
+        // Store position for menu actions
+        currentContextMenuPos = { gx, gy, rgb };
+
+        // Update color preview in "Pick Color" option
+        const colorPreview = menu.querySelector('.ctx-color-preview');
+        if (colorPreview && rgb) {
+            colorPreview.style.backgroundColor = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+        }
+
+        // Position menu at cursor - convert from iframe coordinates to parent page coordinates
+        const canvasFrame = document.getElementById('canvasFrame');
+        const frameRect = canvasFrame ? canvasFrame.getBoundingClientRect() : { left: 0, top: 0 };
+        let x = clientX + frameRect.left;
+        let y = clientY + frameRect.top;
+
+        // Adjust if menu would go off screen
+        const menuRect = menu.getBoundingClientRect();
+        if (x + 180 > window.innerWidth) {
+            x = window.innerWidth - 190;
+        }
+        if (y + 80 > window.innerHeight) {
+            y = window.innerHeight - 90;
+        }
+
+        menu.style.left = x + 'px';
+        menu.style.top = y + 'px';
+        menu.classList.add('visible');
+
+        // If clicking elsewhere, close menu
+        const closeMenu = () => closeContextMenu();
+        setTimeout(() => document.addEventListener('click', closeMenu), 0);
+    }
+
+    function closeContextMenu() {
+        const menu = document.getElementById('contextMenu');
+        if (menu) menu.classList.remove('visible');
+        currentContextMenuPos = null;
+    }
+
+    function handlePickColor() {
+        if (!currentContextMenuPos || !currentContextMenuPos.rgb) return;
+        
+        // Set the active color to the clicked pixel's color
+        state.setColor(currentContextMenuPos.rgb);
+        
+        // Update UI to reflect new color
+        const rgb = currentContextMenuPos.rgb;
+        const colorPreview = document.getElementById('currentColorPreview');
+        if (colorPreview) {
+            colorPreview.style.backgroundColor = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+        }
+
+        // Deselect all palette swatches
+        document.querySelectorAll('.palette-swatch').forEach(s => s.classList.remove('selected'));
+        
+        // Also sync to canvas
+        sendToCanvas('SET_COLOR', rgb);
+
+        // Close the menu
+        closeContextMenu();
+    }
+
+    function handleFillWithColor() {
+        if (!currentContextMenuPos || currentContextMenuPos.gx === undefined || currentContextMenuPos.gx < 0) return;
+
+        // Send flood fill command to canvas iframe
+        sendToCanvas('FLOOD_FILL', {
+            gx: currentContextMenuPos.gx,
+            gy: currentContextMenuPos.gy,
+            rgb: state.activeColor
+        });
+
+        // Close the menu
+        closeContextMenu();
+    }
+
+    // Bind context menu actions
+    document.getElementById('ctxPickColor')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        handlePickColor();
+    });
+
+    document.getElementById('ctxFill')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        handleFillWithColor();
+    });
+
+    // Close context menu on Escape
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeContextMenu();
+        }
+    });
+
     renderPalette([]);
+    const initColorPreview = document.getElementById('currentColorPreview');
+    if (initColorPreview) {
+        initColorPreview.style.backgroundColor = 'rgb(0,0,0)';
+    }
     state.setColor([0, 0, 0]);
 
     // Initialize with empty canvas
