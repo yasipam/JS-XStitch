@@ -33,7 +33,7 @@ export class EditorState {
         this.referenceImage = null;
         this.referenceWidth = 0;
         this.referenceHeight = 0;
-        this.referenceOpacity = 0.5;
+        this.referenceOpacity = 0;
         this.referencePosition = 'over';
         this.toolSizes = { pencil: 1, eraser: 1, fill: 1, picker: 1 };
 

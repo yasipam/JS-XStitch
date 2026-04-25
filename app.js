@@ -761,9 +761,9 @@ function setupUpload() {
 
                 const refOpacity = document.getElementById("referenceOpacity");
                 const refOpacityVal = document.getElementById("referenceOpacityVal");
-                if (refOpacity) refOpacity.value = 50;
-                if (refOpacityVal) refOpacityVal.textContent = "50%";
-                sendToCanvas('SET_REFERENCE_OPACITY', 0.5);
+                if (refOpacity) refOpacity.value = 0;
+                if (refOpacityVal) refOpacityVal.textContent = "0%";
+                sendToCanvas('SET_REFERENCE_OPACITY', 0);
                 sendToCanvas('TOGGLE_REFERENCE', true);
 
                 const pixelArtToggle = document.getElementById("pixelArtMode");
@@ -973,9 +973,9 @@ function createEmptyCanvas(width, height) {
     bgRemoved = false;
     const refOpacity = document.getElementById("referenceOpacity");
     const refOpacityVal = document.getElementById("referenceOpacityVal");
-    if (refOpacity) refOpacity.value = 50;
-    if (refOpacityVal) refOpacityVal.textContent = "50%";
-    sendToCanvas('SET_REFERENCE_OPACITY', 0.5);
+    if (refOpacity) refOpacity.value = 0;
+    if (refOpacityVal) refOpacityVal.textContent = "0%";
+    sendToCanvas('SET_REFERENCE_OPACITY', 0);
     sendToCanvas('TOGGLE_REFERENCE', true);
 
     // Reset UI elements to defaults (without disabling controls)
@@ -1768,9 +1768,9 @@ function setupEditHistory() {
 
                 const refOpacity = document.getElementById("referenceOpacity");
                 const refOpacityVal = document.getElementById("referenceOpacityVal");
-                if (refOpacity) refOpacity.value = 50;
-                if (refOpacityVal) refOpacityVal.textContent = "50%";
-                sendToCanvas('SET_REFERENCE_OPACITY', 0.5);
+                if (refOpacity) refOpacity.value = 0;
+                if (refOpacityVal) refOpacityVal.textContent = "0%";
+                sendToCanvas('SET_REFERENCE_OPACITY', 0);
                 sendToCanvas('TOGGLE_REFERENCE', true);
             }
         };
