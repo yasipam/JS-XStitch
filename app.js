@@ -759,14 +759,12 @@ function setupUpload() {
 
                 resetUIControls();
 
-                const refVisible = document.getElementById("referenceVisible");
                 const refOpacity = document.getElementById("referenceOpacity");
                 const refOpacityVal = document.getElementById("referenceOpacityVal");
-                if (refVisible) refVisible.checked = false;
                 if (refOpacity) refOpacity.value = 50;
                 if (refOpacityVal) refOpacityVal.textContent = "50%";
-                sendToCanvas('TOGGLE_REFERENCE', false);
                 sendToCanvas('SET_REFERENCE_OPACITY', 0.5);
+                sendToCanvas('TOGGLE_REFERENCE', true);
 
                 const pixelArtToggle = document.getElementById("pixelArtMode");
                 if (pixelArtToggle) {
@@ -781,8 +779,15 @@ function setupUpload() {
 
                 setMappingControlsEnabled(true, false);
 
+                bgRemoved = false;
                 const removeBgBtn = document.getElementById("removeBgBtn");
-                if (removeBgBtn) removeBgBtn.style.display = "inline-block";
+                const bgRemoveStatus = document.getElementById("bgRemoveStatus");
+                if (removeBgBtn) {
+                    removeBgBtn.disabled = false;
+                    removeBgBtn.style.opacity = '1';
+                    removeBgBtn.style.display = "inline-block";
+                }
+                if (bgRemoveStatus) bgRemoveStatus.style.display = "none";
 
                 state.clear();
                 userEditDiff.clear();
@@ -965,14 +970,13 @@ function createEmptyCanvas(width, height) {
     if (removeBgBtn) removeBgBtn.style.display = "none";
     if (bgRemoveStatus) bgRemoveStatus.style.display = "none";
 
-    const refVisible = document.getElementById("referenceVisible");
+    bgRemoved = false;
     const refOpacity = document.getElementById("referenceOpacity");
     const refOpacityVal = document.getElementById("referenceOpacityVal");
-    if (refVisible) refVisible.checked = false;
     if (refOpacity) refOpacity.value = 50;
     if (refOpacityVal) refOpacityVal.textContent = "50%";
-    sendToCanvas('TOGGLE_REFERENCE', false);
     sendToCanvas('SET_REFERENCE_OPACITY', 0.5);
+    sendToCanvas('TOGGLE_REFERENCE', true);
 
     // Reset UI elements to defaults (without disabling controls)
     const pixelArtToggle = document.getElementById("pixelArtMode");
@@ -1762,14 +1766,12 @@ function setupEditHistory() {
                 }
                 if (bgRemoveStatus) bgRemoveStatus.style.display = "none";
 
-                const refVisible = document.getElementById("referenceVisible");
                 const refOpacity = document.getElementById("referenceOpacity");
                 const refOpacityVal = document.getElementById("referenceOpacityVal");
-                if (refVisible) refVisible.checked = false;
                 if (refOpacity) refOpacity.value = 50;
                 if (refOpacityVal) refOpacityVal.textContent = "50%";
-                sendToCanvas('TOGGLE_REFERENCE', false);
                 sendToCanvas('SET_REFERENCE_OPACITY', 0.5);
+                sendToCanvas('TOGGLE_REFERENCE', true);
             }
         };
     }
@@ -2614,7 +2616,6 @@ function setupZoomButtons() {
 function setupReferenceButton() {
     const btn = document.getElementById("referenceBtn");
     const dropdown = document.getElementById("referenceDropdown");
-    const visibleCheckbox = document.getElementById("referenceVisible");
     const opacitySlider = document.getElementById("referenceOpacity");
     const opacityVal = document.getElementById("referenceOpacityVal");
 
@@ -2631,11 +2632,6 @@ function setupReferenceButton() {
         }
     });
 
-    visibleCheckbox.onchange = () => {
-        const visible = visibleCheckbox.checked;
-        sendToCanvas('TOGGLE_REFERENCE', visible);
-    };
-
     opacitySlider.oninput = () => {
         const opacity = parseInt(opacitySlider.value) / 100;
         opacityVal.textContent = opacitySlider.value + "%";
@@ -2643,12 +2639,6 @@ function setupReferenceButton() {
     };
 
     sendToCanvas('SET_REFERENCE_POSITION', 'over');
-
-    if (state) {
-        state.on("referenceVisibilityChanged", (visible) => {
-            visibleCheckbox.checked = visible;
-        });
-    }
 
     function updateReferenceImage() {
         const imgToUse = bgRemoved ? currentImage : referenceImage;
