@@ -1341,6 +1341,13 @@ function applyOxsPostProcessingWithUndo(control, value, prevValue = null) {
             loadedOxsPalette[code] = { name: entry.name, rgb: [...entry.rgb] };
         });
         
+        // Apply user edits on top of restored baseline
+        if (userEditDiff.size > 0) {
+            state.mappedDmcGrid = patchDmcGrid(state.mappedDmcGrid, userEditDiff, 'cie76');
+            rebuildRgbFromDmc();
+            sendToCanvas('SET_DMC_GRID', state.mappedDmcGrid);
+        }
+        
         // Update canvas
         sendToCanvas('UPDATE_GRID', state.mappedRgbGrid);
         updateThreadsTableFromGrid();
@@ -1354,6 +1361,13 @@ function applyOxsPostProcessingWithUndo(control, value, prevValue = null) {
     // Apply the operation (non-zero value)
     console.log(`Applying ${control} with value ${value}`);
     applyOxsPostProcessing(control);
+    
+    // Apply user edits on top of post-processed result
+    if (userEditDiff.size > 0) {
+        state.mappedDmcGrid = patchDmcGrid(state.mappedDmcGrid, userEditDiff, 'cie76');
+        rebuildRgbFromDmc();
+        sendToCanvas('SET_DMC_GRID', state.mappedDmcGrid);
+    }
 }
 
 function rebuildRgbFromDmc() {
@@ -1860,7 +1874,10 @@ function setupMappingControls() {
             if (minOccurrenceInput) minOccurrenceInput.value = 1;
 
             const reduceIsolatedStitchesToggle = document.getElementById("reduceIsolatedStitches");
-            if (reduceIsolatedStitchesToggle) reduceIsolatedStitchesToggle.checked = false;
+            // Handle old checkbox (if exists) or new buttons don't need UI update
+            if (reduceIsolatedStitchesToggle) {
+                reduceIsolatedStitchesToggle.checked = false;
+            }
 
             const antiNoiseSlider = document.getElementById("antiNoise");
             const antiNoiseVal = document.getElementById("antiNoiseVal");
@@ -2319,40 +2336,47 @@ function setupMappingControls() {
         };
     }
 
-    const reduceIsolatedStitchesToggle = document.getElementById("reduceIsolatedStitches");
-    if (reduceIsolatedStitchesToggle) {
-        reduceIsolatedStitchesToggle.checked = mappingConfig.reduceIsolatedStitches;
+    const applyIsolatedStitchesBtn = document.getElementById("applyIsolatedStitches");
 
-        reduceIsolatedStitchesToggle.onchange = () => {
-            const isOn = reduceIsolatedStitchesToggle.checked;
-            mappingConfig.reduceIsolatedStitches = isOn;
-
+    // Apply Isolated Stitch Reduction - run one pass
+    if (applyIsolatedStitchesBtn) {
+        applyIsolatedStitchesBtn.onclick = () => {
+            // Save canvas state before making changes for undo
+            sendToCanvas('CMD_SAVE_UNDO');
+            
             if (isOxsLoaded) {
-                console.log(`OXS reduceIsolatedStitches toggled to ${isOn}`);
-                applyOxsPostProcessingWithUndo('reduceIsolatedStitches', isOn ? 1 : 0);
-            } else if (isOn) {
-                // ON: Run full pipeline (filtering + enforcement applied in runMapping)
-                runMapping();
-            } else {
-                // OFF: Restore from PRE-filtering baseline directly
-                if (lastBaselineDmcGrid && lastBaselineGrid) {
-                    const restoredDmc = lastBaselineDmcGrid.map(row => row.slice());
-                    const restoredRgb = lastBaselineGrid.map(row => row.slice());
-
-                    lastBaselineDmcGrid = restoredDmc;
-                    lastBaselineGrid = restoredRgb;
-                    state.mappedDmcGrid = restoredDmc;
-                    state.mappedRgbGrid = restoredRgb;
-                    state.setMappingResults(restoredRgb, restoredDmc);
-
-                    const displayGrid = mappingConfig.stampedMode
-                        ? buildStampedRgbGrid(restoredDmc)
-                        : restoredRgb;
-                    sendToCanvas('UPDATE_GRID', displayGrid);
-                    updateSidebarFromState();
-                } else {
-                    runMapping();
+                console.log("OXS apply isolated stitch reduction");
+                applyOxsPostProcessing('reduceIsolatedStitches');
+                if (userEditDiff.size > 0) {
+                    state.mappedDmcGrid = patchDmcGrid(state.mappedDmcGrid, userEditDiff, 'cie76');
+                    rebuildRgbFromDmc();
+                    sendToCanvas('SET_DMC_GRID', state.mappedDmcGrid);
                 }
+                sendToCanvas('UPDATE_GRID', state.mappedRgbGrid);
+                updateThreadsTableFromGrid();
+                updatePaletteAfterPostProcess();
+            } else {
+                // Run isolated stitch reduction directly on current grid (normal image)
+                console.log("Apply isolated stitch reduction");
+                const currentDmc = state.mappedDmcGrid;
+                const currentRgb = state.mappedRgbGrid;
+                const reducedDmc = removeIsolatedStitches(currentDmc, currentRgb);
+                const reducedRgb = reducedDmc.map(row => row.map(c => getRgbFromCode(c)));
+
+                state.mappedDmcGrid = reducedDmc;
+                state.mappedRgbGrid = reducedRgb;
+                state.setMappingResults(reducedRgb, reducedDmc);
+
+                if (userEditDiff.size > 0) {
+                    const patchedDmc = patchDmcGrid(reducedDmc, userEditDiff, mappingConfig.distanceMethod);
+                    state.mappedDmcGrid = patchedDmc;
+                    state.mappedRgbGrid = patchedDmc.map(row => row.map(c => getRgbFromCode(c)));
+                    state.setMappingResults(state.mappedRgbGrid, patchedDmc);
+                }
+
+                sendToCanvas('SET_DMC_GRID', state.mappedDmcGrid);
+                sendToCanvas('UPDATE_GRID', state.mappedRgbGrid);
+                updateSidebarFromState();
             }
         };
     }

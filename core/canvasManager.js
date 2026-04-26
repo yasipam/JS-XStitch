@@ -87,6 +87,7 @@ window.addEventListener('message', (e) => {
 
         case 'CMD_UNDO': if (state) state.undo(); break;
         case 'CMD_REDO': if (state) state.redo(); break;
+        case 'CMD_SAVE_UNDO': if (state) state.pixelGrid.pushUndo(); break;
         case 'CMD_CLEAR': if (state) state.clearCanvasAction(); break;
         case 'SET_TOOL': if (state) state.setTool(payload); break;
         case 'SET_COLOR': if (state) state.setColor(payload); break;
