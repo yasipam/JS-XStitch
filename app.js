@@ -3641,7 +3641,41 @@ window.addEventListener("load", () => {
         replaceColorToCode = null;
     }
 
+    // -------------------------------------------------------------------------
+    // REPLACE COLOR
+    // -------------------------------------------------------------------------
+    
+    function rebuildRgbGridFromDmc(dmcGrid) {
+        if (!dmcGrid) return null;
+        
+        const h = dmcGrid.length;
+        const w = dmcGrid[0]?.length || 0;
+        const rgbGrid = Array.from({ length: h }, () => 
+            Array.from({ length: w }, () => [255, 255, 255])
+        );
+        
+        const dmcToRgb = {};
+        DMC_RGB.forEach(([code, , rgb]) => { dmcToRgb[String(code)] = rgb; });
+        
+        for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+                const code = String(dmcGrid[y][x]);
+                if (code !== "0" && dmcToRgb[code]) {
+                    rgbGrid[y][x] = [...dmcToRgb[code]];
+                }
+            }
+        }
+        return rgbGrid;
+    }
+
     function executeReplaceColor() {
+        console.log('[DEBUG] executeReplaceColor called', {
+            replaceColorFromCode,
+            replaceColorToCode,
+            replaceColorFromRgb,
+            replaceColorToRgb
+        });
+        
         if (!replaceColorFromCode || !replaceColorToCode) return;
 
         const dmcGrid = state.mappedDmcGrid;
@@ -3651,8 +3685,17 @@ window.addEventListener("load", () => {
             row.map(code => String(code) === replaceColorFromCode ? replaceColorToCode : code)
         );
 
+        console.log('[DEBUG] New DMC grid created, rebuilding RGB grid...');
+        
         state.mappedDmcGrid = newDmcGrid;
+        
+        // Rebuild RGB grid from DMC grid and send to canvas
+        const newRgbGrid = rebuildRgbGridFromDmc(newDmcGrid);
+        console.log('[DEBUG] Rebuild RGB grid:', { newRgbGrid: newRgbGrid ? `${newRgbGrid.length}x${newRgbGrid[0]?.length}` : 'null' });
+        
+        state.mappedRgbGrid = newRgbGrid;
         sendToCanvas('SET_DMC_GRID', newDmcGrid);
+        sendToCanvas('SET_RGB_GRID', newRgbGrid);
 
         updateThreadsTableFromGrid();
         renderPalette(getUsedDmcCodes());
