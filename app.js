@@ -3067,8 +3067,11 @@ function updateDmcHoverTooltip(payload) {
 
     // Set swatch color if rgb provided
     if (rgb && Array.isArray(rgb)) {
+        // Clear background override and set backgroundColor for actual color
+        swatchEl.style.background = 'none';
         swatchEl.style.backgroundColor = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
     } else {
+        swatchEl.style.background = 'none';
         swatchEl.style.backgroundColor = '#ccc';
     }
 
