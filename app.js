@@ -3458,12 +3458,218 @@ window.addEventListener("load", () => {
         handleFillWithColor();
     });
 
+    // Replace Color state
+    let replaceColorFromRgb = null;
+    let replaceColorFromCode = null;
+    let replaceColorToRgb = null;
+    let replaceColorToCode = null;
+
+    function openReplaceColorDialog() {
+        if (!currentContextMenuPos || !currentContextMenuPos.rgb) {
+            closeContextMenu();
+            return;
+        }
+
+        replaceColorFromRgb = currentContextMenuPos.rgb;
+        replaceColorToRgb = null;
+        replaceColorToCode = null;
+
+        // Find the DMC code for the "from" color
+        const distFn = getDistanceFunction('cie76');
+        const dmcEntry = nearestDmcColor(replaceColorFromRgb, distFn, getDmcLabCache(false), DMC_RGB);
+        replaceColorFromCode = dmcEntry ? String(dmcEntry[0]) : null;
+
+        // Update dialog UI
+        const fromSwatch = document.getElementById('replaceFromSwatch');
+        const fromInfo = document.getElementById('replaceFromInfo');
+        if (fromSwatch) {
+            fromSwatch.style.backgroundColor = `rgb(${replaceColorFromRgb[0]}, ${replaceColorFromRgb[1]}, ${replaceColorFromRgb[2]})`;
+        }
+        if (fromInfo) {
+            fromInfo.textContent = dmcEntry ? `DMC ${dmcEntry[0]}` : 'Custom';
+        }
+
+        const toSwatch = document.getElementById('replaceToSwatch');
+        const toInfo = document.getElementById('replaceToInfo');
+        if (toSwatch) toSwatch.style.backgroundColor = '#eee';
+        if (toInfo) toInfo.textContent = 'Select a DMC color';
+
+        updateReplaceCount();
+        renderReplacePalette();
+
+        closeContextMenu();
+
+        const overlay = document.getElementById('replaceColorOverlay');
+        if (overlay) overlay.style.display = 'flex';
+    }
+
+    function renderReplacePalette() {
+        const container = document.getElementById('replacePalette');
+        if (!container) return;
+
+        container.innerHTML = '';
+        const usedCodes = getUsedDmcCodes();
+        const usedSet = new Set(usedCodes);
+
+        const usedColors = [];
+        const unusedColors = [];
+
+        DMC_RGB.forEach(([code, name, rgb]) => {
+            if (usedSet.has(String(code))) {
+                usedColors.push([code, name, rgb]);
+            } else {
+                unusedColors.push([code, name, rgb]);
+            }
+        });
+
+        usedColors.sort((a, b) => Number(a[0]) - Number(b[0]));
+        unusedColors.sort((a, b) => Number(a[0]) - Number(b[0]));
+
+        const createRow = (code, name, rgb, isUsed) => {
+            const row = document.createElement('div');
+            row.className = 'palette-row';
+            row.dataset.code = code;
+            const rgbStr = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+            row.innerHTML = `
+                <div class="swatch" style="background-color: ${rgbStr}"></div>
+                <div class="palette-info">
+                    <strong>${code}</strong> <span>${name}</span>
+                    ${isUsed ? '<span class="star">★</span>' : ''}
+                </div>
+            `;
+            row.onclick = () => selectReplaceColor(code, rgb);
+            return row;
+        };
+
+        if (usedColors.length > 0) {
+            const header = document.createElement('div');
+            header.className = 'palette-section-header';
+            header.textContent = 'IN USE';
+            header.style.padding = '6px 10px';
+            header.style.fontSize = '0.7rem';
+            container.appendChild(header);
+            usedColors.forEach(([code, name, rgb]) => container.appendChild(createRow(code, name, rgb, true)));
+        }
+
+        if (unusedColors.length > 0) {
+            if (usedColors.length > 0) {
+                const header = document.createElement('div');
+                header.className = 'palette-section-header';
+                header.textContent = 'NOT IN USE';
+                header.style.padding = '6px 10px';
+                header.style.fontSize = '0.7rem';
+                container.appendChild(header);
+            }
+            unusedColors.forEach(([code, name, rgb]) => container.appendChild(createRow(code, name, rgb, false)));
+        }
+    }
+
+    function selectReplaceColor(code, rgb) {
+        replaceColorToCode = String(code);
+        replaceColorToRgb = rgb;
+
+        const toSwatch = document.getElementById('replaceToSwatch');
+        const toInfo = document.getElementById('replaceToInfo');
+        if (toSwatch) toSwatch.style.backgroundColor = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+        if (toInfo) toInfo.textContent = `DMC ${code}`;
+
+        // Highlight selected row
+        document.querySelectorAll('#replacePalette .palette-row').forEach(r => r.classList.remove('selected'));
+        document.querySelector(`#replacePalette .palette-row[data-code="${code}"]`)?.classList.add('selected');
+
+        updateReplaceCount();
+    }
+
+    function getUsedDmcCodes() {
+        const dmcGrid = state.mappedDmcGrid;
+        if (!dmcGrid || dmcGrid.length === 0) return [];
+        const codes = new Set();
+        dmcGrid.forEach(row => row.forEach(code => {
+            if (code !== '0') codes.add(String(code));
+        }));
+        return Array.from(codes);
+    }
+
+    function countPixelsOfColor(dmcGrid, targetCode) {
+        if (!dmcGrid) return 0;
+        let count = 0;
+        dmcGrid.forEach(row => row.forEach(code => {
+            if (String(code) === String(targetCode)) count++;
+        }));
+        return count;
+    }
+
+    function updateReplaceCount() {
+        const countEl = document.getElementById('replaceCountInfo');
+        const confirmBtn = document.getElementById('replaceColorConfirm');
+        if (!countEl || !confirmBtn) return;
+
+        if (!replaceColorFromCode || !replaceColorToCode) {
+            countEl.textContent = 'Select a color to replace with';
+            confirmBtn.disabled = true;
+            return;
+        }
+
+        if (replaceColorFromCode === replaceColorToCode) {
+            countEl.textContent = 'Same color selected - no changes';
+            confirmBtn.disabled = true;
+            return;
+        }
+
+        const count = countPixelsOfColor(state.mappedDmcGrid, replaceColorFromCode);
+        countEl.textContent = `${count} pixel${count !== 1 ? 's' : ''} will be changed`;
+        confirmBtn.disabled = count === 0;
+    }
+
+    function closeReplaceColorDialog() {
+        const overlay = document.getElementById('replaceColorOverlay');
+        if (overlay) overlay.style.display = 'none';
+        replaceColorFromRgb = null;
+        replaceColorFromCode = null;
+        replaceColorToRgb = null;
+        replaceColorToCode = null;
+    }
+
+    function executeReplaceColor() {
+        if (!replaceColorFromCode || !replaceColorToCode) return;
+
+        const dmcGrid = state.mappedDmcGrid;
+        if (!dmcGrid) return;
+
+        const newDmcGrid = dmcGrid.map(row =>
+            row.map(code => String(code) === replaceColorFromCode ? replaceColorToCode : code)
+        );
+
+        state.mappedDmcGrid = newDmcGrid;
+        sendToCanvas('SET_DMC_GRID', newDmcGrid);
+
+        updateThreadsTableFromGrid();
+        renderPalette(getUsedDmcCodes());
+        closeReplaceColorDialog();
+    }
+
+    // Bind Replace Color menu item
+    document.getElementById('ctxReplaceColor')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openReplaceColorDialog();
+    });
+
+    // Bind Replace Color dialog buttons
+    document.getElementById('replaceColorClose')?.addEventListener('click', closeReplaceColorDialog);
+    document.getElementById('replaceColorCancel')?.addEventListener('click', closeReplaceColorDialog);
+    document.getElementById('replaceColorConfirm')?.addEventListener('click', executeReplaceColor);
+
     // Close context menu on Escape (unless crop overlay is open)
     window.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             const cropOverlay = document.getElementById('cropOverlay');
             if (cropOverlay && cropOverlay.style.display !== 'none') {
                 document.getElementById('cropCancelBtn').click();
+                return;
+            }
+            const replaceOverlay = document.getElementById('replaceColorOverlay');
+            if (replaceOverlay && replaceOverlay.style.display !== 'none') {
+                closeReplaceColorDialog();
                 return;
             }
             closeContextMenu();

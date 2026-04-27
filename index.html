@@ -395,6 +395,40 @@
         <div class="context-menu-item" id="ctxFill">
             <span>Fill with Current Color</span>
         </div>
+        <div class="context-menu-item" id="ctxReplaceColor">
+            <span class="ctx-color-preview"></span>
+            <span>Replace Color…</span>
+        </div>
+    </div>
+
+    <div id="replaceColorOverlay" class="replace-overlay" style="display: none;">
+        <div class="replace-panel">
+            <div class="replace-header">
+                <h3>Replace Color</h3>
+                <button id="replaceColorClose" class="replace-close">&times;</button>
+            </div>
+            <div class="replace-content">
+                <div class="replace-colors">
+                    <div class="replace-from">
+                        <label>From</label>
+                        <div class="replace-swatch" id="replaceFromSwatch"></div>
+                        <div class="replace-info" id="replaceFromInfo">—</div>
+                    </div>
+                    <div class="replace-arrow">→</div>
+                    <div class="replace-to">
+                        <label>To</label>
+                        <div class="replace-swatch" id="replaceToSwatch"></div>
+                        <div class="replace-info" id="replaceToInfo">Select a DMC color</div>
+                    </div>
+                </div>
+                <div class="replace-count" id="replaceCountInfo">0 pixels will be changed</div>
+                <div class="replace-palette" id="replacePalette"></div>
+            </div>
+            <div class="replace-footer">
+                <button id="replaceColorCancel" class="btn-secondary">Cancel</button>
+                <button id="replaceColorConfirm" class="btn-primary" disabled>Replace</button>
+            </div>
+        </div>
     </div>
 </body>
 </html>
