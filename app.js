@@ -1862,24 +1862,67 @@ function updateThreadsTableFromGrid() {
 
 function setupToolButtons() {
     const tools = ["pencil", "eraser", "fill", "picker", "crop"];
+    const dropdownTools = ["pencil", "eraser"];
+    let pressTimer = null;
+    let isLongPress = false;
+
+    const startLongPress = (btn, e) => {
+        const dropdown = btn.querySelector('.tool-dropdown');
+        if (!dropdown) return;
+        isLongPress = false;
+        pressTimer = setTimeout(() => {
+            isLongPress = true;
+            document.querySelectorAll('.tool-dropdown.open').forEach(d => {
+                if (d !== dropdown) d.classList.remove('open');
+            });
+            dropdown.classList.add('open');
+            e.stopPropagation();
+        }, 500);
+    };
+
+    const cancelLongPress = () => {
+        clearTimeout(pressTimer);
+        pressTimer = null;
+    };
+
     tools.forEach(id => {
         const btn = document.getElementById(id === "picker" ? "toolPicker" : id + "Btn");
         if (btn) {
+            btn.addEventListener('mousedown', (e) => {
+                if (dropdownTools.includes(id)) {
+                    startLongPress(btn, e);
+                }
+            });
+            btn.addEventListener('mouseup', () => {
+                if (dropdownTools.includes(id)) {
+                    cancelLongPress();
+                }
+            });
+            btn.addEventListener('mouseleave', () => {
+                if (dropdownTools.includes(id)) {
+                    cancelLongPress();
+                }
+            });
+            btn.addEventListener('touchstart', (e) => {
+                if (dropdownTools.includes(id)) {
+                    startLongPress(btn, e);
+                }
+            });
+            btn.addEventListener('touchend', () => {
+                if (dropdownTools.includes(id)) {
+                    cancelLongPress();
+                }
+            });
+
             btn.onclick = (e) => {
-                // Prevent tool switching if Stamped Mode is ON
                 if (mappingConfig.stampedMode) {
                     alert("Drawing tools are disabled in Stamped Mode. Turn off Stamped Mode to edit.");
                     return;
                 }
 
-                // Toggle dropdown for pencil/eraser
-                const dropdown = btn.querySelector('.tool-dropdown');
-                if (dropdown) {
-                    e.stopPropagation();
-                    document.querySelectorAll('.tool-dropdown.open').forEach(d => {
-                        if (d !== dropdown) d.classList.remove('open');
-                    });
-                    dropdown.classList.toggle('open');
+                if (isLongPress) {
+                    isLongPress = false;
+                    return;
                 }
 
                 state.setTool(id);
