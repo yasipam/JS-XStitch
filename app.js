@@ -3612,7 +3612,11 @@ window.addEventListener("load", () => {
             if (toSwatch) toSwatch.style.background = 'repeating-conic-gradient(#ccc 0% 25%, white 0% 50%) 50% / 16px 16px';
             if (toInfo) toInfo.textContent = 'Cloth (Transparent)';
         } else {
-            if (toSwatch) toSwatch.style.backgroundColor = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+            // Clear background override and set backgroundColor for actual DMC color
+            if (toSwatch) {
+                toSwatch.style.background = 'none';
+                toSwatch.style.backgroundColor = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+            }
             if (toInfo) toInfo.textContent = `DMC ${code}`;
         }
 
