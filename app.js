@@ -3503,7 +3503,7 @@ window.addEventListener("load", () => {
 
         const toSwatch = document.getElementById('replaceToSwatch');
         const toInfo = document.getElementById('replaceToInfo');
-        if (toSwatch) toSwatch.style.backgroundColor = '#eee';
+        if (toSwatch) toSwatch.style.background = 'repeating-conic-gradient(#ccc 0% 25%, white 0% 50%) 50% / 16px 16px';
         if (toInfo) toInfo.textContent = 'Select a DMC color';
 
         updateReplaceCount();
@@ -3520,6 +3520,20 @@ window.addEventListener("load", () => {
         if (!container) return;
 
         container.innerHTML = '';
+        
+        // Add "None (Cloth)" option at the top
+        const noneRow = document.createElement('div');
+        noneRow.className = 'palette-row none-option';
+        noneRow.dataset.code = '0';
+        noneRow.innerHTML = `
+            <div class="swatch" style="background: repeating-conic-gradient(#ccc 0% 25%, white 0% 50%) 50% / 16px 16px;"></div>
+            <div class="palette-info">
+                <strong>None</strong> <span>Cloth (Transparent)</span>
+            </div>
+        `;
+        noneRow.onclick = () => selectReplaceColor('0', [255, 255, 255]);
+        container.appendChild(noneRow);
+
         const usedCodes = getUsedDmcCodes();
         const usedSet = new Set(usedCodes);
 
@@ -3582,8 +3596,15 @@ window.addEventListener("load", () => {
 
         const toSwatch = document.getElementById('replaceToSwatch');
         const toInfo = document.getElementById('replaceToInfo');
-        if (toSwatch) toSwatch.style.backgroundColor = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
-        if (toInfo) toInfo.textContent = `DMC ${code}`;
+        
+        if (code === '0') {
+            // "None" selected - show transparent/checkered swatch
+            if (toSwatch) toSwatch.style.background = 'repeating-conic-gradient(#ccc 0% 25%, white 0% 50%) 50% / 16px 16px';
+            if (toInfo) toInfo.textContent = 'Cloth (Transparent)';
+        } else {
+            if (toSwatch) toSwatch.style.backgroundColor = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+            if (toInfo) toInfo.textContent = `DMC ${code}`;
+        }
 
         // Highlight selected row
         document.querySelectorAll('#replacePalette .palette-row').forEach(r => r.classList.remove('selected'));
