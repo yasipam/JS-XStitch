@@ -25,19 +25,31 @@
         <div id="topToolbar">
             <input type="file" id="upload" accept="image/*" style="display:none;">
             <input type="file" id="oxsUpload" accept=".oxs" style="display:none;">
-            <button id="newCanvasBtn" title="Create new empty canvas">📄 Blank Canvas</button>
-            <button id="uploadBtn" title="Upload Image">🖼️ Upload Image</button>
-            <button id="removeBgBtn" title="Remove Background" style="display:none;">✂️ Remove Background</button>
+            <button id="newCanvasBtn" title="Create new empty canvas">
+                <img src="assets/tool-icons/new-canvas.svg" class="tool-icon" alt="New Canvas">
+            </button>
+            <button id="uploadBtn" title="Upload Image">
+                <img src="assets/tool-icons/upload.svg" class="tool-icon" alt="Upload">
+            </button>
+            <button id="removeBgBtn" title="Remove Background" style="display:none;">
+                <img src="assets/tool-icons/cut.svg" class="tool-icon" alt="Remove Background">
+            </button>
             <span id="bgRemoveStatus" class="tool-status" style="display:none;"></span>
-            <button id="oxsImportBtn" title="Import OXS File">📥 Import OXS</button>
-            <button id="clearAllBtn" title="Clear All (Ctrl+Shift+X)">🗑️ Clear All</button>
-            <button id="resetOriginalBtn" title="Reset to Original Upload">↩️ Reset to Original</button>
+            <button id="oxsImportBtn" title="Import OXS File">
+                <img src="assets/tool-icons/download.svg" class="tool-icon" alt="Import">
+            </button>
+            <button id="clearAllBtn" title="Clear All (Ctrl+Shift+X)">
+                <img src="assets/tool-icons/trash.svg" class="tool-icon" alt="Clear All">
+            </button>
+            <button id="resetOriginalBtn" title="Reset to Original Upload">
+                <img src="assets/tool-icons/reset-original.svg" class="tool-icon" alt="Reset">
+            </button>
             <div id="currentColorContainer" title="Current Color">
                 <div id="currentColorPreview" style="background-color: rgb(0,0,0);"></div>
             </div>
             <button id="pencilBtn" class="active" title="Pencil">
                 <img src="assets/tool-icons/pencil.svg" class="tool-icon" alt="Pencil">
-                <span class="tool-size">1×1</span> ▼
+                <span class="tool-size">1×1</span>
                 <div class="tool-dropdown">
                     <label class="tool-radio"><input type="radio" name="pencilSize" value="1" checked> <span>1×1</span></label>
                     <label class="tool-radio"><input type="radio" name="pencilSize" value="2"> <span>2×2</span></label>
@@ -46,7 +58,7 @@
             </button>
             <button id="eraserBtn" title="Eraser">
                 <img src="assets/tool-icons/eraser.svg" class="tool-icon" alt="Eraser">
-                <span class="tool-size">1×1</span> ▼
+                <span class="tool-size">1×1</span>
                 <div class="tool-dropdown">
                     <label class="tool-radio"><input type="radio" name="eraserSize" value="1" checked> <span>1×1</span></label>
                     <label class="tool-radio"><input type="radio" name="eraserSize" value="2"> <span>2×2</span></label>
