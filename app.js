@@ -3405,6 +3405,9 @@ window.addEventListener("load", () => {
         menu.style.top = y + 'px';
         menu.classList.add('visible');
 
+        // Tell canvas iframe that context menu is open (disables drawing)
+        sendToCanvas('SET_CONTEXT_MENU_OPEN', true);
+
         // If clicking elsewhere, close menu
         const closeMenu = () => closeContextMenu();
         setTimeout(() => document.addEventListener('click', closeMenu), 0);
@@ -3414,6 +3417,9 @@ window.addEventListener("load", () => {
         const menu = document.getElementById('contextMenu');
         if (menu) menu.classList.remove('visible');
         currentContextMenuPos = null;
+        
+        // Tell canvas iframe that context menu is closed (enables drawing)
+        sendToCanvas('SET_CONTEXT_MENU_OPEN', false);
     }
 
     function handlePickColor() {

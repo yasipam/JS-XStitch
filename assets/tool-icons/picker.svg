@@ -1,3 +1,17 @@
-<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-    <path d="M8 6h8v2H8V6zm-4 4V8h4v2H4zm-2 2v-2h2v2H2zm0 2v-2H0v2h2zm2 2H2v-2h2v2zm4 2H4v-2h4v2zm8 0v2H8v-2h8zm4-2v2h-4v-2h4zm2-2v2h-2v-2h2zm0-2h2v2h-2v-2zm-2-2h2v2h-2v-2zm0 0V8h-4v2h4zm-10 1h4v4h-4v-4z" fill="currentColor"/>
+<svg version="1.2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+	<style>
+		.s0 { fill: #18181a } 
+	</style>
+	<g id="Background">
+		<path id="Path 1" class="s0" d="m31 41v5h-13v-5z"/>
+		<path id="Path 2" class="s0" d="m31 41v-4h5v4z"/>
+		<path id="Path 3" class="s0" d="m18 41h-5v-4h5z"/>
+		<path id="Path 4" class="s0" d="m36 37v-14h4v14z"/>
+		<path id="Path 5" class="s0" d="m13 37h-4v-14h4z"/>
+		<path id="Path 6" class="s0" d="m36 23h-5v-9h5z"/>
+		<path id="Path 7" class="s0" d="m13 23v-9h5v9z"/>
+		<path id="Path 8" class="s0" d="m31 14h-4v-9h4z"/>
+		<path id="Path 10" class="s0" d="m18 14v-9h4v9z"/>
+		<path id="Path 11" class="s0" d="m22 5v-4h5v4z"/>
+	</g>
 </svg>

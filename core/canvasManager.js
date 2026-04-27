@@ -201,6 +201,12 @@ window.addEventListener('message', (e) => {
             }
             break;
 
+        case 'SET_CONTEXT_MENU_OPEN':
+            if (events) {
+                events.setContextMenuOpen(!!payload);
+            }
+            break;
+
         case 'FLOOD_FILL':
             if (state && payload) {
                 const { gx, gy, rgb } = payload;

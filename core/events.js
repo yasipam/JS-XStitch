@@ -31,6 +31,9 @@ export class EditorEvents {
         this.longPressStartX = 0;
         this.longPressStartY = 0;
 
+        // Context menu state (tracked from parent)
+        this.isContextMenuOpen = false;
+
         // Touch/Gesture Cache
         this.evCache = [];      // Stores active touch points
         this.prevDiff = -1;     // Stores distance between fingers for pinch
@@ -103,6 +106,11 @@ export class EditorEvents {
                 window.parent.postMessage({ type: 'CROP_CONFIRM', payload: tool.box }, '*');
             }
         }
+    }
+
+    // Called by parent to indicate context menu is open/closed
+    setContextMenuOpen(open) {
+        this.isContextMenuOpen = open;
     }
 
     _showLongPressMenu() {
@@ -179,13 +187,15 @@ export class EditorEvents {
             this.lastPointerX = e.clientX;
             this.lastPointerY = e.clientY;
         } else {
-            // Pen or Mouse Left Click -> Tool Interaction
-            this.isPointerDown = true;
-            this.isPanning = false;
-            const tool = ToolRegistry[this.state.activeTool];
-            if (tool) {
-                const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
-                tool.onPointerDown(this.state, gx, gy, e.clientX, e.clientY, { shiftKey: e.shiftKey });
+            // Pen or Mouse Left Click -> Tool Interaction (only if context menu NOT open)
+            if (!this.isContextMenuOpen) {
+                this.isPointerDown = true;
+                this.isPanning = false;
+                const tool = ToolRegistry[this.state.activeTool];
+                if (tool) {
+                    const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
+                    tool.onPointerDown(this.state, gx, gy, e.clientX, e.clientY, { shiftKey: e.shiftKey });
+                }
             }
 
             // Start long-press timer for context menu (mouse left-click)
