@@ -3496,19 +3496,33 @@ window.addEventListener("load", () => {
         replaceColorToRgb = null;
         replaceColorToCode = null;
 
-        // Find the DMC code for the "from" color
-        const distFn = getDistanceFn('cie76');
-        const dmcEntry = nearestDmcColor(replaceColorFromRgb, distFn, getDmcLabCache(false), DMC_RGB);
-        replaceColorFromCode = dmcEntry ? String(dmcEntry[0]) : null;
+        // Check for cloth sentinel (254,254,254) - this is code "0"
+        const isCloth = replaceColorFromRgb[0] === 254 && 
+                        replaceColorFromRgb[1] === 254 && 
+                        replaceColorFromRgb[2] === 254;
+
+        let dmcEntry = null;
+        if (isCloth) {
+            replaceColorFromCode = "0";
+        } else {
+            // Find the DMC code for the "from" color
+            const distFn = getDistanceFn('cie76');
+            dmcEntry = nearestDmcColor(replaceColorFromRgb, distFn, getDmcLabCache(false), DMC_RGB);
+            replaceColorFromCode = dmcEntry ? String(dmcEntry[0]) : null;
+        }
 
         // Update dialog UI
         const fromSwatch = document.getElementById('replaceFromSwatch');
         const fromInfo = document.getElementById('replaceFromInfo');
         if (fromSwatch) {
-            fromSwatch.style.backgroundColor = `rgb(${replaceColorFromRgb[0]}, ${replaceColorFromRgb[1]}, ${replaceColorFromRgb[2]})`;
+            if (isCloth) {
+                fromSwatch.style.background = 'repeating-conic-gradient(#ccc 0% 25%, white 0% 50%) 50% / 16px 16px';
+            } else {
+                fromSwatch.style.backgroundColor = `rgb(${replaceColorFromRgb[0]}, ${replaceColorFromRgb[1]}, ${replaceColorFromRgb[2]})`;
+            }
         }
         if (fromInfo) {
-            fromInfo.textContent = dmcEntry ? `DMC ${dmcEntry[0]}` : 'Custom';
+            fromInfo.textContent = isCloth ? 'None (Cloth)' : (dmcEntry ? `DMC ${dmcEntry[0]}` : 'Custom');
         }
 
         const toSwatch = document.getElementById('replaceToSwatch');
