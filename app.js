@@ -1898,11 +1898,6 @@ function setupToolButtons() {
                     cancelLongPress();
                 }
             });
-            btn.addEventListener('mouseleave', () => {
-                if (dropdownTools.includes(id)) {
-                    cancelLongPress();
-                }
-            });
             btn.addEventListener('touchstart', (e) => {
                 if (dropdownTools.includes(id)) {
                     startLongPress(btn, e);
@@ -1954,9 +1949,13 @@ function setupToolButtons() {
         };
     });
 
-    // Close dropdowns when clicking outside
+    // Close dropdowns when clicking outside the button and dropdown
     document.addEventListener('click', (e) => {
-        if (!e.target.closest('.tool-dropdown')) {
+        const dropdownTools = ['pencilBtn', 'eraserBtn'];
+        const isOutsideButtonAndDropdown = !e.target.closest('#pencilBtn') && 
+                                    !e.target.closest('#eraserBtn') && 
+                                    !e.target.closest('.tool-dropdown');
+        if (isOutsideButtonAndDropdown) {
             document.querySelectorAll('.tool-dropdown.open').forEach(d => d.classList.remove('open'));
         }
     });
