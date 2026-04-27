@@ -22,6 +22,15 @@ export class EditorEvents {
         this.rightClickPixelRgb = null;
         this.PAN_THRESHOLD = 5; // pixels of movement before panning starts
 
+        // Long-press tracking for context menu
+        this.longPressTimer = null;
+        this.longPressThreshold = 500;
+        this.longPressGx = -1;
+        this.longPressGy = -1;
+        this.longPressPixelRgb = null;
+        this.longPressStartX = 0;
+        this.longPressStartY = 0;
+
         // Touch/Gesture Cache
         this.evCache = [];      // Stores active touch points
         this.prevDiff = -1;     // Stores distance between fingers for pinch
@@ -96,6 +105,23 @@ export class EditorEvents {
         }
     }
 
+    _showLongPressMenu() {
+        if (this.longPressGx < 0 || !this.state.pixelGrid) return;
+        
+        window.parent.postMessage({
+            type: 'CONTEXT_MENU',
+            payload: {
+                gx: this.longPressGx,
+                gy: this.longPressGy,
+                rgb: this.longPressPixelRgb,
+                clientX: this.longPressStartX,
+                clientY: this.longPressStartY
+            }
+        }, '*');
+        
+        this.longPressTimer = null;
+    }
+
     _onPointerDown(e) {
         // Add to multi-touch cache for gestures
         this.evCache.push(e);
@@ -115,6 +141,21 @@ export class EditorEvents {
             this.isPointerDown = false;
             this.lastPointerX = e.clientX;
             this.lastPointerY = e.clientY;
+            
+            // Start long-press timer for touch context menu (single touch only)
+            if (!isMultiTouch) {
+                this.longPressStartX = e.clientX;
+                this.longPressStartY = e.clientY;
+                const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
+                this.longPressGx = gx;
+                this.longPressGy = gy;
+                if (gx >= 0 && gy >= 0 && gx < this.state.pixelGrid.width && gy < this.state.pixelGrid.height) {
+                    this.longPressPixelRgb = this.state.pixelGrid.grid[gy][gx];
+                } else {
+                    this.longPressPixelRgb = null;
+                }
+                this.longPressTimer = setTimeout(() => this._showLongPressMenu(), this.longPressThreshold);
+            }
         } else if (e.button === 2) {
             // Right Click -> Start tracking for context menu
             // Don't start panning yet - wait to see if user drags
@@ -146,6 +187,19 @@ export class EditorEvents {
                 const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
                 tool.onPointerDown(this.state, gx, gy, e.clientX, e.clientY, { shiftKey: e.shiftKey });
             }
+
+            // Start long-press timer for context menu (mouse left-click)
+            this.longPressStartX = e.clientX;
+            this.longPressStartY = e.clientY;
+            const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
+            this.longPressGx = gx;
+            this.longPressGy = gy;
+            if (gx >= 0 && gy >= 0 && gx < this.state.pixelGrid.width && gy < this.state.pixelGrid.height) {
+                this.longPressPixelRgb = this.state.pixelGrid.grid[gy][gx];
+            } else {
+                this.longPressPixelRgb = null;
+            }
+            this.longPressTimer = setTimeout(() => this._showLongPressMenu(), this.longPressThreshold);
         }
 
         this.canvas.setPointerCapture(e.pointerId);
@@ -168,6 +222,17 @@ export class EditorEvents {
                 this.isPanning = true;
                 this.lastPointerX = this.rightClickStartX;
                 this.lastPointerY = this.rightClickStartY;
+            }
+        }
+
+        // Cancel long-press if user moves beyond threshold
+        if (this.longPressTimer) {
+            const dx = e.clientX - this.longPressStartX;
+            const dy = e.clientY - this.longPressStartY;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance > this.PAN_THRESHOLD) {
+                clearTimeout(this.longPressTimer);
+                this.longPressTimer = null;
             }
         }
 
@@ -320,6 +385,15 @@ export class EditorEvents {
                 const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
                 tool.onPointerUp(this.state, gx, gy);
             }
+        }
+
+        // Cancel any pending long-press timer
+        if (this.longPressTimer) {
+            clearTimeout(this.longPressTimer);
+            this.longPressTimer = null;
+            this.longPressGx = -1;
+            this.longPressGy = -1;
+            this.longPressPixelRgb = null;
         }
 
         this.canvas.releasePointerCapture(e.pointerId);
