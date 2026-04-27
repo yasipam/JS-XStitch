@@ -760,3 +760,56 @@ select {
     border: 1px solid #999;
     border-radius: 3px;
 }
+
+.crop-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: 100;
+}
+
+.crop-confirm-panel {
+    background: #fff;
+    border-radius: 8px;
+    padding: 16px 20px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    text-align: center;
+}
+
+.crop-info {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--color-purple);
+    margin-bottom: 12px;
+}
+
+.crop-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+.crop-buttons button {
+    padding: 8px 20px;
+    border: none;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+#cropConfirmBtn {
+    background: var(--color-purple);
+    color: #fff;
+}
+
+#cropCancelBtn {
+    background: #e0e0e0;
+    color: #333;
+}

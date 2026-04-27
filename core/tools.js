@@ -166,8 +166,64 @@ export class ZoomTool extends BaseTool {
     onWheel(state, deltaY, mouseX, mouseY) { this.applyZoom(state, deltaY, mouseX, mouseY); }
 }
 
+export class CropTool extends BaseTool {
+    cursor = "crosshair";
+    startGx = null;
+    startGy = null;
+    active = false;
+    box = null;
+
+    onPointerDown(state, gx, gy) {
+        console.log('[CropTool] onPointerDown fired', { gx, gy });
+        this.active = true;
+        this.startGx = gx;
+        this.startGy = gy;
+    }
+
+    onPointerMove(state, gx, gy) {
+        if (!this.active || this.startGx === null) return;
+        state.renderer.drawCropBox(this.startGx, this.startGy, gx, gy);
+    }
+
+    onPointerUp(state, gx, gy) {
+        console.log('[CropTool] onPointerUp fired', { active: this.active, startGx: this.startGx, startGy: this.startGy, gx, gy });
+        if (!this.active) return;
+        this.active = false;
+
+        const x1 = Math.min(this.startGx, gx);
+        const y1 = Math.min(this.startGy, gy);
+        const x2 = Math.max(this.startGx, gx);
+        const y2 = Math.max(this.startGy, gy);
+
+        console.log('[CropTool] crop box:', { x1, y1, x2, y2, w: x2-x1, h: y2-y1 });
+
+        if (x2 - x1 >= 3 && y2 - y1 >= 3) {
+            this.box = { x1, y1, x2, y2 };
+            console.log('[CropTool] sending CROP_START to parent');
+            window.parent.postMessage({
+                type: 'CROP_START',
+                payload: { x1, y1, x2, y2 }
+            }, '*');
+        } else {
+            this.startGx = null;
+            this.startGy = null;
+        }
+    }
+
+    cancel(state) {
+        this.active = false;
+        this.box = null;
+        this.startGx = null;
+        this.startGy = null;
+        if (state && state.renderer) {
+            state.renderer.drawCropBox(-1, -1, -1, -1);
+        }
+    }
+}
+
 export const ToolRegistry = {
     pencil: new PencilTool(), eraser: new EraserTool(),
     fill: new FillTool(), picker: new PickerTool(),
-    pan: new PanTool(), zoom: new ZoomTool()
+    pan: new PanTool(), zoom: new ZoomTool(),
+    crop: new CropTool()
 };

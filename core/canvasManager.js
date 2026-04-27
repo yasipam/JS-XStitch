@@ -91,6 +91,20 @@ window.addEventListener('message', (e) => {
         case 'CMD_CLEAR': if (state) state.clearCanvasAction(); break;
         case 'SET_TOOL': if (state) state.setTool(payload); break;
         case 'SET_COLOR': if (state) state.setColor(payload); break;
+
+        case 'CROP_CONFIRM':
+        case 'CROP_CANCEL':
+            if (state) {
+                const tool = ToolRegistry.crop;
+                if (tool) {
+                    if (payload) {
+                        tool.box = payload;
+                    } else {
+                        tool.cancel(state);
+                    }
+                }
+            }
+            break;
         case 'CMD_RESET_VIEW': if (state) resetToBestFit(); break;
 
         case 'CMD_ZOOM':
@@ -142,6 +156,33 @@ window.addEventListener('message', (e) => {
                 if (tool) {
                     tool.size = payload.size;
                 }
+            }
+            break;
+
+        case 'CROP_CONFIRM':
+            console.log('[Iframe] CROP_CONFIRM received');
+            if (state) {
+                const tool = ToolRegistry.crop;
+                if (tool && typeof tool.cancel === 'function') {
+                    tool.cancel(state);
+                }
+            }
+            break;
+
+        case 'CROP_CANCEL':
+            console.log('[Iframe] CROP_CANCEL received');
+            if (state) {
+                const tool = ToolRegistry.crop;
+                if (tool && typeof tool.cancel === 'function') {
+                    tool.cancel(state);
+                }
+            }
+            break;
+
+        case 'CLEAR_CROP_BOX':
+            console.log('[Iframe] CLEAR_CROP_BOX received');
+            if (state && state.renderer) {
+                state.renderer.drawCropBox(-1, -1, -1, -1);
             }
             break;
 

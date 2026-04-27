@@ -55,6 +55,7 @@
             <button id="redoBtn" title="Redo (Ctrl+Y)">↷ Redo</button>
             <button id="fillBtn">Fill</button>
             <button id="toolPicker">Picker</button>
+            <button id="cropBtn">Crop</button>
             <button id="zoomOutBtn">Zoom In</button>
             <button id="zoomInBtn">Zoom Out</button>
             <button id="resetViewBtn">Reset View</button>
@@ -224,6 +225,15 @@
 
             <main id="mainArea">
                 <iframe id="canvasFrame" src="canvas-env.html" style="width:100%; height:100%; border:none;"></iframe>
+                <div id="cropOverlay" class="crop-overlay" style="display: none;">
+                    <div class="crop-confirm-panel">
+                        <div class="crop-info">Crop <span id="cropDimensions"></span>?</div>
+                        <div class="crop-buttons">
+                            <button id="cropConfirmBtn">Crop</button>
+                            <button id="cropCancelBtn">Cancel</button>
+                        </div>
+                    </div>
+                </div>
             </main>
 
             <aside id="rightSidebar">

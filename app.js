@@ -9,6 +9,7 @@ import { mergeSimilarPaletteColors, buildPaletteFromImage, getDistanceFn, rgbToL
 import { mapFullWithPalette, nearestDmcColor, cleanupMinOccurrence, removeIsolatedStitches, applyAntiNoise } from "./mapping/mappingEngine.js";
 import { applyDitherRGB } from "./mapping/dithering.js";
 import { buildStampedGrid } from "./mapping/stamped.js";
+import { cropWithBox } from "./mapping/crop.js";
 import { DMC_RGB } from "./mapping/constants.js";
 import { exportOXS } from "./export/exportOXS.js";
 import { parseOxsFileFromFile } from "./import/importOXS.js";
@@ -27,6 +28,174 @@ let pencilSize = 1;
 let eraserSize = 1;
 let lastBaselineGrid = null;
 let lastBaselineDmcGrid = null;
+
+function showCropOverlay({ x1, y1, x2, y2 }) {
+    console.log('[Parent] showCropOverlay received', { x1, y1, x2, y2 });
+    const w = x2 - x1;
+    const h = y2 - y1;
+    const overlay = document.getElementById('cropOverlay');
+    const dimensions = document.getElementById('cropDimensions');
+    const confirmBtn = document.getElementById('cropConfirmBtn');
+    const cancelBtn = document.getElementById('cropCancelBtn');
+
+    dimensions.textContent = `${w}×${h}`;
+    overlay.style.display = 'flex';
+
+    confirmBtn.onclick = () => {
+        console.log('[Parent] Confirm clicked, cropping...');
+        overlay.style.display = 'none';
+        // Clear the crop box visually first
+        clearCropBox();
+        // Then handle the crop
+        handleCrop({ x1, y1, x2, y2 });
+        // Send to iframe to clear the box
+        sendToCanvas('CROP_CONFIRM', { x1, y1, x2, y2 });
+    };
+
+    cancelBtn.onclick = () => {
+        console.log('[Parent] Cancel clicked');
+        overlay.style.display = 'none';
+        // Clear the crop box visually first
+        clearCropBox();
+        // Send cancel to iframe
+        sendToCanvas('CROP_CANCEL');
+    };
+}
+
+function clearCropBox() {
+    // Send a message to iframe to clear the crop box from the UI
+    const iframe = document.getElementById('canvasFrame');
+    if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.postMessage({ type: 'CLEAR_CROP_BOX' }, '*');
+    }
+}
+
+function updateSizeUI(newWidth, newHeight) {
+    // Update maxSizeSlider and maxSizeInput to reflect cropped size
+    const maxSizeSlider = document.getElementById('maxSizeSlider');
+    const maxSizeInput = document.getElementById('maxSizeInput');
+
+    if (maxSizeSlider) maxSizeSlider.value = newWidth;
+    if (maxSizeInput) maxSizeInput.value = newWidth;
+    if (mappingConfig) mappingConfig.maxSize = newWidth;
+
+    // Update the pattern size display after a short delay to let sync complete
+    setTimeout(() => {
+        if (typeof updatePatternSizeDisplay === 'function') {
+            updatePatternSizeDisplay();
+        }
+    }, 100);
+}
+
+function handleCrop({ x1, y1, x2, y2 }) {
+    const box = [x1, y1, x2, y2];
+    const newWidth = x2 - x1;
+    const newHeight = y2 - y1;
+
+    console.log('[Parent] handleCrop called:', { newWidth, newHeight, isEmptyCanvas, isOxsLoaded, hasCurrentImage: !!currentImage });
+
+    if (isEmptyCanvas || isOxsLoaded) {
+        // Crop the existing stitch grid directly (blank canvas or OXS mode)
+        const oldGrid = state.mappedRgbGrid;
+        console.log('[Parent] Grid mode, oldGrid:', oldGrid ? `${oldGrid.length}x${oldGrid[0]?.length}` : 'null');
+
+        if (!oldGrid) {
+            console.warn('[Parent] handleCrop: oldGrid is null, cannot crop');
+            return;
+        }
+
+        const newGrid = [];
+        for (let y = y1; y < y2; y++) {
+            const row = [];
+            for (let x = x1; x < x2; x++) {
+                if (y < oldGrid.length && x < oldGrid[y].length) {
+                    row.push([...oldGrid[y][x]]);
+                } else {
+                    row.push([255, 255, 255]);
+                }
+            }
+            newGrid.push(row);
+        }
+
+        console.log('[Parent] New grid created:', newGrid.length, 'x', newGrid[0].length);
+
+        state.mappedRgbGrid = newGrid;
+        hasEmptyCanvasEdits = false;
+
+        // Send to iframe to resize and update
+        console.log('[Parent] Sending INIT to iframe:', { width: newWidth, height: newHeight });
+        sendToCanvas('INIT', { width: newWidth, height: newHeight });
+
+        console.log('[Parent] Sending UPDATE_GRID to iframe');
+        sendToCanvas('UPDATE_GRID', newGrid);
+
+        console.log('[Parent] Switching to pencil tool');
+        sendToCanvas('SET_TOOL', 'pencil');
+
+        // Update UI elements to reflect new canvas size
+        updateSizeUI(newWidth, newHeight);
+
+    } else if (currentImage) {
+        // Crop the mapped grid directly (after image is already mapped)
+        const oldGrid = state.mappedRgbGrid;
+        console.log('[Parent] Image already mapped, cropping grid directly. oldGrid:', oldGrid ? `${oldGrid.length}x${oldGrid[0]?.length}` : 'null');
+
+        if (!oldGrid) {
+            console.warn('[Parent] handleCrop: no mapped grid to crop');
+            return;
+        }
+
+        const newGrid = [];
+        for (let y = y1; y < y2; y++) {
+            const row = [];
+            for (let x = x1; x < x2; x++) {
+                if (y < oldGrid.length && x < oldGrid[y].length) {
+                    row.push([...oldGrid[y][x]]);
+                } else {
+                    row.push([255, 255, 255]);
+                }
+            }
+            newGrid.push(row);
+        }
+
+        console.log('[Parent] New cropped grid:', newGrid.length, 'x', newGrid[0].length);
+
+        state.mappedRgbGrid = newGrid;
+
+        // Also update currentImage so slider doesn't restore deleted pixels
+        const croppedCanvas = document.createElement('canvas');
+        croppedCanvas.width = newWidth;
+        croppedCanvas.height = newHeight;
+        const ctx = croppedCanvas.getContext('2d');
+        for (let y = 0; y < newHeight; y++) {
+            for (let x = 0; x < newWidth; x++) {
+                const rgb = newGrid[y][x];
+                ctx.fillStyle = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+                ctx.fillRect(x, y, 1, 1);
+            }
+        }
+
+        // Create Image from cropped canvas and update currentImage
+        const newImg = new Image();
+        newImg.onload = () => {
+            currentImage = newImg;
+            referenceImage = newImg;
+        };
+        newImg.src = croppedCanvas.toDataURL('image/png');
+
+        // Send to iframe
+        console.log('[Parent] Sending INIT to iframe');
+        sendToCanvas('INIT', { width: newWidth, height: newHeight });
+        sendToCanvas('UPDATE_GRID', newGrid);
+        sendToCanvas('SET_TOOL', 'pencil');
+
+        // Update UI elements to reflect new canvas size
+        updateSizeUI(newWidth, newHeight);
+
+    } else {
+        console.warn('[Parent] handleCrop: No valid mode - isEmptyCanvas:', isEmptyCanvas, 'isOxsLoaded:', isOxsLoaded, 'hasImage:', !!currentImage);
+    }
+}
 
 // OXS Import State
 let isOxsLoaded = false;
@@ -1692,7 +1861,7 @@ function updateThreadsTableFromGrid() {
 }
 
 function setupToolButtons() {
-    const tools = ["pencil", "eraser", "fill", "picker"];
+    const tools = ["pencil", "eraser", "fill", "picker", "crop"];
     tools.forEach(id => {
         const btn = document.getElementById(id === "picker" ? "toolPicker" : id + "Btn");
         if (btn) {
@@ -2944,10 +3113,27 @@ window.addEventListener("load", () => {
             }
             sendToCanvas(cmd);
         }
+
+        // Handle crop overlay with keyboard
+        const cropOverlay = document.getElementById('cropOverlay');
+        if (cropOverlay && cropOverlay.style.display !== 'none') {
+            if (e.key === 'Enter') {
+                document.getElementById('cropConfirmBtn').click();
+            } else if (e.key === 'Escape') {
+                document.getElementById('cropCancelBtn').click();
+            }
+            return;
+        }
+
+        // Send Escape to canvas when in crop tool mode (no overlay)
+        if (e.key === 'Escape') {
+            sendToCanvas('CROP_CANCEL');
+        }
     });
 
     window.addEventListener('message', (e) => {
         const { type, payload } = e.data;
+        console.log('[Parent] message received:', type, payload);
 
         if (type === 'REPORT_GRID_STATS') {
             // Sidebar now updates in SYNC handler after mappedDmcGrid is patched
@@ -2960,6 +3146,11 @@ window.addEventListener("load", () => {
 
         if (type === 'CONTEXT_MENU') {
             showContextMenu(payload);
+            return;
+        }
+
+        if (type === 'CROP_START') {
+            showCropOverlay(payload);
             return;
         }
 
@@ -3141,9 +3332,14 @@ window.addEventListener("load", () => {
         handleFillWithColor();
     });
 
-    // Close context menu on Escape
+    // Close context menu on Escape (unless crop overlay is open)
     window.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
+            const cropOverlay = document.getElementById('cropOverlay');
+            if (cropOverlay && cropOverlay.style.display !== 'none') {
+                document.getElementById('cropCancelBtn').click();
+                return;
+            }
             closeContextMenu();
         }
     });

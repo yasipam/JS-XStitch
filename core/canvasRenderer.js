@@ -180,4 +180,21 @@ export class LayeredRenderer {
         const py = Math.floor(this.offsetY + gy * this.zoom);
         ctx.fillRect(px, py, Math.ceil(this.zoom), Math.ceil(this.zoom));
     }
+
+    drawCropBox(x1, y1, x2, y2) {
+        const dpr = window.devicePixelRatio || 1;
+        const ctx = this.ctxs.ui;
+        ctx.clearRect(0, 0, this.canvases.ui.width / dpr, this.canvases.ui.height / dpr);
+
+        const px1 = Math.floor(this.offsetX + Math.min(x1, x2) * this.zoom);
+        const py1 = Math.floor(this.offsetY + Math.min(y1, y2) * this.zoom);
+        const w = Math.abs(x2 - x1) * this.zoom;
+        const h = Math.abs(y2 - y1) * this.zoom;
+
+        ctx.strokeStyle = "#00ff00";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(px1, py1, w, h);
+        ctx.fillStyle = "rgba(0,255,0,0.1)";
+        ctx.fillRect(px1, py1, w, h);
+    }
 }

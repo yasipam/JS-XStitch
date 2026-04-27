@@ -77,6 +77,23 @@ export class EditorEvents {
             if (typeof e.preventDefault === 'function') e.preventDefault();
             this.state.redo();
         }
+
+        // Escape - cancel crop if active
+        if (key === "escape" && this.state.activeTool === "crop") {
+            const tool = ToolRegistry.crop;
+            if (tool && typeof tool.cancel === 'function') {
+                tool.cancel(this.state);
+                window.parent.postMessage({ type: 'CROP_CANCEL' }, '*');
+            }
+        }
+
+        // Enter - confirm crop if active
+        if (key === "enter" && this.state.activeTool === "crop") {
+            const tool = ToolRegistry.crop;
+            if (tool && tool.box) {
+                window.parent.postMessage({ type: 'CROP_CONFIRM', payload: tool.box }, '*');
+            }
+        }
     }
 
     _onPointerDown(e) {
@@ -299,7 +316,10 @@ export class EditorEvents {
         if (this.isPointerDown && this.evCache.length === 0) {
             this.isPointerDown = false;
             const tool = ToolRegistry[this.state.activeTool];
-            if (tool) tool.onPointerUp(this.state);
+            if (tool) {
+                const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
+                tool.onPointerUp(this.state, gx, gy);
+            }
         }
 
         this.canvas.releasePointerCapture(e.pointerId);
