@@ -786,6 +786,12 @@ select {
     font-size: 1.1rem;
     font-weight: 600;
     color: var(--color-purple);
+    margin-bottom: 4px;
+}
+
+.crop-warning {
+    font-size: 0.85rem;
+    color: #c00;
     margin-bottom: 12px;
 }
 
