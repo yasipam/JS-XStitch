@@ -108,7 +108,8 @@ export class EraserTool extends BaseTool {
         const half = Math.floor(size / 2);
         for (let dy = -half; dy < size - half; dy++) {
             for (let dx = -half; dx < size - half; dx++) {
-                state.setPixel(cx + dx, cy + dy, [255, 255, 255]);
+                // Use cloth sentinel (254,254,254) to reveal checkered background
+                state.setPixel(cx + dx, cy + dy, [254, 254, 254]);
             }
         }
     }
