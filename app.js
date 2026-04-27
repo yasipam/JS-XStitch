@@ -29,6 +29,10 @@ let eraserSize = 1;
 let lastBaselineGrid = null;
 let lastBaselineDmcGrid = null;
 
+// Background removal mask state
+let originalMaskCanvas = null; // Raw AI mask from background removal
+let originalImageBeforeBgRemoval = null; // Original image before bg removal (for mask re-processing)
+
 function showCropOverlay({ x1, y1, x2, y2 }) {
     console.log('[Parent] showCropOverlay received', { x1, y1, x2, y2 });
     const w = x2 - x1;
@@ -949,6 +953,10 @@ function setupUpload() {
                 setMappingControlsEnabled(true, false);
 
                 bgRemoved = false;
+                originalMaskCanvas = null;
+                originalImageBeforeBgRemoval = null;
+                const maskAdjustPanel = document.getElementById("maskAdjustPanel");
+                if (maskAdjustPanel) maskAdjustPanel.style.display = "none";
                 const removeBgBtn = document.getElementById("removeBgBtn");
                 const bgRemoveStatus = document.getElementById("bgRemoveStatus");
                 if (removeBgBtn) {
@@ -999,6 +1007,39 @@ function setupOxsUpload() {
             console.error(err);
         }
     };
+}
+
+function setupMaskAdjustSlider() {
+    const slider = document.getElementById('maskAdjustSlider');
+    const valueDisplay = document.getElementById('maskAdjustValue');
+    if (!slider) return;
+
+    slider.addEventListener('input', () => {
+        const adjustValue = parseInt(slider.value, 10);
+        if (valueDisplay) {
+            valueDisplay.textContent = adjustValue;
+        }
+
+        // Only process if we have the original mask and image
+        if (!originalMaskCanvas || !originalImageBeforeBgRemoval) return;
+
+        // Apply the mask adjustment
+        const adjustedMask = onnxModel.applyMaskAdjust(originalMaskCanvas, adjustValue);
+
+        // Apply the adjusted mask to the original image
+        currentImage = onnxModel.applyMaskAndGetImage(originalImageBeforeBgRemoval, adjustedMask);
+
+        // Update the state
+        const canvas = document.createElement('canvas');
+        canvas.width = currentImage.width;
+        canvas.height = currentImage.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(currentImage, 0, 0);
+        state.originalImageURL = canvas.toDataURL('image/png');
+
+        // Re-run the mapping with the adjusted image
+        runMapping(true);
+    });
 }
 
 function setupBgRemover() {
@@ -1052,10 +1093,26 @@ function setupBgRemover() {
         const result = await onnxModel.run(currentImage);
 
         if (result && result.processedImage) {
+            // Store the original image and mask for mask adjustment
+            originalImageBeforeBgRemoval = currentImage;
+            originalMaskCanvas = result.maskCanvas;
+
             currentImage = result.processedImage;
             bgRemoved = true;
             btn.disabled = true;
             btn.style.opacity = '0.5';
+
+            // Show the mask adjust panel
+            const maskAdjustPanel = document.getElementById('maskAdjustPanel');
+            if (maskAdjustPanel) {
+                maskAdjustPanel.style.display = 'block';
+            }
+
+            // Reset the slider to 0 when showing the panel
+            const maskAdjustSlider = document.getElementById('maskAdjustSlider');
+            const maskAdjustValue = document.getElementById('maskAdjustValue');
+            if (maskAdjustSlider) maskAdjustSlider.value = 0;
+            if (maskAdjustValue) maskAdjustValue.textContent = '0';
 
             const canvas = document.createElement('canvas');
             canvas.width = currentImage.width;
@@ -1073,7 +1130,7 @@ function setupBgRemover() {
 
                 runMapping(true);
             };
-            img.src =base64;
+            img.src = base64;
         } else {
             statusCallback('error', 'Failed to process image');
         }
@@ -1138,6 +1195,16 @@ function createEmptyCanvas(width, height) {
     const bgRemoveStatus = document.getElementById("bgRemoveStatus");
     if (removeBgBtn) removeBgBtn.style.display = "none";
     if (bgRemoveStatus) bgRemoveStatus.style.display = "none";
+
+    // Reset mask adjustment state
+    originalMaskCanvas = null;
+    originalImageBeforeBgRemoval = null;
+    const maskAdjustPanel = document.getElementById("maskAdjustPanel");
+    const maskAdjustSlider = document.getElementById("maskAdjustSlider");
+    const maskAdjustValue = document.getElementById("maskAdjustValue");
+    if (maskAdjustPanel) maskAdjustPanel.style.display = "none";
+    if (maskAdjustSlider) maskAdjustSlider.value = 0;
+    if (maskAdjustValue) maskAdjustValue.textContent = "0";
 
     bgRemoved = false;
     const refOpacity = document.getElementById("referenceOpacity");
@@ -1978,6 +2045,8 @@ function setupEditHistory() {
                 bgRemoved = false;
                 isOxsLoaded = false;
                 loadedOxsPalette = null;
+                originalMaskCanvas = null;
+                originalImageBeforeBgRemoval = null;
                 const uploader = document.getElementById("upload");
                 if (uploader) uploader.value = "";
                 resetUIControls();
@@ -1990,6 +2059,10 @@ function setupEditHistory() {
                     removeBgBtn.style.opacity = '1';
                 }
                 if (bgRemoveStatus) bgRemoveStatus.style.display = "none";
+
+                // Hide mask adjust panel
+                const maskAdjustPanel = document.getElementById("maskAdjustPanel");
+                if (maskAdjustPanel) maskAdjustPanel.style.display = "none";
 
                 const refOpacity = document.getElementById("referenceOpacity");
                 const refOpacityVal = document.getElementById("referenceOpacityVal");
@@ -2014,11 +2087,16 @@ function setupResetControls() {
                 if (referenceImage) {
                     currentImage = referenceImage;
                     bgRemoved = false;
+                    originalMaskCanvas = null;
+                    originalImageBeforeBgRemoval = null;
                     const removeBgBtn = document.getElementById("removeBgBtn");
                     if (removeBgBtn) {
                         removeBgBtn.disabled = false;
                         removeBgBtn.style.opacity = '1';
                     }
+                    // Hide mask adjust panel on reset
+                    const maskAdjustPanel = document.getElementById("maskAdjustPanel");
+                    if (maskAdjustPanel) maskAdjustPanel.style.display = "none";
                 }
                 resetUIControls();
                 userEditDiff.clear();
@@ -3038,6 +3116,11 @@ function resetUIControls() {
     if (mergeSlider) mergeSlider.value = 0;
     if (mergeVal) mergeVal.textContent = "Off";
 
+    const maskAdjustSlider = document.getElementById("maskAdjustSlider");
+    const maskAdjustValue = document.getElementById("maskAdjustValue");
+    if (maskAdjustSlider) maskAdjustSlider.value = 0;
+    if (maskAdjustValue) maskAdjustValue.textContent = "0";
+
     const antiNoiseVal = document.getElementById("antiNoiseVal");
     if (antiNoiseVal) antiNoiseVal.textContent = "0";
 
@@ -3124,6 +3207,7 @@ window.addEventListener("load", () => {
     setupUpload();
     setupNewCanvas();
     setupBgRemover();
+    setupMaskAdjustSlider();
     setupOxsUpload();
     setupToolButtons();
     setupEditHistory();

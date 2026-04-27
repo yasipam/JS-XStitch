@@ -108,6 +108,20 @@
             <aside id="leftSidebar">
                 <h2>Image Controls</h2>
 
+                <div id="maskAdjustPanel" class="panel" style="display: none;">
+                    <h3 class="panelTitle">Background Removal</h3>
+                    <div class="sliderRow">
+                        <label for="maskAdjustSlider">Shrink / Expand Mask</label>
+                        <div class="sliderWithInput">
+                            <input type="range" id="maskAdjustSlider" min="-100" max="100" value="0">
+                            <span id="maskAdjustValue" style="min-width: 40px;">0</span>
+                        </div>
+                    </div>
+                    <p style="font-size: 0.85em; color: var(--color-muted); margin: 0;">
+                        Negative = shrink mask, Positive = expand mask
+                    </p>
+                </div>
+
                 <div class="panel">
                     <h3 class="panelTitle">Size Settings</h3>
                 <div class="sliderRow">

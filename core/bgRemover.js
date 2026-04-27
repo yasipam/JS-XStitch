@@ -212,6 +212,100 @@ const onnxModel = {
             processedImage: resultCanvas,
             maskCanvas: maskCanvas
         };
+    },
+
+    applyMaskAdjust: function(originalMaskCanvas, adjustValue) {
+        const srcWidth = originalMaskCanvas.width;
+        const srcHeight = originalMaskCanvas.height;
+
+        const adjustedMask = document.createElement('canvas');
+        adjustedMask.width = srcWidth;
+        adjustedMask.height = srcHeight;
+        const adjustedMaskCtx = adjustedMask.getContext('2d');
+
+        const baseRadius = Math.round(Math.abs(adjustValue) / 100 * 30);
+
+        if (baseRadius <= 0) {
+            adjustedMaskCtx.drawImage(originalMaskCanvas, 0, 0);
+            return adjustedMask;
+        }
+
+        const MAX_DIM = 480;
+        let scale = 1.0;
+        let procWidth = srcWidth;
+        let procHeight = srcHeight;
+
+        if (procWidth > MAX_DIM || procHeight > MAX_DIM) {
+            scale = (procWidth > procHeight) ? (MAX_DIM / procWidth) : (MAX_DIM / procHeight);
+            procWidth = Math.round(srcWidth * scale);
+            procHeight = Math.round(srcHeight * scale);
+        }
+
+        const radius = Math.max(1, Math.round(baseRadius * scale));
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = procWidth;
+        tempCanvas.height = procHeight;
+        const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+
+        tempCtx.drawImage(originalMaskCanvas, 0, 0, procWidth, procHeight);
+        const srcData = tempCtx.getImageData(0, 0, procWidth, procHeight);
+        const tempAlpha = new Uint8ClampedArray(procWidth * procHeight);
+        const destData = new ImageData(procWidth, procHeight);
+        const isErode = adjustValue < 0;
+
+        for (let y = 0; y < procHeight; y++) {
+            for (let x = 0; x < procWidth; x++) {
+                let bestAlpha = isErode ? 255 : 0;
+                for (let i = -radius; i <= radius; i++) {
+                    const nx = Math.max(0, Math.min(procWidth - 1, x + i));
+                    const alpha = srcData.data[(y * procWidth + nx) * 4 + 3];
+                    if (isErode) {
+                        bestAlpha = Math.min(bestAlpha, alpha);
+                    } else {
+                        bestAlpha = Math.max(bestAlpha, alpha);
+                    }
+                }
+                tempAlpha[y * procWidth + x] = bestAlpha;
+            }
+        }
+
+        for (let y = 0; y < procHeight; y++) {
+            for (let x = 0; x < procWidth; x++) {
+                let bestAlpha = isErode ? 255 : 0;
+                for (let j = -radius; j <= radius; j++) {
+                    const ny = Math.max(0, Math.min(procHeight - 1, y + j));
+                    const alpha = tempAlpha[ny * procWidth + x];
+                    if (isErode) {
+                        bestAlpha = Math.min(bestAlpha, alpha);
+                    } else {
+                        bestAlpha = Math.max(bestAlpha, alpha);
+                    }
+                }
+                destData.data[(y * procWidth + x) * 4 + 3] = bestAlpha;
+            }
+        }
+        tempCtx.putImageData(destData, 0, 0);
+
+        adjustedMaskCtx.imageSmoothingEnabled = true;
+        adjustedMaskCtx.imageSmoothingQuality = 'high';
+        adjustedMaskCtx.drawImage(tempCanvas, 0, 0, srcWidth, srcHeight);
+
+        return adjustedMask;
+    },
+
+    applyMaskAndGetImage: function(originalImage, maskCanvas) {
+        const originalWidth = originalImage.width;
+        const originalHeight = originalImage.height;
+
+        const resultCanvas = document.createElement('canvas');
+        resultCanvas.width = originalWidth;
+        resultCanvas.height = originalHeight;
+        const ctx = resultCanvas.getContext('2d');
+        ctx.drawImage(originalImage, 0, 0, originalWidth, originalHeight);
+        ctx.globalCompositeOperation = 'destination-in';
+        ctx.drawImage(maskCanvas, 0, 0, originalWidth, originalHeight);
+
+        return resultCanvas;
     }
 };
 
