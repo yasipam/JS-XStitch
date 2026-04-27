@@ -3380,6 +3380,12 @@ window.addEventListener("load", () => {
             colorPreview.style.backgroundColor = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
         }
 
+        // Update color preview in "Replace Color" option too
+        const replaceColorPreview = document.getElementById('ctxReplaceColor')?.querySelector('.ctx-color-preview');
+        if (replaceColorPreview && rgb) {
+            replaceColorPreview.style.backgroundColor = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+        }
+
         // Position menu at cursor - convert from iframe coordinates to parent page coordinates
         const canvasFrame = document.getElementById('canvasFrame');
         const frameRect = canvasFrame ? canvasFrame.getBoundingClientRect() : { left: 0, top: 0 };
@@ -3465,7 +3471,11 @@ window.addEventListener("load", () => {
     let replaceColorToCode = null;
 
     function openReplaceColorDialog() {
+        console.log('[DEBUG] openReplaceColorDialog called', { 
+            currentContextMenuPos 
+        });
         if (!currentContextMenuPos || !currentContextMenuPos.rgb) {
+            console.warn('[DEBUG] No rgb in currentContextMenuPos!');
             closeContextMenu();
             return;
         }
@@ -3475,7 +3485,7 @@ window.addEventListener("load", () => {
         replaceColorToCode = null;
 
         // Find the DMC code for the "from" color
-        const distFn = getDistanceFunction('cie76');
+        const distFn = getDistanceFn('cie76');
         const dmcEntry = nearestDmcColor(replaceColorFromRgb, distFn, getDmcLabCache(false), DMC_RGB);
         replaceColorFromCode = dmcEntry ? String(dmcEntry[0]) : null;
 
@@ -3505,6 +3515,7 @@ window.addEventListener("load", () => {
 
     function renderReplacePalette() {
         const container = document.getElementById('replacePalette');
+        console.log('[DEBUG] renderReplacePalette called', { container });
         if (!container) return;
 
         container.innerHTML = '';
@@ -3650,6 +3661,10 @@ window.addEventListener("load", () => {
 
     // Bind Replace Color menu item
     document.getElementById('ctxReplaceColor')?.addEventListener('click', (e) => {
+        console.log('[DEBUG] ctxReplaceColor clicked', { 
+            currentContextMenuPos,
+            event: e 
+        });
         e.stopPropagation();
         openReplaceColorDialog();
     });
