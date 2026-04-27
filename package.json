@@ -1,0 +1,12 @@
+{
+  "name": "js-xstitch",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx serve ."
+  },
+  "dependencies": {
+    "pixelarticons": "^1.8.0"
+  }
+}

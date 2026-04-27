@@ -306,7 +306,12 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 #topToolbar button { position: relative; }
 
-#topToolbar button .tool-label { }
+#topToolbar button .tool-icon {
+    width: 20px;
+    height: 20px;
+    image-rendering: pixelated;
+    vertical-align: middle;
+}
 
 #topToolbar button .tool-size {
     font-size: 0.85em;
