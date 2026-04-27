@@ -2031,48 +2031,9 @@ function setupToolButtons() {
 function setupEditHistory() {
     const undoBtn = document.getElementById("undoBtn");
     const redoBtn = document.getElementById("redoBtn");
-    const clearBtn = document.getElementById("clearAllBtn");
 
     if (undoBtn) undoBtn.onclick = () => sendToCanvas('CMD_UNDO');
     if (redoBtn) redoBtn.onclick = () => sendToCanvas('CMD_REDO');
-
-    if (clearBtn) {
-        clearBtn.onclick = () => {
-            if (confirm("Are you sure you want to clear the canvas?")) {
-                sendToCanvas('CMD_CLEAR');
-                currentImage = null;
-                referenceImage = null;
-                bgRemoved = false;
-                isOxsLoaded = false;
-                loadedOxsPalette = null;
-                originalMaskCanvas = null;
-                originalImageBeforeBgRemoval = null;
-                const uploader = document.getElementById("upload");
-                if (uploader) uploader.value = "";
-                resetUIControls();
-                setMappingControlsEnabled(false, false);
-                const removeBgBtn = document.getElementById("removeBgBtn");
-                const bgRemoveStatus = document.getElementById("bgRemoveStatus");
-                if (removeBgBtn) {
-                    removeBgBtn.style.display = "none";
-                    removeBgBtn.disabled = false;
-                    removeBgBtn.style.opacity = '1';
-                }
-                if (bgRemoveStatus) bgRemoveStatus.style.display = "none";
-
-                // Hide mask adjust panel
-                const maskAdjustPanel = document.getElementById("maskAdjustPanel");
-                if (maskAdjustPanel) maskAdjustPanel.style.display = "none";
-
-                const refOpacity = document.getElementById("referenceOpacity");
-                const refOpacityVal = document.getElementById("referenceOpacityVal");
-                if (refOpacity) refOpacity.value = 0;
-                if (refOpacityVal) refOpacityVal.textContent = "0%";
-                sendToCanvas('SET_REFERENCE_OPACITY', 0);
-                sendToCanvas('TOGGLE_REFERENCE', true);
-            }
-        };
-    }
 }
 
 function setupResetControls() {
@@ -3037,27 +2998,27 @@ function getDmcName(code) {
 }
 
 function updateDmcHoverTooltip(payload) {
-    const tooltip = document.getElementById('dmcHoverInfo');
-    const swatchEl = document.getElementById('dmcHoverSwatch');
-    const codeEl = document.getElementById('dmcHoverCode');
-    const nameEl = document.getElementById('dmcHoverName');
+    const swatchEl = document.getElementById('hoverColorSwatch');
+    const codeEl = document.getElementById('hoverColorCode');
+    const nameEl = document.getElementById('hoverColorName');
 
-    if (!tooltip || !swatchEl || !codeEl || !nameEl) return;
+    if (!swatchEl || !codeEl || !nameEl) return;
 
     const { code, rgb, isCloth } = payload || {};
 
     // Handle cloth/none case
     if (isCloth || (code && String(code) === '0')) {
-        tooltip.style.display = 'flex';
         codeEl.textContent = 'None';
-        nameEl.textContent = 'Cloth (Transparent)';
+        nameEl.textContent = 'Cloth';
         swatchEl.style.background = 'repeating-conic-gradient(#ccc 0% 25%, white 0% 50%) 50% / 16px 16px';
-        tooltip.style.borderColor = '#ccc';
         return;
     }
 
     if (!code) {
-        tooltip.style.display = 'none';
+        codeEl.textContent = '';
+        nameEl.textContent = '';
+        swatchEl.style.background = 'none';
+        swatchEl.style.backgroundColor = '#eee';
         return;
     }
 
@@ -3074,11 +3035,6 @@ function updateDmcHoverTooltip(payload) {
         swatchEl.style.background = 'none';
         swatchEl.style.backgroundColor = '#ccc';
     }
-
-    // Set border color to match swatch
-    tooltip.style.borderColor = swatchEl.style.backgroundColor;
-
-    tooltip.style.display = 'flex';
 }
 
 function resetUIControls() {
@@ -3187,11 +3143,45 @@ window.addEventListener("load", () => {
     state = new EditorState(null);
 
     // Update color preview when color changes
-    state.on("colorChanged", (rgb) => {
-        const colorPreview = document.getElementById('currentColorPreview');
-        if (colorPreview) {
-            colorPreview.style.backgroundColor = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+    function updateCurrentColorDisplay(rgb) {
+        // Update sidebar current color display
+        const currentSwatch = document.getElementById('currentColorSwatch');
+        const currentCodeEl = document.getElementById('currentColorCode');
+        const currentNameEl = document.getElementById('currentColorName');
+
+        if (currentSwatch) {
+            currentSwatch.style.backgroundColor = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
         }
+
+        if (currentCodeEl && currentNameEl) {
+            // Check for cloth sentinel (254,254,254)
+            if (rgb[0] === 254 && rgb[1] === 254 && rgb[2] === 254) {
+                currentCodeEl.textContent = 'None';
+                currentNameEl.textContent = 'Cloth';
+                if (currentSwatch) {
+                    currentSwatch.style.background = 'repeating-conic-gradient(#ccc 0% 25%, white 0% 50%) 50% / 16px 16px';
+                }
+            } else {
+                // Find closest DMC match
+                const dmcEntry = DMC_RGB.find(d => {
+                    const dr = d[2][0] - rgb[0];
+                    const dg = d[2][1] - rgb[1];
+                    const db = d[2][2] - rgb[2];
+                    return (dr*dr + dg*dg + db*db) < 100;
+                });
+                if (dmcEntry) {
+                    currentCodeEl.textContent = dmcEntry[0];
+                    currentNameEl.textContent = dmcEntry[1];
+                } else {
+                    currentCodeEl.textContent = '';
+                    currentNameEl.textContent = 'Custom';
+                }
+            }
+        }
+    }
+
+    state.on("colorChanged", (rgb) => {
+        updateCurrentColorDisplay(rgb);
     });
 
     const canvasFrame = document.getElementById('canvasFrame');
@@ -3441,18 +3431,14 @@ window.addEventListener("load", () => {
         // Set the active color to the clicked pixel's color
         state.setColor(currentContextMenuPos.rgb);
         
-        // Update UI to reflect new color
-        const rgb = currentContextMenuPos.rgb;
-        const colorPreview = document.getElementById('currentColorPreview');
-        if (colorPreview) {
-            colorPreview.style.backgroundColor = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
-        }
+        // Update UI to reflect new color (uses sidebar display now)
+        updateCurrentColorDisplay(currentContextMenuPos.rgb);
 
         // Deselect all palette swatches
         document.querySelectorAll('.palette-swatch').forEach(s => s.classList.remove('selected'));
         
         // Also sync to canvas
-        sendToCanvas('SET_COLOR', rgb);
+        sendToCanvas('SET_COLOR', currentContextMenuPos.rgb);
 
         // Close the menu
         closeContextMenu();
@@ -3774,9 +3760,14 @@ window.addEventListener("load", () => {
     });
 
     renderPalette([]);
-    const initColorPreview = document.getElementById('currentColorPreview');
-    if (initColorPreview) {
-        initColorPreview.style.backgroundColor = 'rgb(0,0,0)';
+    // Initialize current color display in sidebar
+    const initColorSwatch = document.getElementById('currentColorSwatch');
+    const initHoverSwatch = document.getElementById('hoverColorSwatch');
+    if (initColorSwatch) {
+        initColorSwatch.style.backgroundColor = 'rgb(0,0,0)';
+    }
+    if (initHoverSwatch) {
+        initHoverSwatch.style.backgroundColor = '#eee';
     }
     state.setColor([0, 0, 0]);
 

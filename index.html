@@ -38,15 +38,10 @@
             <button id="oxsImportBtn" title="Import OXS File">
                 <img src="assets/tool-icons/download.svg" class="tool-icon" alt="Import">
             </button>
-            <button id="clearAllBtn" title="Clear All (Ctrl+Shift+X)">
-                <img src="assets/tool-icons/trash.svg" class="tool-icon" alt="Clear All">
-            </button>
             <button id="resetOriginalBtn" title="Reset to Original Upload">
                 <img src="assets/tool-icons/reset-original.svg" class="tool-icon" alt="Reset">
             </button>
-            <div id="currentColorContainer" title="Current Color">
-                <div id="currentColorPreview" style="background-color: rgb(0,0,0);"></div>
-            </div>
+            
             <button id="pencilBtn" class="active" title="Pencil">
                 <img src="assets/tool-icons/pencil.svg" class="tool-icon" alt="Pencil">
                 <span class="tool-size">1×1</span>
@@ -284,10 +279,25 @@
             </main>
 
             <aside id="rightSidebar">
-                    <div id="dmcHoverInfo" class="dmc-tooltip">
-                        <span id="dmcHoverSwatch" class="dmc-swatch"></span>
-                        <span id="dmcHoverCode" class="dmc-code"></span>
-                        <span id="dmcHoverName" class="dmc-name"></span>
+                    <div id="colorInfoPanel">
+                        <div class="color-swatches">
+                            <div class="color-item">
+                                <div id="currentColorSwatch" class="color-swatch"></div>
+                            </div>
+                            <div class="color-item">
+                                <div id="hoverColorSwatch" class="color-swatch"></div>
+                            </div>
+                        </div>
+                        <div class="color-info">
+                            <div class="color-details">
+                                <span id="currentColorCode" class="color-code"></span>
+                                <span id="currentColorName" class="color-name"></span>
+                            </div>
+                            <div class="color-details">
+                                <span id="hoverColorCode" class="color-code"></span>
+                                <span id="hoverColorName" class="color-name"></span>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="tabs">
