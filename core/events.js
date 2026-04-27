@@ -252,14 +252,28 @@ export class EditorEvents {
             if (gx >= 0 && gy >= 0 && gx < this.state.pixelGrid.width && gy < this.state.pixelGrid.height) {
                 const dmcGrid = this.state.mappedDmcGrid;
                 const rgb = this.state.pixelGrid.grid[gy][gx];
-                // Only show for non-white pixels
-                if (!(rgb[0] === 255 && rgb[1] === 255 && rgb[2] === 255)) {
-                    const dmcCode = dmcGrid ? dmcGrid[gy][gx] : null;
+                
+                // Check DMC code first - code "0" means cloth/transparent
+                const dmcCode = dmcGrid ? dmcGrid[gy][gx] : null;
+                
+                // Check for cloth sentinel (254,254,254) or code "0"
+                const isCloth = (dmcCode && String(dmcCode) === '0') || 
+                               (rgb[0] === 254 && rgb[1] === 254 && rgb[2] === 254);
+                
+                if (isCloth) {
+                    // It's cloth - show "None" with checkered indicator
+                    window.parent.postMessage({
+                        type: 'HOVER_DMC',
+                        payload: { code: '0', rgb: rgb, isCloth: true }
+                    }, '*');
+                } else if (dmcCode && String(dmcCode) !== '0') {
+                    // Has a DMC code (not cloth) - show the color
                     window.parent.postMessage({
                         type: 'HOVER_DMC',
                         payload: { code: dmcCode, rgb: rgb }
                     }, '*');
                 } else {
+                    // No DMC code and not cloth
                     window.parent.postMessage({
                         type: 'HOVER_DMC',
                         payload: { code: null }

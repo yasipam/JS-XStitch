@@ -300,7 +300,8 @@ export function mapFullWithPalette(
     let dmcGrid = [];
     const codeToRgb = {};
     DMC_RGB.forEach(([code, , rgb]) => { codeToRgb[String(code)] = rgb; });
-    codeToRgb["0"] = [255, 255, 255];
+    // Use 254,254,254 as sentinel for cloth (code "0") - renderer will show checkered
+    codeToRgb["0"] = [254, 254, 254];
 
     for (let y = 0; y < newH; y++) {
         const dmcRow = [];

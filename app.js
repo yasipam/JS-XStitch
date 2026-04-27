@@ -259,7 +259,7 @@ function buildStampedRgbGrid(dmcGrid) {
 
 const codeToRgbMap = {};
 DMC_RGB.forEach(([code, , rgb]) => { codeToRgbMap[String(code)] = rgb; });
-codeToRgbMap["0"] = [255, 255, 255];
+codeToRgbMap["0"] = [254, 254, 254];
 
 function getRgbFromCode(code) {
     return codeToRgbMap[String(code)] || [255, 255, 255];
@@ -3044,7 +3044,17 @@ function updateDmcHoverTooltip(payload) {
 
     if (!tooltip || !swatchEl || !codeEl || !nameEl) return;
 
-    const { code, rgb } = payload || {};
+    const { code, rgb, isCloth } = payload || {};
+
+    // Handle cloth/none case
+    if (isCloth || (code && String(code) === '0')) {
+        tooltip.style.display = 'flex';
+        codeEl.textContent = 'None';
+        nameEl.textContent = 'Cloth (Transparent)';
+        swatchEl.style.background = 'repeating-conic-gradient(#ccc 0% 25%, white 0% 50%) 50% / 16px 16px';
+        tooltip.style.borderColor = '#ccc';
+        return;
+    }
 
     if (!code) {
         tooltip.style.display = 'none';
@@ -3672,8 +3682,9 @@ window.addEventListener("load", () => {
         
         const h = dmcGrid.length;
         const w = dmcGrid[0]?.length || 0;
+        // Use 254,254,254 as sentinel for cloth (renderer will show checkered)
         const rgbGrid = Array.from({ length: h }, () => 
-            Array.from({ length: w }, () => [255, 255, 255])
+            Array.from({ length: w }, () => [254, 254, 254])
         );
         
         const dmcToRgb = {};

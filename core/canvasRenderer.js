@@ -130,13 +130,44 @@ export class LayeredRenderer {
         if (!grid || !grid.grid) return;
 
         const dpr = window.devicePixelRatio || 1;
-        ctx.fillStyle = "#c1c1c1";
-        ctx.fillRect(0, 0, this.canvases.bg.width / dpr, this.canvases.bg.height / dpr);
+        const canvasW = this.canvases.bg.width / dpr;
+        const canvasH = this.canvases.bg.height / dpr;
+        
+        // Fill with grey first (areas outside the grid)
+        ctx.fillStyle = "#999999";
+        ctx.fillRect(0, 0, canvasW, canvasH);
+        
+        // Create checkered pattern for cloth/transparent background
+        const patternSize = 8;
+        const patternCanvas = document.createElement('canvas');
+        patternCanvas.width = patternSize * 2;
+        patternCanvas.height = patternSize * 2;
+        const pCtx = patternCanvas.getContext('2d');
+        pCtx.fillStyle = '#cccccc';
+        pCtx.fillRect(0, 0, patternSize * 2, patternSize * 2);
+        pCtx.fillStyle = '#ffffff';
+        pCtx.fillRect(0, 0, patternSize, patternSize);
+        pCtx.fillRect(patternSize, patternSize, patternSize, patternSize);
+        const pattern = ctx.createPattern(patternCanvas, 'repeat');
+        
+        // Fill the grid area with checkered pattern (cloth background)
+        const gridPixelW = Math.ceil(grid.width * this.zoom);
+        const gridPixelH = Math.ceil(grid.height * this.zoom);
+        ctx.fillStyle = pattern;
+        ctx.fillRect(this.offsetX, this.offsetY, gridPixelW, gridPixelH);
 
+        // Draw pixel colors (skip cloth sentinel - it's checkered)
         for (let y = 0; y < grid.height; y++) {
             for (let x = 0; x < grid.width; x++) {
                 const [r, g, b] = grid.grid[y][x];
-                ctx.fillStyle = `rgb(${r},${g},${b})`;
+                // Skip cloth sentinel (254,254,254) - show checkered background
+                if (r === 254 && g === 254 && b === 254) continue;
+                // Also skip actual white thread (255,255,255) - show as white on checkered
+                if (r === 255 && g === 255 && b === 255) {
+                    ctx.fillStyle = '#ffffff';
+                } else {
+                    ctx.fillStyle = `rgb(${r},${g},${b})`;
+                }
                 const px = Math.floor(this.offsetX + x * this.zoom);
                 const py = Math.floor(this.offsetY + y * this.zoom);
                 ctx.fillRect(px, py, Math.ceil(this.zoom) + 0.3, Math.ceil(this.zoom) + 0.3);
