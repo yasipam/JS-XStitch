@@ -193,9 +193,6 @@ window.addEventListener('message', (e) => {
             break;
 
         case 'SET_RGB_GRID':
-            console.log('[DEBUG] SET_RGB_GRID received', { 
-                payloadSize: payload ? `${payload.length}x${payload[0]?.length}` : 'null' 
-            });
             if (state && payload && state.pixelGrid) {
                 state.pixelGrid.grid = payload;
                 if (state.renderer) {

@@ -3471,11 +3471,7 @@ window.addEventListener("load", () => {
     let replaceColorToCode = null;
 
     function openReplaceColorDialog() {
-        console.log('[DEBUG] openReplaceColorDialog called', { 
-            currentContextMenuPos 
-        });
         if (!currentContextMenuPos || !currentContextMenuPos.rgb) {
-            console.warn('[DEBUG] No rgb in currentContextMenuPos!');
             closeContextMenu();
             return;
         }
@@ -3515,7 +3511,6 @@ window.addEventListener("load", () => {
 
     function renderReplacePalette() {
         const container = document.getElementById('replacePalette');
-        console.log('[DEBUG] renderReplacePalette called', { container });
         if (!container) return;
 
         container.innerHTML = '';
@@ -3669,13 +3664,6 @@ window.addEventListener("load", () => {
     }
 
     function executeReplaceColor() {
-        console.log('[DEBUG] executeReplaceColor called', {
-            replaceColorFromCode,
-            replaceColorToCode,
-            replaceColorFromRgb,
-            replaceColorToRgb
-        });
-        
         if (!replaceColorFromCode || !replaceColorToCode) return;
 
         const dmcGrid = state.mappedDmcGrid;
@@ -3685,14 +3673,10 @@ window.addEventListener("load", () => {
             row.map(code => String(code) === replaceColorFromCode ? replaceColorToCode : code)
         );
 
-        console.log('[DEBUG] New DMC grid created, rebuilding RGB grid...');
-        
         state.mappedDmcGrid = newDmcGrid;
-        
-        // Rebuild RGB grid from DMC grid and send to canvas
+
         const newRgbGrid = rebuildRgbGridFromDmc(newDmcGrid);
-        console.log('[DEBUG] Rebuild RGB grid:', { newRgbGrid: newRgbGrid ? `${newRgbGrid.length}x${newRgbGrid[0]?.length}` : 'null' });
-        
+
         state.mappedRgbGrid = newRgbGrid;
         sendToCanvas('SET_DMC_GRID', newDmcGrid);
         sendToCanvas('SET_RGB_GRID', newRgbGrid);
@@ -3704,10 +3688,6 @@ window.addEventListener("load", () => {
 
     // Bind Replace Color menu item
     document.getElementById('ctxReplaceColor')?.addEventListener('click', (e) => {
-        console.log('[DEBUG] ctxReplaceColor clicked', { 
-            currentContextMenuPos,
-            event: e 
-        });
         e.stopPropagation();
         openReplaceColorDialog();
     });
