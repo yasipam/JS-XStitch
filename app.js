@@ -631,8 +631,13 @@ function renderPalette(usedCodes = []) {
         swatch.title = `${code}: ${name}`;
 
         swatch.onclick = () => {
-            state.setColor(rgb);
-            sendToCanvas('SET_COLOR', rgb);
+            if (state.mode === 'backstitch') {
+                state.setBackstitchColor(rgb);
+                sendToCanvas('SET_BACKSTITCH_COLOR', rgb);
+            } else {
+                state.setColor(rgb);
+                sendToCanvas('SET_COLOR', rgb);
+            }
             document.querySelectorAll('.palette-swatch').forEach(s => s.classList.remove('selected'));
             swatch.classList.add('selected');
         };
@@ -649,8 +654,13 @@ function renderPalette(usedCodes = []) {
             </div>
         `;
         row.onclick = () => {
-            state.setColor(rgb);
-            sendToCanvas('SET_COLOR', rgb);
+            if (state.mode === 'backstitch') {
+                state.setBackstitchColor(rgb);
+                sendToCanvas('SET_BACKSTITCH_COLOR', rgb);
+            } else {
+                state.setColor(rgb);
+                sendToCanvas('SET_COLOR', rgb);
+            }
             const relatedSwatch = paletteGrid.querySelector(`[data-code="${code}"]`);
             if (relatedSwatch) relatedSwatch.click();
         };
@@ -2054,16 +2064,10 @@ function setupModeToggle() {
             if (pixelTools) pixelTools.style.display = 'inline-block';
             if (backstitchTools) backstitchTools.style.display = 'none';
             
-            // Show/hide tabs - show normal tabs, hide backstitch tab
+            // Show all tabs (Palette and Threads)
             document.querySelectorAll('#rightSidebar .tabs .tab-link').forEach(tab => {
-                if (tab.textContent.includes('BSS')) {
-                    tab.style.display = 'none';
-                } else {
-                    tab.style.display = 'inline-block';
-                }
+                tab.style.display = 'inline-block';
             });
-            const backstitchTab = document.getElementById('BackstitchPaletteTab');
-            if (backstitchTab) backstitchTab.style.display = 'none';
             
             // Switch to palette tab
             const paletteTab = document.querySelector('#rightSidebar .tabs .tab-link:first-child');
@@ -2087,20 +2091,15 @@ function setupModeToggle() {
             if (pixelTools) pixelTools.style.display = 'none';
             if (backstitchTools) backstitchTools.style.display = 'inline-block';
             
-            // Show/hide tabs - show backstitch tab, hide normal tabs
+            // Show all tabs
             document.querySelectorAll('#rightSidebar .tabs .tab-link').forEach(tab => {
-                if (tab.textContent.includes('BSS')) {
-                    tab.style.display = 'inline-block';
-                } else {
-                    tab.style.display = 'none';
-                }
+                tab.style.display = 'inline-block';
             });
             
-            // Switch to backstitch palette tab
-            const backstitchTab = document.getElementById('BackstitchPaletteTab');
-            if (backstitchTab) {
-                backstitchTab.style.display = 'inline-block';
-                backstitchTab.click(); // Switch to backstitch palette tab
+            // Switch to palette tab (single palette for both modes)
+            const paletteTab = document.querySelector('#rightSidebar .tabs .tab-link:first-child');
+            if (paletteTab) {
+                paletteTab.click(); // Switch to palette tab
             }
         };
     }
@@ -2132,54 +2131,7 @@ function setupBackstitchTools() {
 }
 
 // -----------------------------------------------------------------------------
-// BACKSTITCH PALETTE
-// -----------------------------------------------------------------------------
-function setupBackstitchPalette() {
-    const container = document.getElementById('backstitchPaletteGrid');
-    if (!container) return;
 
-    // Set default to DMC 310 (black) before populating
-    const defaultRgb = [0, 0, 0];
-    state.setBackstitchColor(defaultRgb);
-    sendToCanvas('SET_BACKSTITCH_COLOR', defaultRgb);
-
-    // Use the same DMC_RGB palette as the main palette
-    const fragment = document.createDocumentFragment();
-    
-    DMC_RGB.forEach(entry => {
-        const [code, name, rgb] = entry;
-        const swatch = document.createElement('div');
-        swatch.className = 'palette-swatch backstitch-palette-item';
-        swatch.style.backgroundColor = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
-        swatch.title = `DMC ${code} - ${name}`;
-        swatch.dataset.code = code;
-        swatch.dataset.rgb = rgb.join(',');
-        
-        swatch.onclick = () => {
-            const rgbArray = rgb.map(Number);
-            console.log('[App] Setting backstitch color:', rgbArray);
-            state.setBackstitchColor(rgbArray);
-            sendToCanvas('SET_BACKSTITCH_COLOR', rgbArray);
-            console.log('[App] Sent SET_BACKSTITCH_COLOR to iframe:', rgbArray);
-            
-            // Highlight selected
-            document.querySelectorAll('.backstitch-palette-item').forEach(s => 
-                s.classList.remove('selected'));
-            swatch.classList.add('selected');
-        };
-        
-        fragment.appendChild(swatch);
-    });
-    
-    container.appendChild(fragment);
-}
-
-function renderBackstitchPalette() {
-    // This will be called when switching to backstitch mode
-    const container = document.getElementById('backstitchPaletteGrid');
-    if (!container || container.children.length > 0) return;
-    setupBackstitchPalette();
-}
 
 function setupEditHistory() {
     const undoBtn = document.getElementById("undoBtn");
@@ -3375,7 +3327,6 @@ window.addEventListener("load", () => {
     setupZoomButtons();
     setupReferenceButton();
     setupPaletteUI();
-    setupBackstitchPalette();
 
     // GLOBAL KEYBOARD BRIDGE
     window.addEventListener("keydown", (e) => {
