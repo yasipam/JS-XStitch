@@ -248,6 +248,7 @@ export class BackstitchPencilTool extends BaseTool {
             points: [[rx, ry]],
             color: [...state.backstitchColor]
         };
+        console.log('[BackstitchPencil] onPointerDown color from state:', state.backstitchColor);
         this.lastIntersection = [rx, ry];
     }
 

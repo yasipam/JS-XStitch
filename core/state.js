@@ -142,6 +142,7 @@ export class EditorState {
     }
 
     setBackstitchColor(rgb) {
+        console.log('[State] setBackstitchColor called:', rgb);
         this.backstitchColor = [...rgb];
         this.emit("backstitchColorChanged", rgb);
     }

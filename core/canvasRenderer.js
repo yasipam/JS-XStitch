@@ -226,6 +226,7 @@ export class LayeredRenderer {
             if (!line.points || line.points.length < 2) return;
 
             const [r, g, b] = line.color;
+            console.log(`[Renderer] drawBackstitch line ${idx} color:`, line.color);
             ctx.beginPath();
             ctx.strokeStyle = `rgb(${r},${g},${b})`;
             ctx.lineWidth = baseLineWidth;
@@ -254,7 +255,7 @@ export class LayeredRenderer {
     drawBackstitchPreview(line) {
         const ctx = this.ctxs.backstitch;
         if (!ctx || !line || line.points.length < 2) {
-            console.log('[Renderer] drawBackstitchPreview: early return', { hasCtx: !!ctx, hasLine: !!line, points: line?.points?.length });
+            console.log('[Renderer] drawBackstitchPreview: early return', { hasCtx: !!ctx, hasLine: !!line, points: line?.points?.length, color: line?.color });
             return;
         }
 
@@ -263,6 +264,7 @@ export class LayeredRenderer {
         // This is for real-time preview during drawing
 
         const [r, g, b] = line.color;
+        console.log('[Renderer] drawBackstitchPreview color from line:', line.color);
         const baseLineWidth = Math.max(1, this.zoom * 0.15);
 
         console.log('[Renderer] drawBackstitchPreview', { points: line.points, color: [r,g,b], zoom: this.zoom });

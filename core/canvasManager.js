@@ -70,6 +70,12 @@ window.addEventListener('message', (e) => {
                 state.mappedDmcGrid = payload.dmcGrid;
             }
 
+            // Sync backstitch color from parent
+            if (payload.backstitchColor) {
+                console.log('[Iframe] INIT with backstitchColor:', payload.backstitchColor);
+                state.setBackstitchColor(payload.backstitchColor);
+            }
+
             resetToBestFit();
             break;
 
@@ -94,7 +100,10 @@ window.addEventListener('message', (e) => {
         case 'SET_COLOR': if (state) state.setColor(payload); break;
         case 'SET_MODE': if (state) state.setMode(payload); break;
         case 'SET_BACKSTITCH_TOOL': if (state) state.setBackstitchTool(payload); break;
-        case 'SET_BACKSTITCH_COLOR': if (state) state.setBackstitchColor(payload); break;
+        case 'SET_BACKSTITCH_COLOR': 
+            console.log('[Iframe] Received SET_BACKSTITCH_COLOR:', payload); 
+            if (state) state.setBackstitchColor(payload); 
+            break;
 
         case 'CROP_CONFIRM':
         case 'CROP_CANCEL':

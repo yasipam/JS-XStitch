@@ -128,8 +128,8 @@ function handleCrop({ x1, y1, x2, y2 }) {
 
         // Send to iframe to resize and update
         console.log('[Parent] Sending INIT to iframe:', { width: newWidth, height: newHeight });
-        sendToCanvas('INIT', { width: newWidth, height: newHeight });
-
+sendToCanvas('INIT', { width: newWidth, height: newHeight, backstitchColor: state.backstitchColor });
+        
         console.log('[Parent] Sending UPDATE_GRID to iframe');
         sendToCanvas('UPDATE_GRID', newGrid);
 
@@ -193,7 +193,7 @@ function handleCrop({ x1, y1, x2, y2 }) {
 
         // Send to iframe
         console.log('[Parent] Sending INIT to iframe');
-        sendToCanvas('INIT', { width: newWidth, height: newHeight });
+        sendToCanvas('INIT', { width: newWidth, height: newHeight, backstitchColor: state.backstitchColor });
         sendToCanvas('UPDATE_GRID', newGrid);
         sendToCanvas('SET_TOOL', 'pencil');
 
@@ -575,7 +575,7 @@ async function runMapping(isReset = false) {
             currentGrid.height !== newHeight;
 
         if (dimensionsChanged) {
-            sendToCanvas('INIT', { width: newWidth, height: newHeight, dmcGrid: liveDmcGrid });
+            sendToCanvas('INIT', { width: newWidth, height: newHeight, dmcGrid: liveDmcGrid, backstitchColor: state.backstitchColor });
         } else {
             sendToCanvas('SET_DMC_GRID', liveDmcGrid);
         }
@@ -976,7 +976,8 @@ function setupUpload() {
                 // Tell the iframe to prepare for an 80px grid
                 sendToCanvas('INIT', {
                     width: 80,
-                    height: Math.floor(80 * (img.height / img.width))
+                    height: Math.floor(80 * (img.height / img.width)),
+                    backstitchColor: state.backstitchColor
                 });
 
                 runMapping(true); // isReset=true so view resets to best-fit
@@ -1278,7 +1279,7 @@ function createEmptyCanvas(width, height) {
     state.mappedDmcGrid = emptyDmcGrid;
     state.mappedRgbGrid = emptyRgbGrid;
 
-    sendToCanvas('INIT', { width, height });
+    sendToCanvas('INIT', { width, height, backstitchColor: state.backstitchColor });
     sendToCanvas('UPDATE_GRID', emptyRgbGrid);
 
     // Enable all controls for empty canvas mode
@@ -1325,7 +1326,7 @@ function resizeEmptyCanvas(newSize) {
     state.mappedDmcGrid = newDmcGrid;
     state.mappedRgbGrid = newRgbGrid;
     
-    sendToCanvas('INIT', { width, height });
+    sendToCanvas('INIT', { width, height, backstitchColor: state.backstitchColor });
     sendToCanvas('UPDATE_GRID', newRgbGrid);
 
     updateSidebarFromEmptyCanvas();
@@ -1417,7 +1418,7 @@ function loadOxsPattern(parsed) {
 
     state.originalImageURL = null;
 
-    sendToCanvas('INIT', { width, height });
+    sendToCanvas('INIT', { width, height, backstitchColor: state.backstitchColor });
 
     state.mappedDmcGrid = dmcGrid;
     state.mappedRgbGrid = rgbGrid;
@@ -2076,6 +2077,8 @@ function setupModeToggle() {
         backstitchModeBtn.onclick = () => {
             state.setMode('backstitch');
             sendToCanvas('SET_MODE', 'backstitch');
+            // Ensure iframe has the current backstitch color
+            sendToCanvas('SET_BACKSTITCH_COLOR', state.backstitchColor);
             
             backstitchModeBtn.classList.add('active');
             pixelModeBtn.classList.remove('active');
@@ -2135,6 +2138,11 @@ function setupBackstitchPalette() {
     const container = document.getElementById('backstitchPaletteGrid');
     if (!container) return;
 
+    // Set default to DMC 310 (black) before populating
+    const defaultRgb = [0, 0, 0];
+    state.setBackstitchColor(defaultRgb);
+    sendToCanvas('SET_BACKSTITCH_COLOR', defaultRgb);
+
     // Use the same DMC_RGB palette as the main palette
     const fragment = document.createDocumentFragment();
     
@@ -2149,8 +2157,10 @@ function setupBackstitchPalette() {
         
         swatch.onclick = () => {
             const rgbArray = rgb.map(Number);
+            console.log('[App] Setting backstitch color:', rgbArray);
             state.setBackstitchColor(rgbArray);
             sendToCanvas('SET_BACKSTITCH_COLOR', rgbArray);
+            console.log('[App] Sent SET_BACKSTITCH_COLOR to iframe:', rgbArray);
             
             // Highlight selected
             document.querySelectorAll('.backstitch-palette-item').forEach(s => 
@@ -3332,7 +3342,8 @@ window.addEventListener("load", () => {
         console.log("Sending INIT to iframe...");
         sendToCanvas('INIT', {
             width: state.pixelGrid.width,
-            height: state.pixelGrid.height
+            height: state.pixelGrid.height,
+            backstitchColor: state.backstitchColor
         });
 
         if (state.pixelGrid.grid) {
@@ -3364,6 +3375,7 @@ window.addEventListener("load", () => {
     setupZoomButtons();
     setupReferenceButton();
     setupPaletteUI();
+    setupBackstitchPalette();
 
     // GLOBAL KEYBOARD BRIDGE
     window.addEventListener("keydown", (e) => {
