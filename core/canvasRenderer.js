@@ -206,18 +206,23 @@ export class LayeredRenderer {
     // -------------------------------------------------------------------------
     drawBackstitch() {
         const ctx = this.ctxs.backstitch;
-        if (!ctx || !this.backstitchGrid) return;
+        if (!ctx || !this.backstitchGrid) {
+            console.log('[Renderer] drawBackstitch: missing ctx or backstitchGrid', { hasCtx: !!ctx, hasGrid: !!this.backstitchGrid });
+            return;
+        }
 
         const dpr = window.devicePixelRatio || 1;
         ctx.clearRect(0, 0, this.canvases.backstitch.width / dpr, this.canvases.backstitch.height / dpr);
 
         const lines = this.backstitchGrid.getLines();
+        console.log('[Renderer] drawBackstitch called', { lineCount: lines.length, zoom: this.zoom, offsetX: this.offsetX, offsetY: this.offsetY });
+        
         if (lines.length === 0) return;
 
         // Scale line width with zoom (thin but visible)
         const baseLineWidth = Math.max(1, this.zoom * 0.15);
 
-        lines.forEach(line => {
+        lines.forEach((line, idx) => {
             if (!line.points || line.points.length < 2) return;
 
             const [r, g, b] = line.color;
@@ -242,12 +247,16 @@ export class LayeredRenderer {
             }
 
             ctx.stroke();
+            console.log(`[Renderer] drew line ${idx}`, { color: [r,g,b], points: line.points, px0, py0 });
         });
     }
 
     drawBackstitchPreview(line) {
         const ctx = this.ctxs.backstitch;
-        if (!ctx || !line || line.points.length < 2) return;
+        if (!ctx || !line || line.points.length < 2) {
+            console.log('[Renderer] drawBackstitchPreview: early return', { hasCtx: !!ctx, hasLine: !!line, points: line?.points?.length });
+            return;
+        }
 
         const dpr = window.devicePixelRatio || 1;
         // We don't clear here - the main drawBackstitch will handle that
@@ -255,6 +264,8 @@ export class LayeredRenderer {
 
         const [r, g, b] = line.color;
         const baseLineWidth = Math.max(1, this.zoom * 0.15);
+
+        console.log('[Renderer] drawBackstitchPreview', { points: line.points, color: [r,g,b], zoom: this.zoom });
 
         ctx.beginPath();
         ctx.strokeStyle = `rgba(${r},${g},${b},0.7)`; // Semi-transparent for preview

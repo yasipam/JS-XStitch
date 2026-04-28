@@ -234,30 +234,42 @@ export class BackstitchPencilTool extends BaseTool {
 
     onPointerDown(state, ix, iy) {
         // ix, iy are grid intersection coordinates (not pixel grid coords)
-        if (ix < 0 || iy < 0 || ix > state.backstitchGrid.width || iy > state.backstitchGrid.height) return;
+        // Round to integers for grid alignment
+        const rx = Math.round(ix);
+        const ry = Math.round(iy);
+        
+        console.log('[BackstitchPencil] onPointerDown', { ix, iy, rx, ry, mode: state.mode });
+        
+        if (rx < 0 || ry < 0 || rx > state.backstitchGrid.width || ry > state.backstitchGrid.height) return;
         
         state.backstitchGrid.pushUndo();
         this.drawing = true;
         this.currentLine = {
-            points: [[ix, iy]],
+            points: [[rx, ry]],
             color: [...state.backstitchColor]
         };
-        this.lastIntersection = [ix, iy];
+        this.lastIntersection = [rx, ry];
     }
 
     onPointerMove(state, ix, iy) {
         if (!this.drawing || !this.currentLine) return;
-        if (ix < 0 || iy < 0 || ix > state.backstitchGrid.width || iy > state.backstitchGrid.height) return;
+        
+        // Round to integers for grid alignment
+        const rx = Math.round(ix);
+        const ry = Math.round(iy);
+        
+        if (rx < 0 || ry < 0 || rx > state.backstitchGrid.width || ry > state.backstitchGrid.height) return;
 
         // Only add point if it's different from last and valid direction
-        if (this.lastIntersection[0] !== ix || this.lastIntersection[1] !== iy) {
+        if (this.lastIntersection[0] !== rx || this.lastIntersection[1] !== ry) {
             // Snap to 8-direction if we have a previous point
             const snapped = this._snapTo8Directions(
                 this.lastIntersection[0], this.lastIntersection[1],
-                ix, iy
+                rx, ry
             );
             
             if (snapped) {
+                console.log('[BackstitchPencil] adding point', { from: this.lastIntersection, to: [snapped.x, snapped.y] });
                 this.currentLine.points.push([snapped.x, snapped.y]);
                 this.lastIntersection = [snapped.x, snapped.y];
                 
@@ -270,6 +282,8 @@ export class BackstitchPencilTool extends BaseTool {
     }
 
     onPointerUp(state) {
+        console.log('[BackstitchPencil] onPointerUp', { drawing: this.drawing, hasLine: !!this.currentLine, points: this.currentLine?.points?.length });
+        
         if (!this.drawing || !this.currentLine) {
             this.drawing = false;
             this.currentLine = null;
@@ -279,6 +293,7 @@ export class BackstitchPencilTool extends BaseTool {
 
         // Save the line to backstitchGrid
         if (this.currentLine.points.length >= 2) {
+            console.log('[BackstitchPencil] saving line to backstitchGrid', { points: this.currentLine.points, color: this.currentLine.color });
             state.backstitchGrid.addLine(
                 this.currentLine.points,
                 this.currentLine.color
@@ -320,14 +335,18 @@ export class BackstitchEraserTool extends BaseTool {
     lastErasedIds = [];
 
     onPointerDown(state, ix, iy) {
-        if (ix < 0 || iy < 0 || ix > state.backstitchGrid.width || iy > state.backstitchGrid.height) return;
+        // Round to integers for grid alignment
+        const rx = Math.round(ix);
+        const ry = Math.round(iy);
+        
+        if (rx < 0 || ry < 0 || rx > state.backstitchGrid.width || ry > state.backstitchGrid.height) return;
         
         state.backstitchGrid.pushUndo();
         this.erasing = true;
         this.lastErasedIds = [];
         
         // Remove lines near the click point
-        const removed = state.backstitchGrid.removeNearPoint(ix, iy, 0.5);
+        const removed = state.backstitchGrid.removeNearPoint(rx, ry, 0.5);
         this.lastErasedIds.push(...removed);
         
         if (state.renderer) {
@@ -338,10 +357,15 @@ export class BackstitchEraserTool extends BaseTool {
 
     onPointerMove(state, ix, iy) {
         if (!this.erasing) return;
-        if (ix < 0 || iy < 0 || ix > state.backstitchGrid.width || iy > state.backstitchGrid.height) return;
+        
+        // Round to integers for grid alignment
+        const rx = Math.round(ix);
+        const ry = Math.round(iy);
+        
+        if (rx < 0 || ry < 0 || rx > state.backstitchGrid.width || ry > state.backstitchGrid.height) return;
 
         // Continuously erase lines near the cursor
-        const removed = state.backstitchGrid.removeNearPoint(ix, iy, 0.5);
+        const removed = state.backstitchGrid.removeNearPoint(rx, ry, 0.5);
         this.lastErasedIds.push(...removed);
         
         if (removed.length > 0 && state.renderer) {
