@@ -170,10 +170,14 @@ function handleCrop({ x1, y1, x2, y2 }) {
         const croppedCanvas = document.createElement('canvas');
         croppedCanvas.width = newWidth;
         croppedCanvas.height = newHeight;
-        const ctx = croppedCanvas.getContext('2d');
+        const ctx = croppedCanvas.getContext('2d', { alpha: true });
+        ctx.clearRect(0, 0, newWidth, newHeight);
         for (let y = 0; y < newHeight; y++) {
             for (let x = 0; x < newWidth; x++) {
                 const rgb = newGrid[y][x];
+                if (rgb[0] === 254 && rgb[1] === 254 && rgb[2] === 254) {
+                    continue;
+                }
                 ctx.fillStyle = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
                 ctx.fillRect(x, y, 1, 1);
             }
