@@ -2927,7 +2927,7 @@ function setupReferenceButton() {
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = gridW;
             tempCanvas.height = gridH;
-            const ctx = tempCanvas.getContext('2d');
+            const ctx = tempCanvas.getContext('2d', { alpha: true });
             ctx.drawImage(imgToUse, 0, 0, gridW, gridH);
 
             const scaledImageData = tempCanvas.toDataURL("image/png");
@@ -2957,7 +2957,7 @@ function exportPixelPNG(rgbGrid, filename) {
     const offscreenCanvas = document.createElement('canvas');
     offscreenCanvas.width = width;
     offscreenCanvas.height = height;
-    const ctx = offscreenCanvas.getContext('2d');
+    const ctx = offscreenCanvas.getContext('2d', { alpha: true });
 
     // 2. Create ImageData to manipulate raw pixels
     const imageData = ctx.createImageData(width, height);
@@ -2968,12 +2968,11 @@ function exportPixelPNG(rgbGrid, filename) {
             const index = (y * width + x) * 4;
             const rgb = rgbGrid[y][x];
 
-            // Handle transparency (cloth/0)
-            // If your cloth is 255,255,255 and you want it transparent:
-            if (rgb[0] === 255 && rgb[1] === 255 && rgb[2] === 255) {
-                data[index] = 255;
-                data[index + 1] = 255;
-                data[index + 2] = 255;
+            // Handle transparency (cloth sentinel is [254,254,254])
+            if (rgb[0] === 254 && rgb[1] === 254 && rgb[2] === 254) {
+                data[index] = 0;
+                data[index + 1] = 0;
+                data[index + 2] = 0;
                 data[index + 3] = 0; // Transparent Alpha
             } else {
                 data[index] = rgb[0];     // R
