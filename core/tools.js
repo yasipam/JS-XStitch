@@ -222,9 +222,145 @@ export class CropTool extends BaseTool {
     }
 }
 
+// -----------------------------------------------------------------------------
+// BACKSTITCH TOOLS
+// -----------------------------------------------------------------------------
+
+export class BackstitchPencilTool extends BaseTool {
+    cursor = "crosshair";
+    drawing = false;
+    currentLine = null; // { points: [[x,y],...], color: [r,g,b] }
+    lastIntersection = null; // Last snapped intersection point
+
+    onPointerDown(state, ix, iy) {
+        // ix, iy are grid intersection coordinates (not pixel grid coords)
+        if (ix < 0 || iy < 0 || ix > state.backstitchGrid.width || iy > state.backstitchGrid.height) return;
+        
+        state.backstitchGrid.pushUndo();
+        this.drawing = true;
+        this.currentLine = {
+            points: [[ix, iy]],
+            color: [...state.backstitchColor]
+        };
+        this.lastIntersection = [ix, iy];
+    }
+
+    onPointerMove(state, ix, iy) {
+        if (!this.drawing || !this.currentLine) return;
+        if (ix < 0 || iy < 0 || ix > state.backstitchGrid.width || iy > state.backstitchGrid.height) return;
+
+        // Only add point if it's different from last and valid direction
+        if (this.lastIntersection[0] !== ix || this.lastIntersection[1] !== iy) {
+            // Snap to 8-direction if we have a previous point
+            const snapped = this._snapTo8Directions(
+                this.lastIntersection[0], this.lastIntersection[1],
+                ix, iy
+            );
+            
+            if (snapped) {
+                this.currentLine.points.push([snapped.x, snapped.y]);
+                this.lastIntersection = [snapped.x, snapped.y];
+                
+                // Render preview
+                if (state.renderer) {
+                    state.renderer.drawBackstitchPreview(this.currentLine);
+                }
+            }
+        }
+    }
+
+    onPointerUp(state) {
+        if (!this.drawing || !this.currentLine) {
+            this.drawing = false;
+            this.currentLine = null;
+            this.lastIntersection = null;
+            return;
+        }
+
+        // Save the line to backstitchGrid
+        if (this.currentLine.points.length >= 2) {
+            state.backstitchGrid.addLine(
+                this.currentLine.points,
+                this.currentLine.color
+            );
+            
+            if (state.renderer) {
+                state.renderer.drawBackstitch();
+            }
+            state.emit("backstitchChanged");
+        }
+
+        this.drawing = false;
+        this.currentLine = null;
+        this.lastIntersection = null;
+    }
+
+    // Snap to 8 cardinal/intercardinal directions
+    _snapTo8Directions(x0, y0, x1, y1) {
+        const dx = x1 - x0;
+        const dy = y1 - y0;
+        
+        // If no movement, return null
+        if (dx === 0 && dy === 0) return null;
+        
+        const angle = Math.atan2(dy, dx);
+        const octant = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
+        
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const snappedX = Math.round(x0 + Math.cos(octant) * dist);
+        const snappedY = Math.round(y0 + Math.sin(octant) * dist);
+        
+        return { x: snappedX, y: snappedY };
+    }
+}
+
+export class BackstitchEraserTool extends BaseTool {
+    cursor = "cell";
+    erasing = false;
+    lastErasedIds = [];
+
+    onPointerDown(state, ix, iy) {
+        if (ix < 0 || iy < 0 || ix > state.backstitchGrid.width || iy > state.backstitchGrid.height) return;
+        
+        state.backstitchGrid.pushUndo();
+        this.erasing = true;
+        this.lastErasedIds = [];
+        
+        // Remove lines near the click point
+        const removed = state.backstitchGrid.removeNearPoint(ix, iy, 0.5);
+        this.lastErasedIds.push(...removed);
+        
+        if (state.renderer) {
+            state.renderer.drawBackstitch();
+        }
+        state.emit("backstitchChanged");
+    }
+
+    onPointerMove(state, ix, iy) {
+        if (!this.erasing) return;
+        if (ix < 0 || iy < 0 || ix > state.backstitchGrid.width || iy > state.backstitchGrid.height) return;
+
+        // Continuously erase lines near the cursor
+        const removed = state.backstitchGrid.removeNearPoint(ix, iy, 0.5);
+        this.lastErasedIds.push(...removed);
+        
+        if (removed.length > 0 && state.renderer) {
+            state.renderer.drawBackstitch();
+            state.emit("backstitchChanged");
+        }
+    }
+
+    onPointerUp() {
+        this.erasing = false;
+        this.lastErasedIds = [];
+    }
+}
+
 export const ToolRegistry = {
     pencil: new PencilTool(), eraser: new EraserTool(),
     fill: new FillTool(), picker: new PickerTool(),
     pan: new PanTool(), zoom: new ZoomTool(),
-    crop: new CropTool()
+    crop: new CropTool(),
+    backstitchPencil: new BackstitchPencilTool(),
+    backstitchEraser: new BackstitchEraserTool()
 };

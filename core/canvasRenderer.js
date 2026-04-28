@@ -1,11 +1,13 @@
 export class LayeredRenderer {
-    constructor(canvases, pixelGrid) {
+    constructor(canvases, pixelGrid, backstitchGrid) {
         this.pixelGrid = pixelGrid;
+        this.backstitchGrid = backstitchGrid;
         this.canvases = canvases;
         this.ctxs = {
             ref: canvases.ref ? canvases.ref.getContext("2d") : null,
             bg: canvases.bg.getContext("2d", { alpha: false }),
             grid: canvases.grid.getContext("2d"),
+            backstitch: canvases.backstitch ? canvases.backstitch.getContext("2d") : null,
             refOverlay: canvases.refOverlay ? canvases.refOverlay.getContext("2d") : null,
             ui: canvases.ui.getContext("2d")
         };
@@ -52,6 +54,7 @@ export class LayeredRenderer {
     }
 
     setPixelGrid(grid) { this.pixelGrid = grid; this.draw(); }
+    setBackstitchGrid(grid) { this.backstitchGrid = grid; this.drawBackstitch(); }
     setZoom(z) { this.zoom = z; this.draw(); }
     setPan(x, y) { this.offsetX = x; this.offsetY = y; this.draw(); }
     toggleGrid(s) { this.showGrid = s; this.draw(); }
@@ -84,7 +87,7 @@ export class LayeredRenderer {
         this.draw();
     }
 
-    draw() { this.drawReference(); this.drawBackground(); this.drawGrid(); }
+    draw() { this.drawReference(); this.drawBackground(); this.drawGrid(); this.drawBackstitch(); }
 
     drawReference() {
         if (!this.showReference) {
@@ -198,10 +201,96 @@ export class LayeredRenderer {
         ctx.stroke();
     }
 
+    // -------------------------------------------------------------------------
+    // BACKSTITCH RENDERING
+    // -------------------------------------------------------------------------
+    drawBackstitch() {
+        const ctx = this.ctxs.backstitch;
+        if (!ctx || !this.backstitchGrid) return;
+
+        const dpr = window.devicePixelRatio || 1;
+        ctx.clearRect(0, 0, this.canvases.backstitch.width / dpr, this.canvases.backstitch.height / dpr);
+
+        const lines = this.backstitchGrid.getLines();
+        if (lines.length === 0) return;
+
+        // Scale line width with zoom (thin but visible)
+        const baseLineWidth = Math.max(1, this.zoom * 0.15);
+
+        lines.forEach(line => {
+            if (!line.points || line.points.length < 2) return;
+
+            const [r, g, b] = line.color;
+            ctx.beginPath();
+            ctx.strokeStyle = `rgb(${r},${g},${b})`;
+            ctx.lineWidth = baseLineWidth;
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+
+            // Move to first point
+            const [startX, startY] = line.points[0];
+            const px0 = Math.floor(this.offsetX + startX * this.zoom);
+            const py0 = Math.floor(this.offsetY + startY * this.zoom);
+            ctx.moveTo(px0, py0);
+
+            // Draw line segments
+            for (let i = 1; i < line.points.length; i++) {
+                const [x, y] = line.points[i];
+                const px = Math.floor(this.offsetX + x * this.zoom);
+                const py = Math.floor(this.offsetY + y * this.zoom);
+                ctx.lineTo(px, py);
+            }
+
+            ctx.stroke();
+        });
+    }
+
+    drawBackstitchPreview(line) {
+        const ctx = this.ctxs.backstitch;
+        if (!ctx || !line || line.points.length < 2) return;
+
+        const dpr = window.devicePixelRatio || 1;
+        // We don't clear here - the main drawBackstitch will handle that
+        // This is for real-time preview during drawing
+
+        const [r, g, b] = line.color;
+        const baseLineWidth = Math.max(1, this.zoom * 0.15);
+
+        ctx.beginPath();
+        ctx.strokeStyle = `rgba(${r},${g},${b},0.7)`; // Semi-transparent for preview
+        ctx.lineWidth = baseLineWidth;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+
+        const [startX, startY] = line.points[0];
+        const px0 = Math.floor(this.offsetX + startX * this.zoom);
+        const py0 = Math.floor(this.offsetY + startY * this.zoom);
+        ctx.moveTo(px0, py0);
+
+        for (let i = 1; i < line.points.length; i++) {
+            const [x, y] = line.points[i];
+            const px = Math.floor(this.offsetX + x * this.zoom);
+            const py = Math.floor(this.offsetY + y * this.zoom);
+            ctx.lineTo(px, py);
+        }
+
+        ctx.stroke();
+    }
+
+    // -------------------------------------------------------------------------
+    // GRID UTILITIES
+    // -------------------------------------------------------------------------
     screenToGrid(clientX, clientY) {
         const gx = Math.floor((clientX - this.offsetX) / this.zoom);
         const gy = Math.floor((clientY - this.offsetY) / this.zoom);
         return { gx, gy };
+    }
+
+    // Convert screen coordinates to grid intersection coordinates
+    screenToIntersection(clientX, clientY) {
+        const ix = (clientX - this.offsetX) / this.zoom;
+        const iy = (clientY - this.offsetY) / this.zoom;
+        return { ix, iy };
     }
 
     drawCell(gx, gy, color) {

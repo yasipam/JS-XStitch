@@ -5,6 +5,7 @@
 // -----------------------------------------------------------------------------
 
 import { PixelGrid } from "./pixelGrid.js";
+import { BackstitchGrid } from "./backstitchGrid.js";
 import { LayeredRenderer } from "./canvasRenderer.js";
 import { ToolRegistry } from "./tools.js";
 
@@ -13,12 +14,22 @@ export class EditorState {
         // Core data model is always initialized
         this.pixelGrid = new PixelGrid(50, 50);
         
+        // Backstitch data model (parallel to pixelGrid)
+        this.backstitchGrid = new BackstitchGrid(50, 50);
+        
         // Only initialize renderer if canvases are provided (Iframe side)
         // If canvases is null, this is the Parent side which handles logic only.
-        this.renderer = canvases ? new LayeredRenderer(canvases, this.pixelGrid) : null;
+        this.renderer = canvases ? new LayeredRenderer(canvases, this.pixelGrid, this.backstitchGrid) : null;
 
+        // Current editing mode: "pixel" or "backstitch"
+        this.mode = "pixel";
+        
         this.activeTool = "pencil";
         this.activeColor = [0, 0, 0];
+        
+        // Backstitch-specific tool and color
+        this.activeBackstitchTool = "backstitchPencil";
+        this.backstitchColor = [0, 0, 0]; // Separate palette for backstitch
 
         this.zoom = 20; 
         this.panX = 0;
@@ -46,27 +57,36 @@ export class EditorState {
     // -------------------------------------------------------------------------
     clear() {
         this.pixelGrid = new PixelGrid(50, 50); 
+        this.backstitchGrid = new BackstitchGrid(50, 50);
         this.mappedRgbGrid = null;
         this.mappedDmcGrid = null;
         this.history = [];
         this.activeColor = [0, 0, 0]; 
+        this.backstitchColor = [0, 0, 0];
 
         if (this.renderer) {
             this.renderer.setPixelGrid(this.pixelGrid);
+            this.renderer.setBackstitchGrid(this.backstitchGrid);
             this.renderer.draw();
         }
         this.emit("gridLoaded", { width: 50, height: 50 });
     }
 
     clearCanvasAction() {
-        this.pixelGrid.pushUndo();
-        this.pixelGrid.fillAll([255, 255, 255]);
-        this.mappedRgbGrid = null;
-        this.mappedDmcGrid = null;
+        if (this.mode === "backstitch") {
+            this.backstitchGrid.clear();
+            if (this.renderer) this.renderer.drawBackstitch();
+            this.emit("backstitchChanged");
+        } else {
+            this.pixelGrid.pushUndo();
+            this.pixelGrid.fillAll([255, 255, 255]);
+            this.mappedRgbGrid = null;
+            this.mappedDmcGrid = null;
 
-        if (this.renderer) this.renderer.draw();
-        this.emit("gridChanged");
-        this.emit("mappingUpdated", { rgbGrid: null, dmcGrid: null }); 
+            if (this.renderer) this.renderer.draw();
+            this.emit("gridChanged");
+            this.emit("mappingUpdated", { rgbGrid: null, dmcGrid: null }); 
+        }
     }
 
     resetToMappedState() {
@@ -110,6 +130,25 @@ export class EditorState {
     setColor(rgb) {
         this.activeColor = [...rgb];
         this.emit("colorChanged", rgb);
+    }
+
+    // -------------------------------------------------------------------------
+    // MODE & BACKSTITCH MANAGEMENT
+    // -------------------------------------------------------------------------
+    setMode(mode) {
+        if (mode !== "pixel" && mode !== "backstitch") return;
+        this.mode = mode;
+        this.emit("modeChanged", mode);
+    }
+
+    setBackstitchColor(rgb) {
+        this.backstitchColor = [...rgb];
+        this.emit("backstitchColorChanged", rgb);
+    }
+
+    setBackstitchTool(toolName) {
+        this.activeBackstitchTool = toolName;
+        this.emit("backstitchToolChanged", toolName);
     }
 
     // -------------------------------------------------------------------------
@@ -160,26 +199,48 @@ export class EditorState {
     }
 
     // -------------------------------------------------------------------------
-    // UNDO / REDO
+    // UNDO / REDO (Mode-aware)
     // -------------------------------------------------------------------------
     undo() {
-        const previousGrid = this.pixelGrid.undo();
-        if (previousGrid && this.renderer) {
-            this.renderer.setPixelGrid(this.pixelGrid);
-            this.renderer.draw();
-            this.emit("gridChanged");
+        if (this.mode === "backstitch") {
+            // Handle backstitch undo
+            const previousLines = this.backstitchGrid.undo();
+            if (previousLines !== null && this.renderer) {
+                this.renderer.drawBackstitch();
+                this.emit("backstitchChanged");
+            }
+            return previousLines;
+        } else {
+            // Handle pixel undo
+            const previousGrid = this.pixelGrid.undo();
+            if (previousGrid && this.renderer) {
+                this.renderer.setPixelGrid(this.pixelGrid);
+                this.renderer.draw();
+                this.emit("gridChanged");
+            }
+            return previousGrid;
         }
-        return previousGrid;
     }
 
     redo() {
-        const nextGrid = this.pixelGrid.redo();
-        if (nextGrid && this.renderer) {
-            this.renderer.setPixelGrid(this.pixelGrid);
-            this.renderer.draw();
-            this.emit("gridChanged");
+        if (this.mode === "backstitch") {
+            // Handle backstitch redo
+            const nextLines = this.backstitchGrid.redo();
+            if (nextLines !== null && this.renderer) {
+                this.renderer.drawBackstitch();
+                this.emit("backstitchChanged");
+            }
+            return nextLines;
+        } else {
+            // Handle pixel redo
+            const nextGrid = this.pixelGrid.redo();
+            if (nextGrid && this.renderer) {
+                this.renderer.setPixelGrid(this.pixelGrid);
+                this.renderer.draw();
+                this.emit("gridChanged");
+            }
+            return nextGrid;
         }
-        return nextGrid;
     }
 
     // -------------------------------------------------------------------------
@@ -187,6 +248,7 @@ export class EditorState {
     // -------------------------------------------------------------------------
     resizeGrid(newW, newH, fill = [255, 255, 255]) {
         this.pixelGrid.resize(newW, newH, fill);
+        this.backstitchGrid.resize(newW, newH, false); // Don't record undo for backstitch on resize
         if (this.renderer) this.renderer.draw();
         this.emit("gridChanged");
     }
@@ -201,8 +263,12 @@ export class EditorState {
         }
         this.pixelGrid.grid = newGrid.map(row => row.map(px => [...px]));
 
+        // Initialize backstitch grid to same dimensions
+        this.backstitchGrid = new BackstitchGrid(w, h);
+
         if (this.renderer) {
             this.renderer.setPixelGrid(this.pixelGrid);
+            this.renderer.setBackstitchGrid(this.backstitchGrid);
             this.renderer.draw();
         }
 

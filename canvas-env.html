@@ -2,17 +2,17 @@
 <html>
 <head>
     <style>
-        body, html { margin: 0; padding: 0; overflow: hidden; height: 100%; width: 100%; background: #333; }
+        body, html { margin:0; padding:0; overflow: hidden; height: 100%; width: 100%; background: #333; }
         #container { 
             position: relative; 
             width: 100%; 
             height: 100%; 
             display: flex; 
-            align-items: center; 
+            alignItems: center; 
             justify-content: center; 
         }
         
-        /* Layered stacking: Reference Under -> BG (Stitches) -> Grid -> Reference Over -> UI (Interaction) */
+        /* Layered stacking: Reference Under -> BG (Stitches) -> Grid -> BACKSTITCH -> Reference Over -> UI (Interaction) */
         canvas { 
             position: absolute; 
             image-rendering: pixelated; /* Essential for sharp stitch edges */
@@ -22,6 +22,7 @@
         #refLayer      { z-index: 0; } 
         #bgLayer     { z-index: 1; } 
         #gridLayer   { z-index: 2; pointer-events: none; } /* Clicks pass through to UI layer */
+        #backstitchLayer { z-index: 2.5; pointer-events: none; } /* Backstitch lines render here */
         #refOverlayLayer { z-index: 3; } 
         #uiLayer     { z-index: 4; cursor: crosshair; }
         
@@ -41,6 +42,7 @@
         <canvas id="refLayer" style="position: absolute; top: 0; left: 0; z-index: 0.5;"></canvas>
         <canvas id="bgLayer" style="position: absolute; top: 0; left: 0;"></canvas>
         <canvas id="gridLayer" style="position: absolute; top: 0; left: 0; pointer-events: none;"></canvas>
+        <canvas id="backstitchLayer" style="position: absolute; top: 0; left: 0; z-index: 2.5; pointer-events: none;"></canvas>
         <canvas id="refOverlayLayer" style="position: absolute; top: 0; left: 0; z-index: 3.5;"></canvas>
         <canvas id="uiLayer" style="position: absolute; top: 0; left: 0;"></canvas>
     </div>

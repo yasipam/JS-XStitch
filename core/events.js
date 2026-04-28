@@ -114,18 +114,36 @@ export class EditorEvents {
     }
 
     _showLongPressMenu() {
-        if (this.longPressGx < 0 || !this.state.pixelGrid) return;
+        if (this.longPressGx < 0 || !this.state) return;
         
-        window.parent.postMessage({
-            type: 'CONTEXT_MENU',
-            payload: {
-                gx: this.longPressGx,
-                gy: this.longPressGy,
-                rgb: this.longPressPixelRgb,
-                clientX: this.longPressStartX,
-                clientY: this.longPressStartY
-            }
-        }, '*');
+        // Check if we're in backstitch mode
+        if (this.state.mode === "backstitch") {
+            // For backstitch, show context menu with line options
+            window.parent.postMessage({
+                type: 'CONTEXT_MENU',
+                payload: {
+                    ix: this.longPressGx,
+                    iy: this.longPressGy,
+                    mode: 'backstitch',
+                    clientX: this.longPressStartX,
+                    clientY: this.longPressStartY
+                }
+            }, '*');
+        } else {
+            // Regular pixel mode context menu
+            if (!this.state.pixelGrid) return;
+            
+            window.parent.postMessage({
+                type: 'CONTEXT_MENU',
+                payload: {
+                    gx: this.longPressGx,
+                    gy: this.longPressGy,
+                    rgb: this.longPressPixelRgb,
+                    clientX: this.longPressStartX,
+                    clientY: this.longPressStartY
+                }
+            }, '*');
+        }
         
         this.longPressTimer = null;
     }
@@ -154,14 +172,24 @@ export class EditorEvents {
             if (!isMultiTouch) {
                 this.longPressStartX = e.clientX;
                 this.longPressStartY = e.clientY;
-                const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
-                this.longPressGx = gx;
-                this.longPressGy = gy;
-                if (gx >= 0 && gy >= 0 && gx < this.state.pixelGrid.width && gy < this.state.pixelGrid.height) {
-                    this.longPressPixelRgb = this.state.pixelGrid.grid[gy][gx];
+                
+                // Get coordinates based on mode
+                if (this.state.mode === "backstitch") {
+                    const { ix, iy } = this.state.renderer.screenToIntersection(e.clientX, e.clientY);
+                    this.longPressGx = ix;
+                    this.longPressGy = iy;
+                    this.longPressPixelRgb = null; // Backstitch doesn't use pixel RGB
                 } else {
-                    this.longPressPixelRgb = null;
+                    const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
+                    this.longPressGx = gx;
+                    this.longPressGy = gy;
+                    if (gx >= 0 && gy >= 0 && gx < this.state.pixelGrid.width && gy < this.state.pixelGrid.height) {
+                        this.longPressPixelRgb = this.state.pixelGrid.grid[gy][gx];
+                    } else {
+                        this.longPressPixelRgb = null;
+                    }
                 }
+                
                 this.longPressTimer = setTimeout(() => this._showLongPressMenu(), this.longPressThreshold);
             }
         } else if (e.button === 2) {
@@ -191,23 +219,42 @@ export class EditorEvents {
             if (!this.isContextMenuOpen) {
                 this.isPointerDown = true;
                 this.isPanning = false;
-                const tool = ToolRegistry[this.state.activeTool];
-                if (tool) {
-                    const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
-                    tool.onPointerDown(this.state, gx, gy, e.clientX, e.clientY, { shiftKey: e.shiftKey });
+                
+                // Check if we're in backstitch mode
+                if (this.state.mode === "backstitch") {
+                    const tool = ToolRegistry[this.state.activeBackstitchTool];
+                    if (tool) {
+                        const { ix, iy } = this.state.renderer.screenToIntersection(e.clientX, e.clientY);
+                        tool.onPointerDown(this.state, ix, iy);
+                    }
+                } else {
+                    const tool = ToolRegistry[this.state.activeTool];
+                    if (tool) {
+                        const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
+                        tool.onPointerDown(this.state, gx, gy, e.clientX, e.clientY, { shiftKey: e.shiftKey });
+                    }
                 }
             }
 
             // Start long-press timer for context menu (mouse left-click)
             this.longPressStartX = e.clientX;
             this.longPressStartY = e.clientY;
-            const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
-            this.longPressGx = gx;
-            this.longPressGy = gy;
-            if (gx >= 0 && gy >= 0 && gx < this.state.pixelGrid.width && gy < this.state.pixelGrid.height) {
-                this.longPressPixelRgb = this.state.pixelGrid.grid[gy][gx];
+            
+            // Get coordinates based on mode
+            if (this.state.mode === "backstitch") {
+                const { ix, iy } = this.state.renderer.screenToIntersection(e.clientX, e.clientY);
+                this.longPressGx = ix;
+                this.longPressGy = iy;
+                this.longPressPixelRgb = null; // Backstitch doesn't use pixel RGB
             } else {
-                this.longPressPixelRgb = null;
+                const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
+                this.longPressGx = gx;
+                this.longPressGy = gy;
+                if (gx >= 0 && gy >= 0 && gx < this.state.pixelGrid.width && gy < this.state.pixelGrid.height) {
+                    this.longPressPixelRgb = this.state.pixelGrid.grid[gy][gx];
+                } else {
+                    this.longPressPixelRgb = null;
+                }
             }
             this.longPressTimer = setTimeout(() => this._showLongPressMenu(), this.longPressThreshold);
         }
@@ -248,42 +295,62 @@ export class EditorEvents {
 
         // Handle hover detection (when not drawing or panning)
         if (!this.isPointerDown && !this.isPanning && this.evCache.length < 2) {
-            const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
-            if (gx >= 0 && gy >= 0 && gx < this.state.pixelGrid.width && gy < this.state.pixelGrid.height) {
-                const dmcGrid = this.state.mappedDmcGrid;
-                const rgb = this.state.pixelGrid.grid[gy][gx];
+            // Check if we're in backstitch mode
+            if (this.state.mode === "backstitch") {
+                const { ix, iy } = this.state.renderer.screenToIntersection(e.clientX, e.clientY);
                 
-                // Check DMC code first - code "0" means cloth/transparent
-                const dmcCode = dmcGrid ? dmcGrid[gy][gx] : null;
-                
-                // Check for cloth sentinel (254,254,254) or code "0"
-                const isCloth = (dmcCode && String(dmcCode) === '0') || 
-                               (rgb[0] === 254 && rgb[1] === 254 && rgb[2] === 254);
-                
-                if (isCloth) {
-                    // It's cloth - show "None" with checkered indicator
+                // Check if intersection is within valid bounds
+                if (ix >= 0 && iy >= 0 && ix <= this.state.backstitchGrid.width && iy <= this.state.backstitchGrid.height) {
+                    // Send hover info for backstitch (different payload)
                     window.parent.postMessage({
-                        type: 'HOVER_DMC',
-                        payload: { code: '0', rgb: rgb, isCloth: true }
-                    }, '*');
-                } else if (dmcCode && String(dmcCode) !== '0') {
-                    // Has a DMC code (not cloth) - show the color
-                    window.parent.postMessage({
-                        type: 'HOVER_DMC',
-                        payload: { code: dmcCode, rgb: rgb }
+                        type: 'HOVER_BSS',
+                        payload: { ix, iy }
                     }, '*');
                 } else {
-                    // No DMC code and not cloth
+                    window.parent.postMessage({
+                        type: 'HOVER_BSS',
+                        payload: { ix: null }
+                    }, '*');
+                }
+            } else {
+                // Regular pixel mode hover detection
+                const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
+                if (gx >= 0 && gy >= 0 && gx < this.state.pixelGrid.width && gy < this.state.pixelGrid.height) {
+                    const dmcGrid = this.state.mappedDmcGrid;
+                    const rgb = this.state.pixelGrid.grid[gy][gx];
+                    
+                    // Check DMC code first - code "0" means cloth/transparent
+                    const dmcCode = dmcGrid ? dmcGrid[gy][gx] : null;
+                    
+                    // Check for cloth sentinel (254,254,254) or code "0"
+                    const isCloth = (dmcCode && String(dmcCode) === '0') || 
+                                   (rgb[0] === 254 && rgb[1] === 254 && rgb[2] === 254);
+                    
+                    if (isCloth) {
+                        // It's cloth - show "None" with checkered indicator
+                        window.parent.postMessage({
+                            type: 'HOVER_DMC',
+                            payload: { code: '0', rgb: rgb, isCloth: true }
+                        }, '*');
+                    } else if (dmcCode && String(dmcCode) !== '0') {
+                        // Has a DMC code (not cloth) - show the color
+                        window.parent.postMessage({
+                            type: 'HOVER_DMC',
+                            payload: { code: dmcCode, rgb: rgb }
+                        }, '*');
+                    } else {
+                        // No DMC code and not cloth
+                        window.parent.postMessage({
+                            type: 'HOVER_DMC',
+                            payload: { code: null }
+                        }, '*');
+                    }
+                } else {
                     window.parent.postMessage({
                         type: 'HOVER_DMC',
                         payload: { code: null }
                     }, '*');
                 }
-            } else {
-                window.parent.postMessage({
-                    type: 'HOVER_DMC',
-                    payload: { code: null }
-                }, '*');
             }
         }
 
@@ -345,10 +412,18 @@ export class EditorEvents {
             
             // HANDLE DRAWING
             else if (this.isPointerDown) {
-                const tool = ToolRegistry[this.state.activeTool];
-                if (tool) {
-                    const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
-                    tool.onPointerMove(this.state, gx, gy, e.clientX, e.clientY);
+                if (this.state.mode === "backstitch") {
+                    const tool = ToolRegistry[this.state.activeBackstitchTool];
+                    if (tool) {
+                        const { ix, iy } = this.state.renderer.screenToIntersection(e.clientX, e.clientY);
+                        tool.onPointerMove(this.state, ix, iy);
+                    }
+                } else {
+                    const tool = ToolRegistry[this.state.activeTool];
+                    if (tool) {
+                        const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
+                        tool.onPointerMove(this.state, gx, gy, e.clientX, e.clientY);
+                    }
                 }
             }
             
@@ -404,10 +479,18 @@ export class EditorEvents {
 
         if (this.isPointerDown && this.evCache.length === 0) {
             this.isPointerDown = false;
-            const tool = ToolRegistry[this.state.activeTool];
-            if (tool) {
-                const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
-                tool.onPointerUp(this.state, gx, gy);
+            
+            if (this.state.mode === "backstitch") {
+                const tool = ToolRegistry[this.state.activeBackstitchTool];
+                if (tool) {
+                    tool.onPointerUp(this.state);
+                }
+            } else {
+                const tool = ToolRegistry[this.state.activeTool];
+                if (tool) {
+                    const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
+                    tool.onPointerUp(this.state, gx, gy);
+                }
             }
         }
 

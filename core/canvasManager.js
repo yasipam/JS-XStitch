@@ -34,6 +34,7 @@ window.addEventListener('message', (e) => {
                     ref: document.getElementById('refLayer'),
                     bg: document.getElementById('bgLayer'),
                     grid: document.getElementById('gridLayer'),
+                    backstitch: document.getElementById('backstitchLayer'),
                     refOverlay: document.getElementById('refOverlayLayer'),
                     ui: document.getElementById('uiLayer')
                 };
