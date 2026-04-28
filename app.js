@@ -2032,6 +2032,145 @@ function setupToolButtons() {
     });
 }
 
+// -----------------------------------------------------------------------------
+// MODE TOGGLE & BACKSTITCH TOOLS
+// -----------------------------------------------------------------------------
+function setupModeToggle() {
+    const pixelModeBtn = document.getElementById('pixelModeBtn');
+    const backstitchModeBtn = document.getElementById('backstitchModeBtn');
+    const pixelTools = document.getElementById('pixelTools');
+    const backstitchTools = document.getElementById('backstitchTools');
+
+    if (pixelModeBtn) {
+        pixelModeBtn.onclick = () => {
+            state.setMode('pixel');
+            sendToCanvas('SET_MODE', 'pixel');
+            
+            pixelModeBtn.classList.add('active');
+            backstitchModeBtn.classList.remove('active');
+            
+            // Show/hide tools
+            if (pixelTools) pixelTools.style.display = 'inline-block';
+            if (backstitchTools) backstitchTools.style.display = 'none';
+            
+            // Show/hide tabs - show normal tabs, hide backstitch tab
+            document.querySelectorAll('#rightSidebar .tabs .tab-link').forEach(tab => {
+                if (tab.textContent.includes('BSS')) {
+                    tab.style.display = 'none';
+                } else {
+                    tab.style.display = 'inline-block';
+                }
+            });
+            const backstitchTab = document.getElementById('BackstitchPaletteTab');
+            if (backstitchTab) backstitchTab.style.display = 'none';
+            
+            // Switch to palette tab
+            const paletteTab = document.querySelector('#rightSidebar .tabs .tab-link:first-child');
+            if (paletteTab) {
+                paletteTab.click(); // Switch to palette tab
+            }
+        };
+    }
+
+    if (backstitchModeBtn) {
+        backstitchModeBtn.onclick = () => {
+            state.setMode('backstitch');
+            sendToCanvas('SET_MODE', 'backstitch');
+            
+            backstitchModeBtn.classList.add('active');
+            pixelModeBtn.classList.remove('active');
+            
+            // Show/hide tools
+            if (pixelTools) pixelTools.style.display = 'none';
+            if (backstitchTools) backstitchTools.style.display = 'inline-block';
+            
+            // Show/hide tabs - show backstitch tab, hide normal tabs
+            document.querySelectorAll('#rightSidebar .tabs .tab-link').forEach(tab => {
+                if (tab.textContent.includes('BSS')) {
+                    tab.style.display = 'inline-block';
+                } else {
+                    tab.style.display = 'none';
+                }
+            });
+            
+            // Switch to backstitch palette tab
+            const backstitchTab = document.getElementById('BackstitchPaletteTab');
+            if (backstitchTab) {
+                backstitchTab.style.display = 'inline-block';
+                backstitchTab.click(); // Switch to backstitch palette tab
+            }
+        };
+    }
+}
+
+function setupBackstitchTools() {
+    const backstitchPencilBtn = document.getElementById('backstitchPencilBtn');
+    const backstitchEraserBtn = document.getElementById('backstitchEraserBtn');
+
+    if (backstitchPencilBtn) {
+        backstitchPencilBtn.onclick = () => {
+            state.setBackstitchTool('backstitchPencil');
+            sendToCanvas('SET_BACKSTITCH_TOOL', 'backstitchPencil');
+            
+            document.querySelectorAll("#backstitchTools button").forEach(b => b.classList.remove("active"));
+            backstitchPencilBtn.classList.add("active");
+        };
+    }
+
+    if (backstitchEraserBtn) {
+        backstitchEraserBtn.onclick = () => {
+            state.setBackstitchTool('backstitchEraser');
+            sendToCanvas('SET_BACKSTITCH_TOOL', 'backstitchEraser');
+            
+            document.querySelectorAll("#backstitchTools button").forEach(b => b.classList.remove("active"));
+            backstitchEraserBtn.classList.add("active");
+        };
+    }
+}
+
+// -----------------------------------------------------------------------------
+// BACKSTITCH PALETTE
+// -----------------------------------------------------------------------------
+function setupBackstitchPalette() {
+    const container = document.getElementById('backstitchPaletteGrid');
+    if (!container) return;
+
+    // Use the same DMC_RGB palette as the main palette
+    const fragment = document.createDocumentFragment();
+    
+    DMC_RGB.forEach(entry => {
+        const [code, name, rgb] = entry;
+        const swatch = document.createElement('div');
+        swatch.className = 'palette-swatch backstitch-palette-item';
+        swatch.style.backgroundColor = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+        swatch.title = `DMC ${code} - ${name}`;
+        swatch.dataset.code = code;
+        swatch.dataset.rgb = rgb.join(',');
+        
+        swatch.onclick = () => {
+            const rgbArray = rgb.map(Number);
+            state.setBackstitchColor(rgbArray);
+            sendToCanvas('SET_BACKSTITCH_COLOR', rgbArray);
+            
+            // Highlight selected
+            document.querySelectorAll('.backstitch-palette-item').forEach(s => 
+                s.classList.remove('selected'));
+            swatch.classList.add('selected');
+        };
+        
+        fragment.appendChild(swatch);
+    });
+    
+    container.appendChild(fragment);
+}
+
+function renderBackstitchPalette() {
+    // This will be called when switching to backstitch mode
+    const container = document.getElementById('backstitchPaletteGrid');
+    if (!container || container.children.length > 0) return;
+    setupBackstitchPalette();
+}
+
 function setupEditHistory() {
     const undoBtn = document.getElementById("undoBtn");
     const redoBtn = document.getElementById("redoBtn");
@@ -3216,6 +3355,8 @@ window.addEventListener("load", () => {
     setupMaskAdjustSlider();
     setupOxsUpload();
     setupToolButtons();
+    setupModeToggle();
+    setupBackstitchTools();
     setupEditHistory();
     setupResetControls();
     setupMappingControls();

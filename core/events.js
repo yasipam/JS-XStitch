@@ -224,8 +224,8 @@ export class EditorEvents {
                 if (this.state.mode === "backstitch") {
                     const tool = ToolRegistry[this.state.activeBackstitchTool];
                     if (tool) {
-                        const { ix, iy } = this.state.renderer.screenToIntersection(e.clientX, e.clientY);
-                        tool.onPointerDown(this.state, ix, iy);
+                        const coords = this.state.renderer.screenToIntersection(e.clientX, e.clientY);
+                        tool.onPointerDown(this.state, coords.ix, coords.iy);
                     }
                 } else {
                     const tool = ToolRegistry[this.state.activeTool];

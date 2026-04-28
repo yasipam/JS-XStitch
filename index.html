@@ -23,6 +23,18 @@
     <div id="app">
 
         <div id="topToolbar">
+            <!-- MODE TOGGLE -->
+            <div class="mode-toggle">
+                <button id="pixelModeBtn" class="mode-btn active" title="Pixel Mode">
+                    <img src="assets/tool-icons/pixel-mode.svg" class="tool-icon" alt="Pixel">
+                    <span>Pixel</span>
+                </button>
+                <button id="backstitchModeBtn" class="mode-btn" title="Backstitch Mode">
+                    <img src="assets/tool-icons/backstitch-mode.svg" class="tool-icon" alt="Backstitch">
+                    <span>Backstitch</span>
+                </button>
+            </div>
+
             <input type="file" id="upload" accept="image/*" style="display:none;">
             <input type="file" id="oxsUpload" accept=".oxs" style="display:none;">
             <button id="newCanvasBtn" title="Create new empty canvas">
@@ -42,24 +54,37 @@
                 <img src="assets/tool-icons/reset-original.svg" class="tool-icon" alt="Reset">
             </button>
             
-            <button id="pencilBtn" class="active" title="Pencil">
-                <img src="assets/tool-icons/pencil.svg" class="tool-icon" alt="Pencil">
-                <span class="tool-size">1×1</span>
-                <div class="tool-dropdown">
-                    <label class="tool-radio"><input type="radio" name="pencilSize" value="1" checked> <span>1×1</span></label>
-                    <label class="tool-radio"><input type="radio" name="pencilSize" value="2"> <span>2×2</span></label>
-                    <label class="tool-radio"><input type="radio" name="pencilSize" value="3"> <span>3×3</span></label>
-                </div>
-            </button>
-            <button id="eraserBtn" title="Eraser">
-                <img src="assets/tool-icons/eraser.svg" class="tool-icon" alt="Eraser">
-                <span class="tool-size">1×1</span>
-                <div class="tool-dropdown">
-                    <label class="tool-radio"><input type="radio" name="eraserSize" value="1" checked> <span>1×1</span></label>
-                    <label class="tool-radio"><input type="radio" name="eraserSize" value="2"> <span>2×2</span></label>
-                    <label class="tool-radio"><input type="radio" name="eraserSize" value="3"> <span>3×3</span></label>
-                </div>
-            </button>
+            <!-- PIXEL TOOLS (visible in pixel mode) -->
+            <div id="pixelTools">
+                <button id="pencilBtn" class="active" title="Pencil">
+                    <img src="assets/tool-icons/pencil.svg" class="tool-icon" alt="Pencil">
+                    <span class="tool-size">1×1</span>
+                    <div class="tool-dropdown">
+                        <label class="tool-radio"><input type="radio" name="pencilSize" value="1" checked> <span>1×1</span></label>
+                        <label class="tool-radio"><input type="radio" name="pencilSize" value="2"> <span>2×2</span></label>
+                        <label class="tool-radio"><input type="radio" name="pencilSize" value="3"> <span>3×3</span></label>
+                    </div>
+                </button>
+                <button id="eraserBtn" title="Eraser">
+                    <img src="assets/tool-icons/eraser.svg" class="tool-icon" alt="Eraser">
+                    <span class="tool-size">1×1</span>
+                    <div class="tool-dropdown">
+                        <label class="tool-radio"><input type="radio" name="eraserSize" value="1" checked> <span>1×1</span></label>
+                        <label class="tool-radio"><input type="radio" name="eraserSize" value="2"> <span>2×2</span></label>
+                        <label class="tool-radio"><input type="radio" name="eraserSize" value="3"> <span>3×3</span></label>
+                    </div>
+                </button>
+            </div>
+
+            <!-- BACKSTITCH TOOLS (visible in backstitch mode) -->
+            <div id="backstitchTools" style="display: none;">
+                <button id="backstitchPencilBtn" class="active" title="Draw Backstitch">
+                    <img src="assets/tool-icons/backstitch-pencil.svg" class="tool-icon" alt="Backstitch Pencil">
+                </button>
+                <button id="backstitchEraserBtn" title="Erase Backstitch">
+                    <img src="assets/tool-icons/backstitch-eraser.svg" class="tool-icon" alt="Backstitch Eraser">
+                </button>
+            </div>
             <button id="undoBtn" title="Undo (Ctrl+Z)">
                 <img src="assets/tool-icons/undo.svg" class="tool-icon" alt="Undo">
             </button>
@@ -302,6 +327,7 @@
 
                     <div class="tabs">
                         <button class="tab-link active" onclick="openTab(event, 'PaletteTab')">Palette</button>
+                        <button class="tab-link" onclick="openTab(event, 'BackstitchPaletteTab')">BSS Palette</button>
                         <button class="tab-link" onclick="openTab(event, 'ThreadsTab')">Threads</button>
                     </div>
 
@@ -314,6 +340,13 @@
                         </div>
                         <div id="paletteGridContainer">
                             <div id="paletteGrid"></div>
+                        </div>
+                    </div>
+
+                    <div id="BackstitchPaletteTab" class="tab-content" style="display: none;">
+                        <h3 style="margin: 0 0 6px; font-size: 1.3rem; font-weight: 600; color: var(--color-purple);">Backstitch Colors</h3>
+                        <div id="backstitchPaletteContainer">
+                            <div id="backstitchPaletteGrid"></div>
                         </div>
                     </div>
 
