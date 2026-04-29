@@ -11,10 +11,24 @@ function rgbToHex(rgb) {
     ).toUpperCase();
 }
 
+function getPalIndexForColor(hex, orderedCodes, palette, DMC_RGB) {
+    // Check if color matches any palette entry
+    for (let i = 0; i < orderedCodes.length; i++) {
+        const code = orderedCodes[i];
+        let entry = Array.isArray(palette) ? palette.find(p => String(p[0]) === code) : palette[code];
+        let rgb = (entry && !Array.isArray(entry)) ? entry.rgb : (Array.isArray(entry) ? entry[2] : DMC_RGB[code] || [0, 0, 0]);
+        const entryHex = rgbToHex(rgb);
+        if (entryHex === hex) {
+            return String(i + 1);
+        }
+    }
+    return "0"; // Default to cloth if not found
+}
+
 /**
  * Valid OXS Export: Captures live edits and matches Streamlit schema.
  */
-export function exportOXS(liveGrid, palette, filename = "pattern.oxs", stampedRgbGrid = null) {
+export function exportOXS(liveGrid, palette, filename = "pattern.oxs", stampedRgbGrid = null, backstitchGrid = null) {
     // liveGrid must be the current 2D array of the editor after drawing
     const h = liveGrid.length;
     const w = liveGrid[0].length;
@@ -81,7 +95,31 @@ export function exportOXS(liveGrid, palette, filename = "pattern.oxs", stampedRg
             xml += `\n<stitch x="${x}" y="${y}" palindex="${palindex}" />`;
         }
     }
-    xml += `\n</fullstitches>\n</chart>`;
+    xml += `\n</fullstitches>`;
+
+    // 5. Backstitches Section
+    xml += `\n<backstitches>`;
+    if (backstitchGrid && backstitchGrid.lines) {
+        let sequence = 0;
+        backstitchGrid.lines.forEach(line => {
+            for (let i = 0; i < line.points.length - 1; i++) {
+                const [x1, y1] = line.points[i];
+                const [x2, y2] = line.points[i + 1];
+                const hex = rgbToHex(line.color);
+                const palindex = getPalIndexForColor(hex, orderedCodes, palette, DMC_RGB);
+                xml += `\n<backstitch x1="${x1.toFixed(2)}" y1="${y1.toFixed(2)}" x2="${x2.toFixed(2)}" y2="${y2.toFixed(2)}" palindex="${palindex}" objecttype="backstitch" sequence="${sequence}" />`;
+                sequence++;
+            }
+        });
+    }
+    xml += `\n</backstitches>`;
+
+    // 6. Required empty sections for OXS schema compatibility
+    xml += `\n<partstitches>\n    <partstitch />\n</partstitches>`;
+    xml += `\n<ornaments_inc_knots_and_beads>\n    <object />\n</ornaments_inc_knots_and_beads>`;
+    xml += `\n<commentboxes />`;
+
+    xml += `\n</chart>`;
 
     // 5. Download
     const blob = new Blob([xml], { type: "application/octet-stream" });

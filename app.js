@@ -2973,7 +2973,8 @@ function setupExportButtons() {
                 exportDmcGrid,
                 DMC_RGB,
                 "kriss_kross_pattern.oxs",
-                stampedRgbGrid
+                stampedRgbGrid,
+                state.backstitchGrid
             );
         };
     }
