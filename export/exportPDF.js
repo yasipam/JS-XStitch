@@ -32,7 +32,7 @@ export async function exportPDF(data, exportType = 'PRINTABLE') {
 
 async function drawCoverPage(doc, data) {
     doc.addPage();
-    doc.setFont("helvetica", "bold");
+    doc.setFont("DejaVu", "bold");
     doc.setFontSize(22);
     doc.text("Kriss Kross Pattern", 105, 25, { align: "center" });
 
@@ -103,7 +103,7 @@ async function drawCoverPage(doc, data) {
      doc.text("Editor Preview", 150, imgY + boxSize + 5, { align: "center" });
 
     // 3. STATS
-    doc.setFont("helvetica", "bold");
+    doc.setFont("DejaVu", "bold");
     doc.setFontSize(12);
     const statsY = imgY + boxSize + 25;
 
@@ -258,8 +258,8 @@ function drawLegendPage(doc, data, isPK) {
     // CRITICAL: Explicitly set text color to black (0) to prevent "white text" leak
     doc.setTextColor(0);
 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(18);
+    doc.setFont("DejaVu", "bold");
+    doc.setFontSize(14);
     doc.text(isPK ? "Pattern Keeper Legend" : "Symbol Legend", 20, 20);
 
     let y = 40;
@@ -288,8 +288,12 @@ function drawLegendPage(doc, data, isPK) {
         const name = String(p.name || ""); // Safety cast
         const count = String(p.count || 0);
 
-        doc.setFontSize(16)
+        // Symbol: large size only for Pattern Keeper (Symbols and Colors) mode
+        const symSize = isPK ? 16 : 10;
+        doc.setFontSize(symSize);
         doc.text(sym, 22, y);
+        // Text: always size 10 to match Backstitch Key
+        doc.setFontSize(10);
         doc.text(p.code, 40, y);
         doc.text(name.substring(0, 30), 60, y);
         doc.text(count, 135, y);
@@ -317,7 +321,7 @@ function drawLegendPage(doc, data, isPK) {
             doc.addPage();
             y = 30;
             doc.setTextColor(0); // Reset color on new page too
-            doc.setFont("helvetica", "bold");
+            doc.setFont("DejaVu", "bold");
             doc.text("Symbol", 20, 20);
             doc.text("DMC", 40, 20);
             doc.text("Name", 60, 20);
@@ -336,7 +340,7 @@ function drawLegendPage(doc, data, isPK) {
         }
 
         y += 15;
-        doc.setFont("helvetica", "bold");
+        doc.setFont("DejaVu", "bold");
         doc.setFontSize(14);
         doc.text("Backstitch Key", 20, y);
         y += 10;
@@ -398,7 +402,7 @@ function drawLegendPage(doc, data, isPK) {
 
         // Add total backstitch count
         y += 5;
-        doc.setFont("helvetica", "bold");
+        doc.setFont("DejaVu", "bold");
         doc.text(`Total Backstitches: ${data.totalBackstitches || 0}`, 20, y);
     }
 }
