@@ -3098,6 +3098,16 @@ function getDmcName(code) {
     return null;
 }
 
+function getDmcCodeFromRgb(rgb) {
+    if (!rgb || !Array.isArray(rgb)) return null;
+    for (const [code, name, dmcRgb] of DMC_RGB) {
+        if (dmcRgb[0] === rgb[0] && dmcRgb[1] === rgb[1] && dmcRgb[2] === rgb[2]) {
+            return code;
+        }
+    }
+    return null;
+}
+
 function updateDmcHoverTooltip(payload) {
     const swatchEl = document.getElementById('hoverColorSwatch');
     const codeEl = document.getElementById('hoverColorCode');
@@ -3105,7 +3115,7 @@ function updateDmcHoverTooltip(payload) {
 
     if (!swatchEl || !codeEl || !nameEl) return;
 
-    const { code, rgb, isCloth } = payload || {};
+    const { code, rgb, isCloth, isBackstitch } = payload || {};
 
     // Handle cloth/none case
     if (isCloth || (code && String(code) === '0')) {
@@ -3116,14 +3126,24 @@ function updateDmcHoverTooltip(payload) {
     }
 
     if (!code) {
-        codeEl.textContent = '';
+        // Try to look up DMC code from RGB (for backstitches)
+        const lookedUpCode = (rgb && Array.isArray(rgb)) ? getDmcCodeFromRgb(rgb) : null;
 
-        // Show colour swatch even without DMC code (e.g. backstitch)
-        if (rgb && Array.isArray(rgb)) {
-            nameEl.textContent = 'Backstitch';
+        if (lookedUpCode) {
+            // Found matching DMC code
+            codeEl.textContent = lookedUpCode;
+            const name = getDmcName(lookedUpCode);
+            nameEl.textContent = isBackstitch ? '(Backstitch) ' + (name || 'Unknown') : (name || 'Unknown');
+            swatchEl.style.background = 'none';
+            swatchEl.style.backgroundColor = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+        } else if (rgb && Array.isArray(rgb)) {
+            // No DMC match - show Backstitch label if applicable
+            codeEl.textContent = '';
+            nameEl.textContent = isBackstitch ? 'Backstitch' : '';
             swatchEl.style.background = 'none';
             swatchEl.style.backgroundColor = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
         } else {
+            codeEl.textContent = '';
             nameEl.textContent = '';
             swatchEl.style.background = 'none';
             swatchEl.style.backgroundColor = '#eee';

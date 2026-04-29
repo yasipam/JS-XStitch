@@ -309,7 +309,7 @@ export class EditorEvents {
                     // Backstitch found - show its colour
                     window.parent.postMessage({
                         type: 'HOVER_DMC',
-                        payload: { code: null, rgb: bsColor }
+                        payload: { code: null, rgb: bsColor, isBackstitch: true }
                     }, '*');
                 } else {
                     // No backstitch - fall back to pixel grid detection
