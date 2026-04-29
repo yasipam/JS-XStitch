@@ -74,9 +74,32 @@ async function drawCoverPage(doc, data) {
                 doc.rect(pX0 + (x * pCellSize), pY0 + (y * pCellSize), pCellSize, pCellSize, 'F');
             }
         }
-    }
-    doc.setFontSize(10);
-    doc.text("Editor Preview", 150, imgY + boxSize + 5, { align: "center" });
+     }
+
+     // Draw backstitches on cover page preview
+     if (data.backstitchLines && data.backstitchLines.length > 0) {
+         data.backstitchLines.forEach(line => {
+             if (!line.points || line.points.length < 2) return;
+
+             const [r, g, b] = line.color;
+             doc.setDrawColor(r, g, b);
+             doc.setLineWidth(Math.max(0.1, pCellSize * 0.15));
+             doc.setLineCap('round');
+
+             const [firstX, firstY] = line.points[0];
+             doc.moveTo(pX0 + (firstX * pCellSize), pY0 + (firstY * pCellSize));
+
+             for (let i = 1; i < line.points.length; i++) {
+                 const [x, y] = line.points[i];
+                 doc.lineTo(pX0 + (x * pCellSize), pY0 + (y * pCellSize));
+             }
+
+             doc.stroke();
+         });
+     }
+
+     doc.setFontSize(10);
+     doc.text("Editor Preview", 150, imgY + boxSize + 5, { align: "center" });
 
     // 3. STATS
     doc.setFont("helvetica", "bold");
@@ -193,31 +216,24 @@ function drawBackstitchesOnPage(doc, lines, x0, y0, cellSize, xOff, yOff, tileW,
         doc.setLineWidth(Math.max(0.3, cellSize * 0.15));
         doc.setLineCap('round');
 
-        // Convert first point
-        const [x1, y1] = line.points[0];
-        let lastX = x0 + (x1 - xOff) * cellSize;
-        let lastY = y0 + (y1 - yOff) * cellSize;
-
-        // Only draw if starting point is within tile
-        if (x1 < xOff || x1 > xOff + tileW || y1 < yOff || y1 > yOff + tileH) {
-            // Find first point within tile
-            let found = false;
-            for (let i = 0; i < line.points.length; i++) {
-                const [px, py] = line.points[i];
-                if (px >= xOff && px <= xOff + tileW && py >= yOff && py <= yOff + tileH) {
-                    lastX = x0 + (px - xOff) * cellSize;
-                    lastY = y0 + (py - yOff) * cellSize;
-                    found = true;
-                    break;
-                }
+        // Find first point within tile boundaries
+        let startIndex = -1;
+        for (let i = 0; i < line.points.length; i++) {
+            const [px, py] = line.points[i];
+            if (px >= xOff && px <= xOff + tileW && py >= yOff && py <= yOff + tileH) {
+                startIndex = i;
+                break;
             }
-            if (!found) return;
         }
 
-        doc.beginPath();
-        doc.moveTo(lastX, lastY);
+        if (startIndex === -1) return; // No points in this tile
 
-        for (let i = 1; i < line.points.length; i++) {
+        const [firstX, firstY] = line.points[startIndex];
+        const startPx = x0 + (firstX - xOff) * cellSize;
+        const startPy = y0 + (firstY - yOff) * cellSize;
+        doc.moveTo(startPx, startPy);
+
+        for (let i = startIndex + 1; i < line.points.length; i++) {
             const [x, y] = line.points[i];
 
             // Skip points outside tile
@@ -226,8 +242,6 @@ function drawBackstitchesOnPage(doc, lines, x0, y0, cellSize, xOff, yOff, tileW,
             const px = x0 + (x - xOff) * cellSize;
             const py = y0 + (y - yOff) * cellSize;
             doc.lineTo(px, py);
-            lastX = px;
-            lastY = py;
         }
 
         doc.stroke();
@@ -327,10 +341,18 @@ function drawLegendPage(doc, data, isPK) {
         y += 10;
 
         doc.setFontSize(10);
-        doc.text("Color", 20, y);
-        doc.text("Stitches", 60, y);
-        doc.text("Swatch", 100, y);
+        doc.text("DMC", 20, y);
+        doc.text("Name", 60, y);
+        doc.text("Stitches", 130, y);
+        doc.text("Swatch", 175, y);
         y += 8;
+
+        // Build reverse lookup from RGB to DMC code
+        const rgbToDmc = {};
+        data.palette.forEach(p => {
+            const key = JSON.stringify(p.rgb);
+            rgbToDmc[key] = { code: p.code, name: p.name };
+        });
 
         // Count backstitches by color
         const bsColorMap = {};
@@ -338,8 +360,11 @@ function drawLegendPage(doc, data, isPK) {
             if (!line.points || line.points.length < 2) return;
             const key = JSON.stringify(line.color);
             if (!bsColorMap[key]) {
+                const dmcInfo = rgbToDmc[key] || { code: 'Unknown', name: `RGB(${line.color.join(',')})` };
                 bsColorMap[key] = {
                     color: line.color,
+                    code: dmcInfo.code,
+                    name: dmcInfo.name,
                     count: 0
                 };
             }
@@ -349,12 +374,13 @@ function drawLegendPage(doc, data, isPK) {
         doc.setFont(activeFont, "normal");
         Object.values(bsColorMap).forEach(bs => {
             const [r, g, b] = bs.color;
-            doc.text(`RGB(${r},${g},${b})`, 20, y);
-            doc.text(String(bs.count), 60, y);
+            doc.text(bs.code, 20, y);
+            doc.text(bs.name.substring(0, 30), 60, y);
+            doc.text(String(bs.count), 130, y);
             doc.setFillColor(r, g, b);
-            doc.rect(100, y - 4, 10, 5, 'F');
+            doc.rect(175, y - 4, 10, 5, 'F');
             doc.setDrawColor(200);
-            doc.rect(100, y - 4, 10, 5, 'S');
+            doc.rect(175, y - 4, 10, 5, 'S');
             y += 8;
 
             if (y > 275) {

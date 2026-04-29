@@ -1475,7 +1475,6 @@ function updatePaletteFromOxs(dmcPalette, rgbGrid) {
 }
 
 function setMappingControlsEnabled(enabled, isOxsMode = false) {
-    console.log(`setMappingControlsEnabled called: enabled=${enabled}, isOxsMode=${isOxsMode}`);
     
     const mappingControls = [
         "maxSizeSlider", "maxSizeInput",
@@ -1497,20 +1496,17 @@ function setMappingControlsEnabled(enabled, isOxsMode = false) {
         const el = document.getElementById(id);
         if (el) {
             el.disabled = !enabled || isOxsMode;
-            console.log(`  ${id} disabled = ${el.disabled}`);
         }
     });
 
     document.querySelectorAll('input[name="colorDistance"]').forEach(radio => {
         radio.disabled = !enabled || isOxsMode;
-        console.log(`  radio ${radio.value} disabled = ${radio.disabled}`);
     });
 
     postProcessingControls.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
             el.disabled = !(enabled || isOxsMode);
-            console.log(`  ${id} disabled = ${el.disabled}`);
         }
     });
 }
@@ -3370,7 +3366,6 @@ window.addEventListener("load", () => {
 
     window.addEventListener('message', (e) => {
         const { type, payload } = e.data;
-        console.log('[Parent] message received:', type, payload);
 
         if (type === 'REPORT_GRID_STATS') {
             // Sidebar now updates in SYNC handler after mappedDmcGrid is patched
@@ -3417,8 +3412,7 @@ window.addEventListener("load", () => {
                     // (only when NOT in stamped mode - stamped colors won't match)
                     updateSidebarFromOxsGrid(payload);
                 } else if (isEmptyCanvas) {
-                    // For empty canvas mode: track edits and update sidebar
-                    console.log("Empty canvas sync received, checking for changes...");
+
                     
                     // Check if there are any non-white pixels (actual edits)
                     let hasEdits = false;
@@ -3431,7 +3425,7 @@ window.addEventListener("load", () => {
                         }
                     }
                     
-                    console.log("Empty canvas: hasEdits =", hasEdits);
+
                     
                     if (!hasEmptyCanvasEdits && hasEdits) {
                         hasEmptyCanvasEdits = true;
@@ -3475,11 +3469,22 @@ window.addEventListener("load", () => {
             // Sync backstitch data from iframe to parent state
             console.log('[Parent] Received backstitch sync, lines:', payload?.length || 0);
             if (payload && Array.isArray(payload)) {
+                // Resize parent's backstitchGrid to match DMC grid dimensions
+                if (state.mappedDmcGrid) {
+                    const correctWidth = state.mappedDmcGrid[0].length;
+                    const correctHeight = state.mappedDmcGrid.length;
+                    state.backstitchGrid.resize(correctWidth, correctHeight, false);
+                    console.log('[Parent] Resized backstitchGrid to:', correctWidth, 'x', correctHeight);
+                }
+
                 // Clear parent's backstitchGrid and reload with iframe's data
                 state.backstitchGrid.clear(false); // false = don't record undo
                 payload.forEach(ln => {
                     if (ln.points && ln.points.length >= 2) {
-                        state.backstitchGrid.addLine(ln.points, ln.color);
+                        const result = state.backstitchGrid.addLine(ln.points, ln.color);
+                        if (result === null) {
+                            console.warn('[Parent] Failed to add backstitch line - out of bounds?', ln);
+                        }
                     }
                 });
                 console.log('[Parent] Backstitch data synced, total lines:', state.backstitchGrid.lines.length);
