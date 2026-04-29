@@ -1,5 +1,6 @@
 import "jspdf";
 import { DEJAVU_FONT_BASE64 } from "./fontData.js";
+import { DMC_RGB } from "../mapping/constants.js";
 
 export async function exportPDF(data, exportType = 'PRINTABLE') {
     const { jsPDF } = window.jspdf;
@@ -347,8 +348,14 @@ function drawLegendPage(doc, data, isPK) {
         doc.text("Swatch", 175, y);
         y += 8;
 
-        // Build reverse lookup from RGB to DMC code
+        // Build reverse lookup from RGB to DMC code (include all DMC colors for backstitch lookup)
         const rgbToDmc = {};
+        // First add all DMC colors from the full palette
+        DMC_RGB.forEach(([code, name, rgb]) => {
+            const key = JSON.stringify(rgb);
+            rgbToDmc[key] = { code, name };
+        });
+        // Then override with palette entries (used in cross-stitch grid)
         data.palette.forEach(p => {
             const key = JSON.stringify(p.rgb);
             rgbToDmc[key] = { code: p.code, name: p.name };

@@ -53,7 +53,26 @@ export function exportOXS(liveGrid, palette, filename = "pattern.oxs", stampedRg
             const hex = rgbToHex(line.color);
             backstitchColorSet.add(hex);
             if (!colorMap.has(hex)) {
-                colorMap.set(hex, { code: null, rgb: line.color, source: 'backstitch', name: `Backstitch RGB(${line.color.join(',')})` });
+                // Try to find DMC entry for this RGB
+                const dmcEntry = DMC_RGB.find(([code, name, rgb]) =>
+                    rgb[0] === line.color[0] && rgb[1] === line.color[1] && rgb[2] === line.color[2]
+                );
+                if (dmcEntry) {
+                    colorMap.set(hex, {
+                        code: dmcEntry[0],
+                        rgb: line.color,
+                        source: 'dmc',
+                        name: dmcEntry[1]
+                    });
+                } else {
+                    // Fallback if not found in DMC
+                    colorMap.set(hex, {
+                        code: null,
+                        rgb: line.color,
+                        source: 'backstitch',
+                        name: `Backstitch RGB(${line.color.join(',')})`
+                    });
+                }
             }
         });
     }
