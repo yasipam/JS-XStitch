@@ -128,7 +128,7 @@ function handleCrop({ x1, y1, x2, y2 }) {
 
         // Send to iframe to resize and update
         console.log('[Parent] Sending INIT to iframe:', { width: newWidth, height: newHeight });
-sendToCanvas('INIT', { width: newWidth, height: newHeight, backstitchColor: state.backstitchColor });
+sendToCanvas('INIT', { width: newWidth, height: newHeight });
         
         console.log('[Parent] Sending UPDATE_GRID to iframe');
         sendToCanvas('UPDATE_GRID', newGrid);
@@ -193,7 +193,7 @@ sendToCanvas('INIT', { width: newWidth, height: newHeight, backstitchColor: stat
 
         // Send to iframe
         console.log('[Parent] Sending INIT to iframe');
-        sendToCanvas('INIT', { width: newWidth, height: newHeight, backstitchColor: state.backstitchColor });
+        sendToCanvas('INIT', { width: newWidth, height: newHeight });
         sendToCanvas('UPDATE_GRID', newGrid);
         sendToCanvas('SET_TOOL', 'pencil');
 
@@ -575,7 +575,7 @@ async function runMapping(isReset = false) {
             currentGrid.height !== newHeight;
 
         if (dimensionsChanged) {
-            sendToCanvas('INIT', { width: newWidth, height: newHeight, dmcGrid: liveDmcGrid, backstitchColor: state.backstitchColor });
+            sendToCanvas('INIT', { width: newWidth, height: newHeight, dmcGrid: liveDmcGrid });
         } else {
             sendToCanvas('SET_DMC_GRID', liveDmcGrid);
         }
@@ -631,13 +631,8 @@ function renderPalette(usedCodes = []) {
         swatch.title = `${code}: ${name}`;
 
         swatch.onclick = () => {
-            if (state.mode === 'backstitch') {
-                state.setBackstitchColor(rgb);
-                sendToCanvas('SET_BACKSTITCH_COLOR', rgb);
-            } else {
-                state.setColor(rgb);
-                sendToCanvas('SET_COLOR', rgb);
-            }
+            state.setColor(rgb);
+            sendToCanvas('SET_COLOR', rgb);
             document.querySelectorAll('.palette-swatch').forEach(s => s.classList.remove('selected'));
             swatch.classList.add('selected');
         };
@@ -654,13 +649,8 @@ function renderPalette(usedCodes = []) {
             </div>
         `;
         row.onclick = () => {
-            if (state.mode === 'backstitch') {
-                state.setBackstitchColor(rgb);
-                sendToCanvas('SET_BACKSTITCH_COLOR', rgb);
-            } else {
-                state.setColor(rgb);
-                sendToCanvas('SET_COLOR', rgb);
-            }
+            state.setColor(rgb);
+            sendToCanvas('SET_COLOR', rgb);
             const relatedSwatch = paletteGrid.querySelector(`[data-code="${code}"]`);
             if (relatedSwatch) relatedSwatch.click();
         };
@@ -986,8 +976,7 @@ function setupUpload() {
                 // Tell the iframe to prepare for an 80px grid
                 sendToCanvas('INIT', {
                     width: 80,
-                    height: Math.floor(80 * (img.height / img.width)),
-                    backstitchColor: state.backstitchColor
+                    height: Math.floor(80 * (img.height / img.width))
                 });
 
                 runMapping(true); // isReset=true so view resets to best-fit
@@ -1289,7 +1278,7 @@ function createEmptyCanvas(width, height) {
     state.mappedDmcGrid = emptyDmcGrid;
     state.mappedRgbGrid = emptyRgbGrid;
 
-    sendToCanvas('INIT', { width, height, backstitchColor: state.backstitchColor });
+    sendToCanvas('INIT', { width, height });
     sendToCanvas('UPDATE_GRID', emptyRgbGrid);
 
     // Enable all controls for empty canvas mode
@@ -1336,7 +1325,7 @@ function resizeEmptyCanvas(newSize) {
     state.mappedDmcGrid = newDmcGrid;
     state.mappedRgbGrid = newRgbGrid;
     
-    sendToCanvas('INIT', { width, height, backstitchColor: state.backstitchColor });
+    sendToCanvas('INIT', { width, height });
     sendToCanvas('UPDATE_GRID', newRgbGrid);
 
     updateSidebarFromEmptyCanvas();
@@ -1428,7 +1417,7 @@ function loadOxsPattern(parsed) {
 
     state.originalImageURL = null;
 
-    sendToCanvas('INIT', { width, height, backstitchColor: state.backstitchColor });
+    sendToCanvas('INIT', { width, height });
 
     state.mappedDmcGrid = dmcGrid;
     state.mappedRgbGrid = rgbGrid;
@@ -2077,8 +2066,6 @@ function setupModeToggle() {
         backstitchModeBtn.onclick = () => {
             state.setMode('backstitch');
             sendToCanvas('SET_MODE', 'backstitch');
-            // Ensure iframe has the current backstitch color
-            sendToCanvas('SET_BACKSTITCH_COLOR', state.backstitchColor);
             
             backstitchModeBtn.classList.add('active');
             pixelModeBtn.classList.remove('active');
@@ -3313,18 +3300,13 @@ window.addEventListener("load", () => {
         updateCurrentColorDisplay(rgb);
     });
 
-    state.on("backstitchColorChanged", (rgb) => {
-        updateCurrentColorDisplay(rgb);
-    });
-
     const canvasFrame = document.getElementById('canvasFrame');
 
     const initializeCanvas = () => {
         console.log("Sending INIT to iframe...");
         sendToCanvas('INIT', {
             width: state.pixelGrid.width,
-            height: state.pixelGrid.height,
-            backstitchColor: state.backstitchColor
+            height: state.pixelGrid.height
         });
 
         if (state.pixelGrid.grid) {

@@ -243,9 +243,9 @@ export class BackstitchPencilTool extends BaseTool {
         this.drawing = true;
         this.currentLine = {
             points: [[ix, iy]],
-            color: [...state.backstitchColor]
+            color: [...state.activeColor]
         };
-        console.log('[BackstitchPencil] onPointerDown color from state:', state.backstitchColor);
+        console.log('[BackstitchPencil] onPointerDown color from state:', state.activeColor);
         this.lastIntersection = [ix, iy];
     }
 

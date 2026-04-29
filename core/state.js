@@ -27,9 +27,8 @@ export class EditorState {
         this.activeTool = "pencil";
         this.activeColor = [0, 0, 0];
         
-        // Backstitch-specific tool and color
+        // Backstitch-specific tool
         this.activeBackstitchTool = "backstitchPencil";
-        this.backstitchColor = [0, 0, 0]; // Separate palette for backstitch
 
         this.zoom = 20; 
         this.panX = 0;
@@ -61,8 +60,7 @@ export class EditorState {
         this.mappedRgbGrid = null;
         this.mappedDmcGrid = null;
         this.history = [];
-        this.activeColor = [0, 0, 0]; 
-        this.backstitchColor = [0, 0, 0];
+        this.activeColor = [0, 0, 0];
 
         if (this.renderer) {
             this.renderer.setPixelGrid(this.pixelGrid);
@@ -139,12 +137,6 @@ export class EditorState {
         if (mode !== "pixel" && mode !== "backstitch") return;
         this.mode = mode;
         this.emit("modeChanged", mode);
-    }
-
-    setBackstitchColor(rgb) {
-        console.log('[State] setBackstitchColor called:', rgb);
-        this.backstitchColor = [...rgb];
-        this.emit("backstitchColorChanged", rgb);
     }
 
     setBackstitchTool(toolName) {
