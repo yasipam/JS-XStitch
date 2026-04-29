@@ -298,19 +298,51 @@ export class EditorEvents {
             // Check if we're in backstitch mode
             if (this.state.mode === "backstitch") {
                 const { ix, iy } = this.state.renderer.screenToIntersection(e.clientX, e.clientY);
-                
+                let bsColor = null;
+
                 // Check if intersection is within valid bounds
                 if (ix >= 0 && iy >= 0 && ix <= this.state.backstitchGrid.width && iy <= this.state.backstitchGrid.height) {
-                    // Send hover info for backstitch (different payload)
+                    bsColor = this.state.backstitchGrid.getColorAt(ix, iy);
+                }
+
+                if (bsColor) {
+                    // Backstitch found - show its colour
                     window.parent.postMessage({
-                        type: 'HOVER_BSS',
-                        payload: { ix, iy }
+                        type: 'HOVER_DMC',
+                        payload: { code: null, rgb: bsColor }
                     }, '*');
                 } else {
-                    window.parent.postMessage({
-                        type: 'HOVER_BSS',
-                        payload: { ix: null }
-                    }, '*');
+                    // No backstitch - fall back to pixel grid detection
+                    const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
+                    if (gx >= 0 && gy >= 0 && gx < this.state.pixelGrid.width && gy < this.state.pixelGrid.height) {
+                        const dmcGrid = this.state.mappedDmcGrid;
+                        const rgb = this.state.pixelGrid.grid[gy][gx];
+                        const dmcCode = dmcGrid ? dmcGrid[gy][gx] : null;
+                        const isCloth = (dmcCode && String(dmcCode) === '0') ||
+                                       (rgb[0] === 254 && rgb[1] === 254 && rgb[2] === 254);
+
+                        if (isCloth) {
+                            window.parent.postMessage({
+                                type: 'HOVER_DMC',
+                                payload: { code: '0', rgb: rgb, isCloth: true }
+                            }, '*');
+                        } else if (dmcCode && String(dmcCode) !== '0') {
+                            window.parent.postMessage({
+                                type: 'HOVER_DMC',
+                                payload: { code: dmcCode, rgb: rgb }
+                            }, '*');
+                        } else {
+                            window.parent.postMessage({
+                                type: 'HOVER_DMC',
+                                payload: { code: null }
+                            }, '*');
+                        }
+                    } else {
+                        window.parent.postMessage({
+                            type: 'HOVER_DMC',
+                            payload: { code: null }
+                        }, '*');
+                    }
                 }
             } else {
                 // Regular pixel mode hover detection

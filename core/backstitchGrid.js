@@ -183,6 +183,19 @@ export class BackstitchGrid {
         return this.lines;
     }
 
+    // Find line color near a grid intersection point (for hover detection)
+    getColorAt(ix, iy, radius = 0.5) {
+        for (const line of this.lines) {
+            for (let j = 0; j < line.points.length - 1; j++) {
+                const [x1, y1] = line.points[j];
+                const [x2, y2] = line.points[j + 1];
+                const dist = this._pointToSegmentDistance(ix, iy, x1, y1, x2, y2);
+                if (dist <= radius) return line.color;
+            }
+        }
+        return null;
+    }
+
     // Clear all lines
     clear(recordUndo = true) {
         if (recordUndo) this.pushUndo();

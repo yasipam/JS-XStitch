@@ -3117,9 +3117,17 @@ function updateDmcHoverTooltip(payload) {
 
     if (!code) {
         codeEl.textContent = '';
-        nameEl.textContent = '';
-        swatchEl.style.background = 'none';
-        swatchEl.style.backgroundColor = '#eee';
+
+        // Show colour swatch even without DMC code (e.g. backstitch)
+        if (rgb && Array.isArray(rgb)) {
+            nameEl.textContent = 'Backstitch';
+            swatchEl.style.background = 'none';
+            swatchEl.style.backgroundColor = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+        } else {
+            nameEl.textContent = '';
+            swatchEl.style.background = 'none';
+            swatchEl.style.backgroundColor = '#eee';
+        }
         return;
     }
 
