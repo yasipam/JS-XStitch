@@ -61,12 +61,17 @@ export function buildExportData(state, mappingConfig, options = {}) {
 
     palette.sort((a, b) => b.count - a.count);
 
+    // 4. BACKSTITCH DATA
+    const backstitchLines = state.backstitchGrid ? state.backstitchGrid.getLines() : [];
+    const totalBackstitches = backstitchLines.reduce((sum, line) => sum + Math.max(0, line.points.length - 1), 0);
+
     return {
         dmcGrid,
         rgbGrid: exportVisualGrid,
         symbolMap: buildSymbolMap(dmcGrid, DMC_RGB, options.type === 'PK'),
         palette,
         totalStitches,
+        totalBackstitches,
         stitchedSize: {
             w: totalStitches > 0 ? maxX - minX + 1 : 0,
             h: totalStitches > 0 ? maxY - minY + 1 : 0
@@ -75,6 +80,8 @@ export function buildExportData(state, mappingConfig, options = {}) {
         fabricCount: parseInt(options.fabricCount) || 14,
         exportMode: options.mode || mappingConfig.exportMode || "filled",
         stampedMode: isStamped,
-        originalImage: state.originalImageURL
+        originalImage: state.originalImageURL,
+        backstitchGrid: state.backstitchGrid,
+        backstitchLines
     };
 }

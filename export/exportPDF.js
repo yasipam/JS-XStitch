@@ -111,7 +111,7 @@ function drawGrid(doc, x0, y0, w, h, size) {
 }
 
 function drawPatternPages(doc, data, isPrintable, isPK) {
-    const { dmcGrid, rgbGrid, fabricCount, symbolMap, palette } = data;
+    const { dmcGrid, rgbGrid, fabricCount, symbolMap, palette, backstitchLines } = data;
     const mode = isPK ? 'symbol' : data.exportMode;
 
     const cellSize = isPrintable ? (25.4 / fabricCount) : 3.5;
@@ -141,8 +141,8 @@ function drawPatternPages(doc, data, isPrintable, isPK) {
                     const cx = x0 + (x * cellSize);
                     const cy = y0 + (y * cellSize);
 
-                    // Logic: Use the RGB from the visual grid (rgbGrid) 
-                    // This will be Original DMC colors if stampedMode is OFF, 
+                    // Logic: Use the RGB from the visual grid (rgbGrid)
+                    // This will be Original DMC colors if stampedMode is OFF,
                     // and Stamped colors if stampedMode is ON.
                     const displayRgb = rgbGrid[gy][gx];
 
@@ -175,8 +175,63 @@ function drawPatternPages(doc, data, isPrintable, isPK) {
                 }
             }
             drawGrid(doc, x0, y0, actualTileW, actualTileH, cellSize);
+
+            // Draw backstitches if available
+            if (backstitchLines && backstitchLines.length > 0) {
+                drawBackstitchesOnPage(doc, backstitchLines, x0, y0, cellSize, xOff, yOff, actualTileW, actualTileH);
+            }
         }
     }
+}
+
+function drawBackstitchesOnPage(doc, lines, x0, y0, cellSize, xOff, yOff, tileW, tileH) {
+    lines.forEach(line => {
+        if (!line.points || line.points.length < 2) return;
+
+        const [r, g, b] = line.color;
+        doc.setDrawColor(r, g, b);
+        doc.setLineWidth(Math.max(0.3, cellSize * 0.15));
+        doc.setLineCap('round');
+
+        // Convert first point
+        const [x1, y1] = line.points[0];
+        let lastX = x0 + (x1 - xOff) * cellSize;
+        let lastY = y0 + (y1 - yOff) * cellSize;
+
+        // Only draw if starting point is within tile
+        if (x1 < xOff || x1 > xOff + tileW || y1 < yOff || y1 > yOff + tileH) {
+            // Find first point within tile
+            let found = false;
+            for (let i = 0; i < line.points.length; i++) {
+                const [px, py] = line.points[i];
+                if (px >= xOff && px <= xOff + tileW && py >= yOff && py <= yOff + tileH) {
+                    lastX = x0 + (px - xOff) * cellSize;
+                    lastY = y0 + (py - yOff) * cellSize;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) return;
+        }
+
+        doc.beginPath();
+        doc.moveTo(lastX, lastY);
+
+        for (let i = 1; i < line.points.length; i++) {
+            const [x, y] = line.points[i];
+
+            // Skip points outside tile
+            if (x < xOff || x > xOff + tileW || y < yOff || y > yOff + tileH) continue;
+
+            const px = x0 + (x - xOff) * cellSize;
+            const py = y0 + (y - yOff) * cellSize;
+            doc.lineTo(px, py);
+            lastX = px;
+            lastY = py;
+        }
+
+        doc.stroke();
+    });
 }
 
 /**
@@ -256,6 +311,63 @@ function drawLegendPage(doc, data, isPK) {
             doc.setFont(activeFont, "normal");
         }
     });
+
+    // BACKSTITCH SECTION
+    if (data.backstitchLines && data.backstitchLines.length > 0 && !isPK) {
+        // Add new page if not enough space
+        if (y > 230) {
+            doc.addPage();
+            y = 30;
+        }
+
+        y += 15;
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(14);
+        doc.text("Backstitch Key", 20, y);
+        y += 10;
+
+        doc.setFontSize(10);
+        doc.text("Color", 20, y);
+        doc.text("Stitches", 60, y);
+        doc.text("Swatch", 100, y);
+        y += 8;
+
+        // Count backstitches by color
+        const bsColorMap = {};
+        data.backstitchLines.forEach(line => {
+            if (!line.points || line.points.length < 2) return;
+            const key = JSON.stringify(line.color);
+            if (!bsColorMap[key]) {
+                bsColorMap[key] = {
+                    color: line.color,
+                    count: 0
+                };
+            }
+            bsColorMap[key].count += Math.max(0, line.points.length - 1);
+        });
+
+        doc.setFont(activeFont, "normal");
+        Object.values(bsColorMap).forEach(bs => {
+            const [r, g, b] = bs.color;
+            doc.text(`RGB(${r},${g},${b})`, 20, y);
+            doc.text(String(bs.count), 60, y);
+            doc.setFillColor(r, g, b);
+            doc.rect(100, y - 4, 10, 5, 'F');
+            doc.setDrawColor(200);
+            doc.rect(100, y - 4, 10, 5, 'S');
+            y += 8;
+
+            if (y > 275) {
+                doc.addPage();
+                y = 30;
+            }
+        });
+
+        // Add total backstitch count
+        y += 5;
+        doc.setFont("helvetica", "bold");
+        doc.text(`Total Backstitches: ${data.totalBackstitches || 0}`, 20, y);
+    }
 }
 
 function getLuminance(rgb) {

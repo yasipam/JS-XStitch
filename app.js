@@ -3470,8 +3470,26 @@ window.addEventListener("load", () => {
                 }
             });
         }
+
+        if (type === 'SYNC_BACKSTITCH_TO_PARENT') {
+            // Sync backstitch data from iframe to parent state
+            console.log('[Parent] Received backstitch sync, lines:', payload?.length || 0);
+            if (payload && Array.isArray(payload)) {
+                // Clear parent's backstitchGrid and reload with iframe's data
+                state.backstitchGrid.clear(false); // false = don't record undo
+                payload.forEach(ln => {
+                    if (ln.points && ln.points.length >= 2) {
+                        state.backstitchGrid.addLine(ln.points, ln.color);
+                    }
+                });
+                console.log('[Parent] Backstitch data synced, total lines:', state.backstitchGrid.lines.length);
+            }
+            return;
+        }
     });
 
+    // -------------------------------------------------------------------------
+    // CONTEXT MENU
     // -------------------------------------------------------------------------
     // CONTEXT MENU
     // -------------------------------------------------------------------------

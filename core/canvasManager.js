@@ -57,6 +57,14 @@ window.addEventListener('message', (e) => {
                         }, '*');
                     }, 250); // Delay sync until drawing pauses
                 });
+
+                // Sync backstitch data to parent when it changes
+                state.on("backstitchChanged", () => {
+                    window.parent.postMessage({
+                        type: 'SYNC_BACKSTITCH_TO_PARENT',
+                        payload: state.backstitchGrid.getLines()
+                    }, '*');
+                });
             }
             const newW = payload.width;
             const newH = payload.height;
