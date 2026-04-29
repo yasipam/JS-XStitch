@@ -3313,6 +3313,10 @@ window.addEventListener("load", () => {
         updateCurrentColorDisplay(rgb);
     });
 
+    state.on("backstitchColorChanged", (rgb) => {
+        updateCurrentColorDisplay(rgb);
+    });
+
     const canvasFrame = document.getElementById('canvasFrame');
 
     const initializeCanvas = () => {
