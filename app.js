@@ -11,12 +11,16 @@ import { applyDitherRGB } from "./mapping/dithering.js";
 import { buildStampedGrid } from "./mapping/stamped.js";
 import { cropWithBox } from "./mapping/crop.js";
 import { DMC_RGB } from "./mapping/constants.js";
+import { findNearestDmcCode } from "./mapping/utils.js";
 import { exportOXS } from "./export/exportOXS.js";
 import { parseOxsFileFromFile } from "./import/importOXS.js";
 
 // Export Logic
 import { buildExportData } from "./export/buildExportData.js";
 import { exportPDF } from "./export/exportPDF.js";
+
+// Grid Utilities (Fix #2)
+import { getGridBounds, getColorCounts, getUsedCodes, calculateCmSize, debugGridUtils } from "./core/gridUtils.js";
 
 // Global Instances
 let state;
@@ -28,6 +32,18 @@ let pencilSize = 1;
 let eraserSize = 1;
 let lastBaselineGrid = null;
 let lastBaselineDmcGrid = null;
+
+// Fix #7: DMC Lookup Maps (optimizes DMC_RGB lookups)
+const dmcCodeToEntry = new Map();
+const dmcCodeToRgb = new Map();
+DMC_RGB.forEach(([code, name, rgb]) => {
+    const codeStr = String(code);
+    dmcCodeToEntry.set(codeStr, { name, rgb });
+    dmcCodeToRgb.set(codeStr, rgb);
+});
+// Also populate codeToRgbMap for backwards compatibility
+const codeToRgbMap = dmcCodeToRgb;
+codeToRgbMap["0"] = [254, 254, 254];
 
 // Background removal mask state
 let originalMaskCanvas = null; // Raw AI mask from background removal
@@ -261,12 +277,8 @@ function buildStampedRgbGrid(dmcGrid) {
     return buildStampedGrid(dmcGrid, { hueShift: mappingConfig.stampedHue }).grid;
 }
 
-const codeToRgbMap = {};
-DMC_RGB.forEach(([code, , rgb]) => { codeToRgbMap[String(code)] = rgb; });
-codeToRgbMap["0"] = [254, 254, 254];
-
 function getRgbFromCode(code) {
-    return codeToRgbMap[String(code)] || [255, 255, 255];
+    return dmcCodeToRgb.get(String(code)) || [255, 255, 255];
 }
 
 // -----------------------------------------------------------------------------
@@ -300,7 +312,7 @@ function enforceMaxColors(dmcGrid, maxColours) {
     const codeToRgb = codeToRgbMap;
     const keptRgbMap = {};
     for (const code of keepColors) {
-        keptRgbMap[code] = codeToRgb[code] || [128, 128, 128];
+        keptRgbMap[code] = codeToRgb.get(code) || [128, 128, 128];
     }
 
     const result = dmcGrid.map(row => row.slice());
@@ -308,7 +320,7 @@ function enforceMaxColors(dmcGrid, maxColours) {
         for (let x = 0; x < w; x++) {
             const code = String(result[y][x]);
             if (!keepColors.has(code)) {
-                const origRgb = codeToRgb[code] || [128, 128, 128];
+                const origRgb = codeToRgb.get(code) || [128, 128, 128];
                 let bestCode = null;
                 let bestDist = Infinity;
 
@@ -745,21 +757,28 @@ function renderThreadsTable(threadStats) {
 
     threadStats.forEach(stat => {
         let dmcEntry = null;
+        let code = null;
 
         // USE CODE IF PROVIDED: Avoids redundant distance math on every draw
         if (stat.code) {
-            dmcEntry = DMC_RGB.find(d => String(d[0]) === String(stat.code));
+            code = String(stat.code);
+            dmcEntry = dmcCodeToEntry.get(code);
         }
 
         // Fallback for non-stamped legacy stats
         if (!dmcEntry) {
             const currentRgb = [stat.r, stat.g, stat.b];
             dmcEntry = nearestDmcColor(currentRgb, distFn, null, DMC_RGB);
+            if (dmcEntry) {
+                code = String(dmcEntry[0]);
+            }
         }
 
         if (!dmcEntry) return;
 
-        const [code, name, originalRgb] = dmcEntry;
+        // Handle both Map object format {name, rgb} and array format [code, name, rgb]
+        const name = dmcEntry.name || dmcEntry[1];
+        const originalRgb = dmcEntry.rgb || dmcEntry[2];
 
         const row = document.createElement("tr");
         row.innerHTML = `
@@ -778,23 +797,17 @@ function updateSidebarFromState() {
     if (!state || !state.mappedDmcGrid) return;
 
     const countDisplay = document.getElementById("actualColoursUsed");
-    const counts = {};
+    const counts = getColorCounts(state.mappedDmcGrid);
 
-    state.mappedDmcGrid.flat().forEach(code => {
-        const sCode = String(code);
-        if (sCode === "0") return; // Skip cloth
-        counts[sCode] = (counts[sCode] || 0) + 1;
-    });
-
-    const threadStats = Object.entries(counts).map(([code, count]) => {
-        const dmcEntry = DMC_RGB.find(d => String(d[0]) === code);
-        if (!dmcEntry) return null;
+    const threadStats = Array.from(counts.entries()).map(([code, count]) => {
+        const entry = dmcCodeToEntry.get(code);
+        if (!entry) return null;
 
         return {
             code: code,
-            r: dmcEntry[2][0],
-            g: dmcEntry[2][1],
-            b: dmcEntry[2][2],
+            r: entry.rgb[0],
+            g: entry.rgb[1],
+            b: entry.rgb[2],
             count: count
         };
     }).filter(s => s !== null);
@@ -815,41 +828,29 @@ function updatePatternSizeDisplay() {
     }
 
     const dmcGrid = state.mappedDmcGrid;
-    const height = dmcGrid.length;
-    const width = dmcGrid[0] ? dmcGrid[0].length : 0;
+    const bounds = getGridBounds(dmcGrid);
 
-    let minX = width, maxX = 0, minY = height, maxY = 0;
-    let totalStitches = 0;
-    let hasStitches = false;
-
-    for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-            if (String(dmcGrid[y][x]) !== "0") {
-                minX = Math.min(minX, x);
-                maxX = Math.max(maxX, x);
-                minY = Math.min(minY, y);
-                maxY = Math.max(maxY, y);
-                totalStitches++;
-                hasStitches = true;
-            }
-        }
-    }
-
-    if (!hasStitches) {
+    if (!bounds || !bounds.hasStitches) {
         display.innerHTML = "--";
         return;
     }
 
-    const stitchW = maxX - minX + 1;
-    const stitchH = maxY - minY + 1;
-
     const fabricSelect = document.getElementById("fabricCountSelect");
     const fabricCount = fabricSelect ? parseInt(fabricSelect.value) || 14 : 14;
 
-    const sizeW = (stitchW / fabricCount * 2.54).toFixed(1);
-    const sizeH = (stitchH / fabricCount * 2.54).toFixed(1);
+    const cmSize = calculateCmSize(bounds.width, bounds.height, fabricCount);
 
-    display.innerHTML = `${stitchW} x ${stitchH} stitches<br>${sizeW} x ${sizeH} cm on ${fabricCount}ct<br>Total: ${totalStitches.toLocaleString()} stitches`;
+    // Calculate total stitches
+    let totalStitches = 0;
+    for (let y = bounds.minY; y <= bounds.maxY; y++) {
+        for (let x = bounds.minX; x <= bounds.maxX; x++) {
+            if (String(dmcGrid[y][x]) !== "0") {
+                totalStitches++;
+            }
+        }
+    }
+
+    display.innerHTML = `${bounds.width} x ${bounds.height} stitches<br>${cmSize.width} x ${cmSize.height} cm on ${fabricCount}ct<br>Total: ${totalStitches.toLocaleString()} stitches`;
 }
 
 
@@ -1169,30 +1170,14 @@ function createEmptyCanvas(width, height) {
     referenceImage = null;
     bgRemoved = false;
 
-    // Reset config values (without disabling controls)
-    mappingConfig.maxSize = 80;
-    mappingConfig.maxColours = 30;
-    mappingConfig.mergeNearest = 0;
-    mappingConfig.pixelArtMode = false;
-    mappingConfig.brightnessInt = 0;
-    mappingConfig.saturationInt = 0;
-    mappingConfig.contrastInt = 0;
-    mappingConfig.biasGreenMagenta = 0;
-    mappingConfig.biasCyanRed = 0;
-    mappingConfig.biasBlueYellow = 0;
-    mappingConfig.antiNoise = 0;
-    mappingConfig.sharpenIntensity = 1;
-    mappingConfig.sharpenRadius = 2;
-    mappingConfig.reduceIsolatedStitches = false;
-    mappingConfig.distanceMethod = "euclidean";
-    mappingConfig.minOccurrence = 1;
-    mappingConfig.stampedMode = false;
+    // Use shared reset logic (resets config values and UI elements)
+    resetUIElements({ resetMask: true });
 
+    // Specific resets for empty canvas mode
     state.clear();
     userEditDiff.clear();
     lastBaselineGrid = null;
     lastBaselineDmcGrid = null;
-
     state.originalImageURL = null;
 
     const removeBgBtn = document.getElementById("removeBgBtn");
@@ -1200,15 +1185,10 @@ function createEmptyCanvas(width, height) {
     if (removeBgBtn) removeBgBtn.style.display = "none";
     if (bgRemoveStatus) bgRemoveStatus.style.display = "none";
 
-    // Reset mask adjustment state
     originalMaskCanvas = null;
     originalImageBeforeBgRemoval = null;
     const maskAdjustPanel = document.getElementById("maskAdjustPanel");
-    const maskAdjustSlider = document.getElementById("maskAdjustSlider");
-    const maskAdjustValue = document.getElementById("maskAdjustValue");
     if (maskAdjustPanel) maskAdjustPanel.style.display = "none";
-    if (maskAdjustSlider) maskAdjustSlider.value = 0;
-    if (maskAdjustValue) maskAdjustValue.textContent = "0";
 
     bgRemoved = false;
     const refOpacity = document.getElementById("referenceOpacity");
@@ -1217,55 +1197,6 @@ function createEmptyCanvas(width, height) {
     if (refOpacityVal) refOpacityVal.textContent = "0%";
     sendToCanvas('SET_REFERENCE_OPACITY', 0);
     sendToCanvas('TOGGLE_REFERENCE', true);
-
-    // Reset UI elements to defaults (without disabling controls)
-    const pixelArtToggle = document.getElementById("pixelArtMode");
-    if (pixelArtToggle) pixelArtToggle.checked = false;
-
-    ["brightness", "saturation", "contrast", "greenToMagenta", "cyanToRed", "blueToYellow", "antiNoise"].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.value = 0;
-    });
-
-    const sizeSlider = document.getElementById("maxSizeSlider");
-    const sizeInput = document.getElementById("maxSizeInput");
-    if (sizeSlider) sizeSlider.value = 80;
-    if (sizeInput) sizeInput.value = 80;
-
-    const mergeSlider = document.getElementById("mergeNearest");
-    const mergeVal = document.getElementById("mergeNearestVal");
-    if (mergeSlider) mergeSlider.value = 0;
-    if (mergeVal) mergeVal.textContent = "Off";
-
-    const antiNoiseVal = document.getElementById("antiNoiseVal");
-    if (antiNoiseVal) antiNoiseVal.textContent = "0";
-
-    const sharpenIntensityVal = document.getElementById("sharpenIntensityVal");
-    const sharpenRadiusVal = document.getElementById("sharpenRadiusVal");
-    if (sharpenIntensityVal) sharpenIntensityVal.textContent = "1";
-    if (sharpenRadiusVal) sharpenRadiusVal.textContent = "2";
-
-    const reduceIsolatedToggle = document.getElementById("reduceIsolatedStitches");
-    if (reduceIsolatedToggle) reduceIsolatedToggle.checked = false;
-
-    const maxColoursSlider = document.getElementById("maxColours");
-    const maxColoursInput = document.getElementById("maxColoursInput");
-    if (maxColoursSlider) maxColoursSlider.value = 30;
-    if (maxColoursInput) maxColoursInput.value = 30;
-
-    document.querySelectorAll("input[name='colorDistance']").forEach(radio => {
-        radio.checked = radio.value === "euclidean";
-    });
-
-    const minOccurrenceInput = document.getElementById("minOccurrenceInput");
-    if (minOccurrenceInput) minOccurrenceInput.value = 1;
-
-    const stampedToggle = document.getElementById("stampedMode");
-    const stampedControls = document.getElementById("stampedControls");
-    if (stampedToggle) {
-        stampedToggle.checked = false;
-        if (stampedControls) stampedControls.style.display = "none";
-    }
 
     // Initialize empty grids (white canvas)
     const emptyDmcGrid = Array.from({ length: height }, () => 
@@ -1350,35 +1281,34 @@ function updateSidebarFromEmptyCanvas() {
             const isWhite = rgb[0] === 255 && rgb[1] === 255 && rgb[2] === 255;
             if (isWhite) continue;
 
-            let matchedCode = null;
-            let bestDist = Infinity;
+            const matchedCode = findNearestDmcCode(rgb, DMC_RGB);
 
-            DMC_RGB.forEach(([code, , dmcRgb]) => {
-                const dr = rgb[0] - dmcRgb[0];
-                const dg = rgb[1] - dmcRgb[1];
-                const db = rgb[2] - dmcRgb[2];
-                const dist = dr * dr + dg * dg + db * db;
-                if (dist < bestDist) {
-                    bestDist = dist;
-                    matchedCode = code;
+            if (matchedCode) {
+                // Verify distance is within threshold
+                const entry = dmcCodeToEntry.get(matchedCode);
+                if (entry) {
+                    const dr = rgb[0] - entry.rgb[0];
+                    const dg = rgb[1] - entry.rgb[1];
+                    const db = rgb[2] - entry.rgb[2];
+                    const dist = dr * dr + dg * dg + db * db;
+
+                    if (dist < DISTANCE_THRESHOLD) {
+                        counts[matchedCode] = (counts[matchedCode] || 0) + 1;
+                        usedCodes.add(matchedCode);
+                    }
                 }
-            });
-
-            if (matchedCode && bestDist < DISTANCE_THRESHOLD) {
-                counts[matchedCode] = (counts[matchedCode] || 0) + 1;
-                usedCodes.add(matchedCode);
             }
         }
     }
 
     const threadStats = Object.entries(counts).map(([code, count]) => {
-        const dmcEntry = DMC_RGB.find(d => String(d[0]) === code);
-        if (!dmcEntry) return null;
+        const entry = dmcCodeToEntry.get(code);
+        if (!entry) return null;
         return {
             code: code,
-            r: dmcEntry[2][0],
-            g: dmcEntry[2][1],
-            b: dmcEntry[2][2],
+            r: entry.rgb[0],
+            g: entry.rgb[1],
+            b: entry.rgb[2],
             count: count
         };
     }).filter(s => s !== null);
@@ -1707,22 +1637,9 @@ function updateSidebarFromOxsGrid(rgbGrid) {
 }
 
 function findAvailableDmcCode(rgb) {
-    // Find the closest DMC color to use as the code
-    let bestCode = "310";
-    let bestDist = Infinity;
-    
-    DMC_RGB.forEach(([code, name, dmcRgb]) => {
-        const dr = rgb[0] - dmcRgb[0];
-        const dg = rgb[1] - dmcRgb[1];
-        const db = rgb[2] - dmcRgb[2];
-        const dist = dr * dr + dg * dg + db * db;
-        if (dist < bestDist) {
-            bestDist = dist;
-            bestCode = code;
-        }
-    });
-    
-    return bestCode;
+    // Use the shared utility function
+    const code = findNearestDmcCode(rgb, DMC_RGB);
+    return code || "310"; // Fallback to black if no match
 }
 
 function getLiveDmcGridFromRgb(rgbGrid) {
@@ -1732,26 +1649,16 @@ function getLiveDmcGridFromRgb(rgbGrid) {
     const w = rgbGrid[0].length;
     const dmcGrid = Array.from({ length: h }, () => Array(w).fill("0"));
 
+    // Build searchable palette array from loadedOxsPalette
+    const paletteArray = Object.entries(loadedOxsPalette).map(([code, entry]) => [code, entry.name, entry.rgb]);
+
     for (let y = 0; y < h; y++) {
         for (let x = 0; x < w; x++) {
             const rgb = rgbGrid[y][x];
             const isWhite = rgb[0] === 255 && rgb[1] === 255 && rgb[2] === 255;
             if (isWhite) continue;
 
-            let matchedCode = null;
-            let bestDist = Infinity;
-
-            Object.entries(loadedOxsPalette).forEach(([code, entry]) => {
-                const dr = rgb[0] - entry.rgb[0];
-                const dg = rgb[1] - entry.rgb[1];
-                const db = rgb[2] - entry.rgb[2];
-                const dist = dr * dr + dg * dg + db * db;
-                if (dist < bestDist) {
-                    bestDist = dist;
-                    matchedCode = code;
-                }
-            });
-
+            const matchedCode = findNearestDmcCode(rgb, paletteArray);
             if (matchedCode) {
                 dmcGrid[y][x] = matchedCode;
             }
@@ -1900,26 +1807,16 @@ function updatePaletteAfterPostProcess() {
 function updateThreadsTableFromGrid() {
     if (!state.mappedDmcGrid) return;
 
-    const dmcGrid = state.mappedDmcGrid;
-    const counts = {};
+    const counts = getColorCounts(state.mappedDmcGrid);
 
-    for (let y = 0; y < dmcGrid.length; y++) {
-        for (let x = 0; x < dmcGrid[0].length; x++) {
-            const code = String(dmcGrid[y][x]);
-            if (code !== "0") {
-                counts[code] = (counts[code] || 0) + 1;
-            }
-        }
-    }
-
-    const threadStats = Object.entries(counts).map(([code, count]) => {
-        const dmcEntry = DMC_RGB.find(d => String(d[0]) === code);
-        if (!dmcEntry) return null;
+    const threadStats = Array.from(counts.entries()).map(([code, count]) => {
+        const entry = dmcCodeToEntry.get(code);
+        if (!entry) return null;
         return {
             code: code,
-            r: dmcEntry[2][0],
-            g: dmcEntry[2][1],
-            b: dmcEntry[2][2],
+            r: entry.rgb[0],
+            g: entry.rgb[1],
+            b: entry.rgb[2],
             count: count
         };
     }).filter(s => s !== null);
@@ -2264,23 +2161,10 @@ function setupMappingControls() {
     cmHeightInput = document.getElementById("cmHeight");
 
     function getPatternBounds() {
-        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
         const dmcGrid = state.mappedDmcGrid;
-        if (!dmcGrid || dmcGrid.length === 0) return null;
-        const height = dmcGrid.length;
-        const width = dmcGrid[0]?.length || 0;
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                if (String(dmcGrid[y][x]) !== "0") {
-                    minX = Math.min(minX, x);
-                    maxX = Math.max(maxX, x);
-                    minY = Math.min(minY, y);
-                    maxY = Math.max(maxY, y);
-                }
-            }
-        }
-        if (!isFinite(minX)) return null;
-        return { width: maxX - minX + 1, height: maxY - minY + 1 };
+        const bounds = getGridBounds(dmcGrid);
+        if (!bounds || !bounds.hasStitches) return null;
+        return { width: bounds.width, height: bounds.height };
     }
 
     function getFabricCount() {
@@ -2290,39 +2174,16 @@ function setupMappingControls() {
 
     function populateCmFromStitchBounds() {
         const dmcGrid = state.mappedDmcGrid;
-        if (!dmcGrid || dmcGrid.length === 0) return;
+        const bounds = getGridBounds(dmcGrid);
+        
+        if (!bounds || !bounds.hasStitches) return;
 
-        const height = dmcGrid.length;
-        const width = dmcGrid[0] ? dmcGrid[0].length : 0;
-        if (width === 0) return;
-
-        let minX = width, maxX = 0, minY = height, maxY = 0;
-        let hasStitches = false;
-
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                if (String(dmcGrid[y][x]) !== "0") {
-                    minX = Math.min(minX, x);
-                    maxX = Math.max(maxX, x);
-                    minY = Math.min(minY, y);
-                    maxY = Math.max(maxY, y);
-                    hasStitches = true;
-                }
-            }
-        }
-
-        if (!hasStitches) return;
-
-        const stitchW = maxX - minX + 1;
-        const stitchH = maxY - minY + 1;
         const fabricCount = getFabricCount();
-
-        const cmW = parseFloat((stitchW / fabricCount * 2.54).toFixed(1));
-        const cmH = parseFloat((stitchH / fabricCount * 2.54).toFixed(1));
+        const cmSize = calculateCmSize(bounds.width, bounds.height, fabricCount);
 
         if (cmWidthInput && cmHeightInput) {
-            cmWidthInput.value = cmW;
-            cmHeightInput.value = cmH;
+            cmWidthInput.value = cmSize.width;
+            cmHeightInput.value = cmSize.height;
         }
     }
 
@@ -3153,103 +3014,143 @@ function updateDmcHoverTooltip(payload) {
     }
 }
 
-function resetUIControls() {
-    mappingConfig.maxColours = 30;
-    mappingConfig.mergeNearest = 0; 
-    mappingConfig.pixelArtMode = false;
-    mappingConfig.brightnessInt = 0;
-    mappingConfig.saturationInt = 0;
-    mappingConfig.contrastInt = 0;
-    mappingConfig.biasGreenMagenta = 0;
-    mappingConfig.biasCyanRed = 0;
-    mappingConfig.biasBlueYellow = 0;
-    mappingConfig.antiNoise = 0;
-    mappingConfig.sharpenIntensity = 1;
-    mappingConfig.sharpenRadius = 2;
-    mappingConfig.reduceIsolatedStitches = false;
-    mappingConfig.distanceMethod = "euclidean";
-    mappingConfig.minOccurrence = 1;
-    mappingConfig.stampedMode = false;
-    mappingConfig.pixelArtMode = false;
-    mappingConfig.ditherMode = "None";
-    mappingConfig.ditherStrength = 0;
+function resetUIElements(config = {}) {
+    const {
+        maxColours = 30,
+        maxSize = 80,
+        mergeNearest = 0,
+        pixelArtMode = false,
+        brightnessInt = 0,
+        saturationInt = 0,
+        contrastInt = 0,
+        biasGreenMagenta = 0,
+        biasCyanRed = 0,
+        biasBlueYellow = 0,
+        antiNoise = 0,
+        sharpenIntensity = 1,
+        sharpenRadius = 2,
+        reduceIsolatedStitches = false,
+        distanceMethod = "euclidean",
+        minOccurrence = 1,
+        stampedMode = false,
+        ditherMode = "None",
+        ditherStrength = 0,
+        resetMask = true
+    } = config;
 
+    // Update mappingConfig
+    mappingConfig.maxColours = maxColours;
+    mappingConfig.maxSize = maxSize;
+    mappingConfig.mergeNearest = mergeNearest;
+    mappingConfig.pixelArtMode = pixelArtMode;
+    mappingConfig.brightnessInt = brightnessInt;
+    mappingConfig.saturationInt = saturationInt;
+    mappingConfig.contrastInt = contrastInt;
+    mappingConfig.biasGreenMagenta = biasGreenMagenta;
+    mappingConfig.biasCyanRed = biasCyanRed;
+    mappingConfig.biasBlueYellow = biasBlueYellow;
+    mappingConfig.antiNoise = antiNoise;
+    mappingConfig.sharpenIntensity = sharpenIntensity;
+    mappingConfig.sharpenRadius = sharpenRadius;
+    mappingConfig.reduceIsolatedStitches = reduceIsolatedStitches;
+    mappingConfig.distanceMethod = distanceMethod;
+    mappingConfig.minOccurrence = minOccurrence;
+    mappingConfig.stampedMode = stampedMode;
+    mappingConfig.ditherMode = ditherMode;
+    mappingConfig.ditherStrength = ditherStrength;
+
+    // Reset UI toggles
     const pixelArtToggle = document.getElementById("pixelArtMode");
-    if (pixelArtToggle) pixelArtToggle.checked = false;
+    if (pixelArtToggle) pixelArtToggle.checked = pixelArtMode;
 
-    const ids = ["brightness", "saturation", "contrast", "greenToMagenta", "cyanToRed", "blueToYellow", "antiNoise", "sharpenIntensity", "sharpenRadius"];
-    ids.forEach(id => {
+    // Reset sliders/inputs
+    const ids = [
+        { id: "brightness", value: 0 },
+        { id: "saturation", value: 0 },
+        { id: "contrast", value: 0 },
+        { id: "greenToMagenta", value: 0 },
+        { id: "cyanToRed", value: 0 },
+        { id: "blueToYellow", value: 0 },
+        { id: "antiNoise", value: 0 },
+        { id: "sharpenIntensity", value: 1 },
+        { id: "sharpenRadius", value: 2 }
+    ];
+    ids.forEach(({ id, value }) => {
         const el = document.getElementById(id);
-        if (el) {
-            if (id === "sharpenRadius") {
-                el.value = 2;
-            } else if (id === "sharpenIntensity") {
-                el.value = 1;
-            } else {
-                el.value = 0;
-            }
-        }
+        if (el) el.value = value;
     });
 
+    // Max Size
     const sizeSlider = document.getElementById("maxSizeSlider");
     const sizeInput = document.getElementById("maxSizeInput");
-    if (sizeSlider) sizeSlider.value = 80;
-    if (sizeInput) sizeInput.value = 80;
+    if (sizeSlider) sizeSlider.value = maxSize;
+    if (sizeInput) sizeInput.value = maxSize;
 
+    // Merge Slider
     const mergeSlider = document.getElementById("mergeNearest");
     const mergeVal = document.getElementById("mergeNearestVal");
-    if (mergeSlider) mergeSlider.value = 0;
-    if (mergeVal) mergeVal.textContent = "Off";
+    if (mergeSlider) mergeSlider.value = mergeNearest;
+    if (mergeVal) mergeVal.textContent = mergeNearest === 0 ? "Off" : ["Light", "Mild", "Medium", "Strong", "Very Strong"][mergeNearest - 1] || "Off";
 
-    const maskAdjustSlider = document.getElementById("maskAdjustSlider");
-    const maskAdjustValue = document.getElementById("maskAdjustValue");
-    if (maskAdjustSlider) maskAdjustSlider.value = 0;
-    if (maskAdjustValue) maskAdjustValue.textContent = "0";
+    // Mask Adjustment (optional reset)
+    if (resetMask) {
+        const maskAdjustSlider = document.getElementById("maskAdjustSlider");
+        const maskAdjustValue = document.getElementById("maskAdjustValue");
+        if (maskAdjustSlider) maskAdjustSlider.value = 0;
+        if (maskAdjustValue) maskAdjustValue.textContent = "0";
+    }
 
+    // Anti-Noise Display
     const antiNoiseVal = document.getElementById("antiNoiseVal");
-    if (antiNoiseVal) antiNoiseVal.textContent = "0";
+    if (antiNoiseVal) antiNoiseVal.textContent = String(antiNoise);
 
+    // Sharpen Display
     const sharpenIntensityVal = document.getElementById("sharpenIntensityVal");
     const sharpenRadiusVal = document.getElementById("sharpenRadiusVal");
-    if (sharpenIntensityVal) sharpenIntensityVal.textContent = "1";
-    if (sharpenRadiusVal) sharpenRadiusVal.textContent = "2";
+    if (sharpenIntensityVal) sharpenIntensityVal.textContent = String(sharpenIntensity);
+    if (sharpenRadiusVal) sharpenRadiusVal.textContent = String(sharpenRadius);
 
-    const reduceIsolatedStitchesToggle = document.getElementById("reduceIsolatedStitches");
-    if (reduceIsolatedStitchesToggle) reduceIsolatedStitchesToggle.checked = false;
+    // Reduce Isolated Stitches
+    const reduceIsolatedToggle = document.getElementById("reduceIsolatedStitches");
+    if (reduceIsolatedToggle) reduceIsolatedToggle.checked = reduceIsolatedStitches;
 
     // Max Colours
     const maxColoursSlider = document.getElementById("maxColours");
     const maxColoursInput = document.getElementById("maxColoursInput");
-    if (maxColoursSlider) maxColoursSlider.value = 30;
-    if (maxColoursInput) maxColoursInput.value = 30;
+    if (maxColoursSlider) maxColoursSlider.value = maxColours;
+    if (maxColoursInput) maxColoursInput.value = maxColours;
 
-    // Color Distance (default = euclidean)
+    // Color Distance
     document.querySelectorAll("input[name='colorDistance']").forEach(radio => {
-        radio.checked = radio.value === "euclidean";
+        radio.checked = radio.value === distanceMethod;
     });
 
     // Min Occurrence
     const minOccurrenceInput = document.getElementById("minOccurrenceInput");
-    if (minOccurrenceInput) minOccurrenceInput.value = 1;
+    if (minOccurrenceInput) minOccurrenceInput.value = minOccurrence;
 
     // Stamped Mode
     const stampedToggle = document.getElementById("stampedMode");
     const stampedControls = document.getElementById("stampedControls");
     if (stampedToggle) {
-        stampedToggle.checked = false;
-        if (stampedControls) stampedControls.style.display = "none";
+        stampedToggle.checked = stampedMode;
+        if (stampedControls) stampedControls.style.display = stampedMode ? "block" : "none";
     }
 
     // Dithering Controls
     const ditherModeSelect = document.getElementById("ditherMode");
     const ditherStrengthSlider = document.getElementById("ditherStrength");
     const ditherStrengthVal = document.getElementById("ditherStrengthVal");
-    if (ditherModeSelect) ditherModeSelect.value = "None";
+    if (ditherModeSelect) ditherModeSelect.value = ditherMode;
     if (ditherStrengthSlider) {
-        ditherStrengthSlider.disabled = true;
-        ditherStrengthSlider.value = 1;
+        ditherStrengthSlider.disabled = ditherMode === "None";
+        ditherStrengthSlider.value = ditherStrength || 1;
     }
-    if (ditherStrengthVal) ditherStrengthVal.textContent = "1";
+    if (ditherStrengthVal) ditherStrengthVal.textContent = String(ditherStrength || 1);
+}
+
+function resetUIControls() {
+    resetUIElements();
 }
 
 // -----------------------------------------------------------------------------
@@ -3453,20 +3354,9 @@ window.addEventListener("load", () => {
                         const isWhite = rgb[0] === 255 && rgb[1] === 255 && rgb[2] === 255;
                         if (isWhite) return "0";
                         
-                        // Find nearest DMC
-                        let bestCode = "310";
-                        let bestDist = Infinity;
-                        DMC_RGB.forEach(([code, , dmcRgb]) => {
-                            const dr = rgb[0] - dmcRgb[0];
-                            const dg = rgb[1] - dmcRgb[1];
-                            const db = rgb[2] - dmcRgb[2];
-                            const dist = dr * dr + dg * dg + db * db;
-                            if (dist < bestDist) {
-                                bestDist = dist;
-                                bestCode = code;
-                            }
-                        });
-                        return bestCode;
+                        // Find nearest DMC using shared utility
+                        const bestCode = findNearestDmcCode(rgb, DMC_RGB);
+                        return bestCode || "310";
                     }));
                     state.mappedDmcGrid = newDmcGrid;
                     
@@ -3775,24 +3665,18 @@ window.addEventListener("load", () => {
         updateReplaceCount();
     }
 
-    function getUsedDmcCodes() {
-        const dmcGrid = state.mappedDmcGrid;
-        if (!dmcGrid || dmcGrid.length === 0) return [];
-        const codes = new Set();
-        dmcGrid.forEach(row => row.forEach(code => {
-            if (code !== '0') codes.add(String(code));
-        }));
-        return Array.from(codes);
-    }
+function getUsedDmcCodes() {
+    const dmcGrid = state.mappedDmcGrid;
+    if (!dmcGrid || dmcGrid.length === 0) return [];
+    const codes = getUsedCodes(dmcGrid);
+    return Array.from(codes);
+}
 
-    function countPixelsOfColor(dmcGrid, targetCode) {
-        if (!dmcGrid) return 0;
-        let count = 0;
-        dmcGrid.forEach(row => row.forEach(code => {
-            if (String(code) === String(targetCode)) count++;
-        }));
-        return count;
-    }
+function countPixelsOfColor(dmcGrid, targetCode) {
+    if (!dmcGrid) return 0;
+    const counts = getColorCounts(dmcGrid);
+    return counts.get(String(targetCode)) || 0;
+}
 
     function updateReplaceCount() {
         const countEl = document.getElementById('replaceCountInfo');
@@ -3839,14 +3723,14 @@ window.addEventListener("load", () => {
             Array.from({ length: w }, () => [254, 254, 254])
         );
         
-        const dmcToRgb = {};
-        DMC_RGB.forEach(([code, , rgb]) => { dmcToRgb[String(code)] = rgb; });
-        
         for (let y = 0; y < h; y++) {
             for (let x = 0; x < w; x++) {
                 const code = String(dmcGrid[y][x]);
-                if (code !== "0" && dmcToRgb[code]) {
-                    rgbGrid[y][x] = [...dmcToRgb[code]];
+                if (code !== "0") {
+                    const rgb = dmcCodeToRgb.get(code);
+                    if (rgb) {
+                        rgbGrid[y][x] = [...rgb];
+                    }
                 }
             }
         }
@@ -3919,5 +3803,66 @@ window.addEventListener("load", () => {
     // Initialize with empty canvas
     createEmptyCanvas(50, 50);
 
+    // Verify utilities are working (Fix #1, #2, #7)
+    console.log("[Init] Verifying utility functions...");
+    console.log("[Init] dmcCodeToEntry size:", dmcCodeToEntry.size);
+    console.log("[Init] dmcCodeToRgb size:", dmcCodeToRgb.size);
+    
+    // Test findNearestDmcCode
+    const testRgb = [255, 0, 0]; // Red
+    const nearest = findNearestDmcCode(testRgb, DMC_RGB);
+    console.log(`[Init] Test findNearestDmcCode(${testRgb}) = DMC ${nearest}`);
+    
+    // Test grid utilities with empty grid
+    if (state.mappedDmcGrid) {
+        const bounds = getGridBounds(state.mappedDmcGrid);
+        console.log("[Init] Initial grid bounds:", bounds);
+    }
+    
     console.log("Cross Stitch Editor Parent Shell Initialized.");
 });
+
+// Debug function for testing utilities (call from console: window.testUtilities())
+window.testUtilities = function() {
+    console.log("=== Testing Utility Functions ===");
+    
+    // Test 1: findNearestDmcCode
+    console.log("\n1. Testing findNearestDmcCode():");
+    const testColors = [
+        [255, 255, 255], // White
+        [0, 0, 0],          // Black
+        [255, 0, 0],        // Red
+        [0, 255, 0],        // Green
+        [0, 0, 255],         // Blue
+    ];
+    testColors.forEach(rgb => {
+        const code = findNearestDmcCode(rgb, DMC_RGB);
+        const entry = dmcCodeToEntry.get(code);
+        console.log(`  RGB(${rgb}) -> DMC ${code} (${entry?.name || 'unknown'})`);
+    });
+    
+    // Test 2: getGridBounds and getColorCounts
+    if (state.mappedDmcGrid) {
+        console.log("\n2. Testing grid utilities:");
+        const bounds = getGridBounds(state.mappedDmcGrid);
+        console.log("  Grid bounds:", bounds);
+        
+        const counts = getColorCounts(state.mappedDmcGrid);
+        console.log("  Color counts (top 5):", 
+            Array.from(counts.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5)
+        );
+        
+        const codes = getUsedCodes(state.mappedDmcGrid);
+        console.log("  Used codes count:", codes.size);
+    } else {
+        console.log("\n2. Skipped grid utility tests (no grid loaded)");
+    }
+    
+    // Test 3: calculateCmSize
+    console.log("\n3. Testing calculateCmSize():");
+    console.log("  100 stitches on 14ct =", calculateCmSize(100, 100, 14), "cm");
+    console.log("  50 stitches on 18ct =", calculateCmSize(50, 50, 18), "cm");
+    
+    console.log("\n=== Tests Complete ===");
+    return "Utilities tested. Check console for results.";
+};

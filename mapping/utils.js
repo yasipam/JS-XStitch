@@ -255,6 +255,51 @@ export function rgbToHex([r, g, b]) {
 
 
 // -----------------------------------------------------------------------------
+// DMC CODE LOOKUP UTILITIES
+// -----------------------------------------------------------------------------
+
+/**
+ * Finds the nearest DMC code for a given RGB value using Euclidean distance.
+ * Optimized to avoid repeated DMC_RGB.forEach() calls.
+ * @param {number[]} rgb - The RGB value to match [r, g, b]
+ * @param {Array} palette - Palette to search, defaults to DMC_RGB
+ * @returns {string|null} The nearest DMC code, or null if not found
+ */
+export function findNearestDmcCode(rgb, palette) {
+    if (!palette || !Array.isArray(palette) || palette.length === 0) {
+        console.warn('[findNearestDmcCode] Invalid palette provided');
+        return null;
+    }
+    
+    let bestCode = null;
+    let bestDist = Infinity;
+    
+    for (let i = 0; i < palette.length; i++) {
+        const entry = palette[i];
+        // Handle both DMC_RGB format [code, name, [r,g,b]] and simple [code, name, rgb] formats
+        const code = String(entry[0]);
+        const dmcRgb = Array.isArray(entry[2]) ? entry[2] : entry[2];
+        
+        if (!Array.isArray(dmcRgb)) continue;
+        
+        const dr = rgb[0] - dmcRgb[0];
+        const dg = rgb[1] - dmcRgb[1];
+        const db = rgb[2] - dmcRgb[2];
+        const dist = dr * dr + dg * dg + db * db;
+        if (dist < bestDist) {
+            bestDist = dist;
+            bestCode = code;
+        }
+    }
+    
+    if (bestCode) {
+        console.log(`[findNearestDmcCode] RGB(${rgb}) -> DMC ${bestCode} (dist: ${Math.sqrt(bestDist).toFixed(2)})`);
+    }
+    
+    return bestCode;
+}
+
+// -----------------------------------------------------------------------------
 // PATTERN NAME SANITISING (OXS EXPORT)
 // -----------------------------------------------------------------------------
 export function sanitizePatternName(name) {
