@@ -51,6 +51,25 @@ codeToRgbMap["0"] = [254, 254, 254];  // Keep for backwards compatibility
 let originalMaskCanvas = null; // Raw AI mask from background removal
 let originalImageBeforeBgRemoval = null; // Original image before bg removal (for mask re-processing)
 
+// Helper: switch active tool and update UI consistently
+function switchTool(toolId) {
+    state.setTool(toolId);
+    sendToCanvas('SET_TOOL', toolId);
+    // Clear active from all tool buttons, then activate the chosen one
+    document.querySelectorAll("#pixelTools button, #backstitchTools button, #toolPicker, #cropBtn").forEach(b => b.classList.remove("active"));
+    const btnMap = {
+        'pencil': 'pencilBtn',
+        'eraser': 'eraserBtn',
+        'fill': 'fillBtn',
+        'picker': 'toolPicker',
+        'crop': 'cropBtn',
+        'backstitchPencil': 'backstitchPencilBtn',
+        'backstitchEraser': 'backstitchEraserBtn'
+    };
+    const btnId = btnMap[toolId];
+    if (btnId) document.getElementById(btnId)?.classList.add("active");
+}
+
 function showCropOverlay({ x1, y1, x2, y2 }) {
     console.log('[Parent] showCropOverlay received', { x1, y1, x2, y2 });
     const w = x2 - x1;
@@ -152,7 +171,7 @@ sendToCanvas('INIT', { width: newWidth, height: newHeight });
         sendToCanvas('UPDATE_GRID', newGrid);
 
         console.log('[Parent] Switching to pencil tool');
-        sendToCanvas('SET_TOOL', 'pencil');
+        switchTool('pencil');
 
         // Update UI elements to reflect new canvas size
         updateSizeUI(newWidth, newHeight);
@@ -213,7 +232,7 @@ sendToCanvas('INIT', { width: newWidth, height: newHeight });
         console.log('[Parent] Sending INIT to iframe');
         sendToCanvas('INIT', { width: newWidth, height: newHeight });
         sendToCanvas('UPDATE_GRID', newGrid);
-        sendToCanvas('SET_TOOL', 'pencil');
+        switchTool('pencil');
 
         // Update UI elements to reflect new canvas size
         updateSizeUI(newWidth, newHeight);
@@ -1886,11 +1905,7 @@ function setupToolButtons() {
                     return;
                 }
 
-                state.setTool(id);
-                sendToCanvas('SET_TOOL', id);
-                // Clear all tool buttons (pixel tools, backstitch tools, picker)
-                document.querySelectorAll("#pixelTools button, #backstitchTools button, #toolPicker").forEach(b => b.classList.remove("active"));
-                btn.classList.add("active");
+                switchTool(id);
             };
         }
     });
