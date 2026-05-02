@@ -1916,10 +1916,11 @@ function setupToolButtons() {
 
     // Close dropdowns when clicking outside the button and dropdown
     document.addEventListener('click', (e) => {
-        const dropdownTools = ['pencilBtn', 'eraserBtn'];
-        const isOutsideButtonAndDropdown = !e.target.closest('#pencilBtn') && 
-                                    !e.target.closest('#eraserBtn') && 
-                                    !e.target.closest('.tool-dropdown');
+         const dropdownTools = ['pencilBtn', 'eraserBtn', 'backstitchPencilBtn'];
+         const isOutsideButtonAndDropdown = !e.target.closest('#pencilBtn') && 
+                                     !e.target.closest('#eraserBtn') && 
+                                     !e.target.closest('#backstitchPencilBtn') && 
+                                     !e.target.closest('.tool-dropdown');
         if (isOutsideButtonAndDropdown) {
             document.querySelectorAll('.tool-dropdown.open').forEach(d => d.classList.remove('open'));
         }
@@ -2070,9 +2071,10 @@ function setupBackstitchTools() {
             const sizeSpan = backstitchPencilBtn.querySelector('.tool-size');
             if (sizeSpan) sizeSpan.textContent = sizeText;
             
-            // Send to iframe
-            sendToCanvas('SET_BACKSTITCH_SIZE', size);
-        };
+             // Send to iframe
+             sendToCanvas('SET_BACKSTITCH_SIZE', size);
+             backstitchPencilBtn.querySelector('.tool-dropdown').classList.remove('open');
+         };
     });
 }
 
