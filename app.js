@@ -43,7 +43,9 @@ DMC_RGB.forEach(([code, name, rgb]) => {
 });
 // Also populate codeToRgbMap for backwards compatibility
 const codeToRgbMap = dmcCodeToRgb;
-codeToRgbMap["0"] = [254, 254, 254];
+// Use Map.set() to properly add cloth sentinel (code "0")
+dmcCodeToRgb.set("0", [254, 254, 254]);
+codeToRgbMap["0"] = [254, 254, 254];  // Keep for backwards compatibility
 
 // Background removal mask state
 let originalMaskCanvas = null; // Raw AI mask from background removal
@@ -3620,10 +3622,25 @@ window.addEventListener("load", () => {
         replaceColorToRgb = null;
         replaceColorToCode = null;
 
-        // Check for cloth sentinel (254,254,254) - this is code "0"
-        const isCloth = replaceColorFromRgb[0] === 254 && 
+        // First check DMC grid code - code "0" means cloth/transparent
+        let isCloth = false;
+        if (state && state.mappedDmcGrid && currentContextMenuPos.gx !== undefined) {
+            const dmcCode = String(state.mappedDmcGrid[currentContextMenuPos.gy][currentContextMenuPos.gx]);
+            if (dmcCode === "0") {
+                isCloth = true;
+                replaceColorFromCode = "0";
+            }
+        }
+
+        // Fallback: Check for cloth sentinel (254,254,254) - this is code "0"
+        if (!isCloth) {
+            isCloth = replaceColorFromRgb[0] === 254 && 
                         replaceColorFromRgb[1] === 254 && 
                         replaceColorFromRgb[2] === 254;
+            if (isCloth) {
+                replaceColorFromCode = "0";
+            }
+        }
 
         let dmcEntry = null;
         if (isCloth) {

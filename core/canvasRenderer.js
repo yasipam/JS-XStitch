@@ -308,6 +308,14 @@ export class LayeredRenderer {
 
     drawCell(gx, gy, color) {
         const ctx = this.ctxs.bg;
+        // Check for cloth sentinel (254,254,254) - show checkered background
+        if (color[0] === 254 && color[1] === 254 && color[2] === 254) {
+            // Clear the cell to show the checkered background
+            const px = Math.floor(this.offsetX + gx * this.zoom);
+            const py = Math.floor(this.offsetY + gy * this.zoom);
+            ctx.clearRect(px, py, Math.ceil(this.zoom) + 0.3, Math.ceil(this.zoom) + 0.3);
+            return;
+        }
         ctx.fillStyle = `rgb(${color[0]},${color[1]},${color[2]})`;
         const px = Math.floor(this.offsetX + gx * this.zoom);
         const py = Math.floor(this.offsetY + gy * this.zoom);

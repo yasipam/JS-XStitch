@@ -181,6 +181,16 @@ export class EditorState {
         this.emit("pixelChanged", { x, y, rgb });
         // Trigger gridChanged so threads table updates during manual drawing
         this.emit("gridChanged"); 
+        
+        // Update mappedDmcGrid when erasing to cloth sentinel
+        if (this.mappedDmcGrid && 
+            x < this.mappedDmcGrid[0]?.length && 
+            y < this.mappedDmcGrid.length) {
+            // If setting to cloth sentinel, update DMC grid to code "0"
+            if (rgb[0] === 254 && rgb[1] === 254 && rgb[2] === 254) {
+                this.mappedDmcGrid[y][x] = "0";
+            }
+        }
     }
 
     floodFill(x, y, rgb) {
@@ -296,7 +306,8 @@ export class EditorState {
         for (let y = 0; y < this.pixelGrid.height; y++) {
             for (let x = 0; x < this.pixelGrid.width; x++) {
                 const [r, g, b] = gridData[y][x];
-                if (r === 255 && g === 255 && b === 255) continue;
+                // Skip white (255,255,255) and cloth sentinel (254,254,254)
+                if ((r === 255 && g === 255 && b === 255) || (r === 254 && g === 254 && b === 254)) continue;
                 uniqueColors.add(`${r},${g},${b}`);
             }
         }
@@ -310,7 +321,8 @@ export class EditorState {
         for (let y = 0; y < this.pixelGrid.height; y++) {
             for (let x = 0; x < this.pixelGrid.width; x++) {
                 const [r, g, b] = gridData[y][x];
-                if (r === 255 && g === 255 && b === 255) continue;
+                // Skip white (255,255,255) and cloth sentinel (254,254,254)
+                if ((r === 255 && g === 255 && b === 255) || (r === 254 && g === 254 && b === 254)) continue;
                 
                 const key = `${r},${g},${b}`;
                 if (!stats[key]) {
