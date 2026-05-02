@@ -116,6 +116,10 @@ export class EditorState {
     // -------------------------------------------------------------------------
     setTool(toolName) {
         this.activeTool = toolName;
+        // If it's a backstitch tool, also update that
+        if (toolName === "backstitchPencil" || toolName === "backstitchEraser") {
+            this.activeBackstitchTool = toolName;
+        }
         if (this.renderer && this.renderer.canvases && this.renderer.canvases.ui) {
             const uiCanvas = this.renderer.canvases.ui;
             const size = this.toolSizes[toolName] || 1;
@@ -141,6 +145,8 @@ export class EditorState {
 
     setBackstitchTool(toolName) {
         this.activeBackstitchTool = toolName;
+        // Also update activeTool so picker doesn't override
+        this.activeTool = toolName;
         this.emit("backstitchToolChanged", toolName);
     }
 

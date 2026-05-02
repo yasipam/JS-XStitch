@@ -1935,6 +1935,7 @@ function setupModeToggle() {
     const backstitchTools = document.getElementById('backstitchTools');
 
     const cropBtn = document.getElementById('cropBtn');
+    const fillBtn = document.getElementById('fillBtn');
     
     if (pixelModeBtn) {
         pixelModeBtn.onclick = () => {
@@ -1948,6 +1949,7 @@ function setupModeToggle() {
             if (pixelTools) pixelTools.style.display = 'inline-block';
             if (backstitchTools) backstitchTools.style.display = 'none';
             if (cropBtn) cropBtn.style.display = 'inline-block';
+            if (fillBtn) fillBtn.style.display = 'inline-block';
             
             // Show all tabs (Palette and Threads)
             document.querySelectorAll('#rightSidebar .tabs .tab-link').forEach(tab => {
@@ -1974,6 +1976,7 @@ function setupModeToggle() {
             if (pixelTools) pixelTools.style.display = 'none';
             if (backstitchTools) backstitchTools.style.display = 'inline-block';
             if (cropBtn) cropBtn.style.display = 'none';
+            if (fillBtn) fillBtn.style.display = 'none';
             
             // Show all tabs
             document.querySelectorAll('#rightSidebar .tabs .tab-link').forEach(tab => {
@@ -3288,6 +3291,38 @@ window.addEventListener("load", () => {
 
         if (type === 'REPORT_GRID_STATS') {
             // Sidebar now updates in SYNC handler after mappedDmcGrid is patched
+        }
+
+        if (type === 'COLOR_CHANGED') {
+            updateCurrentColorDisplay(payload);
+            return;
+        }
+
+        if (type === 'SET_TOOL') {
+            // Update parent toolbar to reflect tool change from iframe (e.g., after picker auto-switches)
+            const toolId = payload === 'pencil' ? 'pencilBtn' : 
+                          payload === 'eraser' ? 'eraserBtn' :
+                          payload === 'fill' ? 'fillBtn' :
+                          payload === 'picker' ? 'toolPicker' : null;
+            if (toolId) {
+                // Remove active from all tool buttons
+                document.querySelectorAll("#topToolbar button").forEach(b => b.classList.remove("active"));
+                const btn = document.getElementById(toolId);
+                if (btn) btn.classList.add("active");
+            }
+            return;
+        }
+
+        if (type === 'SET_BACKSTITCH_TOOL') {
+            // Update backstitch toolbar buttons
+            document.querySelectorAll("#backstitchTools button").forEach(b => b.classList.remove("active"));
+            const btnId = payload === 'backstitchPencil' ? 'backstitchPencilBtn' :
+                         payload === 'backstitchEraser' ? 'backstitchEraserBtn' : null;
+            if (btnId) {
+                const btn = document.getElementById(btnId);
+                if (btn) btn.classList.add("active");
+            }
+            return;
         }
 
         if (type === 'HOVER_DMC') {

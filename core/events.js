@@ -220,14 +220,22 @@ export class EditorEvents {
                 this.isPointerDown = true;
                 this.isPanning = false;
                 
-                // Check if we're in backstitch mode
-                if (this.state.mode === "backstitch") {
+                // Check if picker tool is active - works in both modes
+                if (this.state.activeTool === "picker") {
+                    const tool = ToolRegistry.picker;
+                    if (tool) {
+                        const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
+                        tool.onPointerDown(this.state, gx, gy, e.clientX, e.clientY, { shiftKey: e.shiftKey });
+                    }
+                } else if (this.state.mode === "backstitch") {
+                    // Backstitch tools (pencil, eraser)
                     const tool = ToolRegistry[this.state.activeBackstitchTool];
                     if (tool) {
                         const coords = this.state.renderer.screenToIntersection(e.clientX, e.clientY);
                         tool.onPointerDown(this.state, coords.ix, coords.iy);
                     }
                 } else {
+                    // Pixel mode tools
                     const tool = ToolRegistry[this.state.activeTool];
                     if (tool) {
                         const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
@@ -410,7 +418,9 @@ export class EditorEvents {
             
             // HANDLE DRAWING
             else if (this.isPointerDown) {
-                if (this.state.mode === "backstitch") {
+                if (this.state.activeTool === "picker") {
+                    // Picker doesn't need move handling
+                } else if (this.state.mode === "backstitch") {
                     const tool = ToolRegistry[this.state.activeBackstitchTool];
                     if (tool) {
                         const { ix, iy } = this.state.renderer.screenToIntersection(e.clientX, e.clientY);
@@ -478,7 +488,9 @@ export class EditorEvents {
         if (this.isPointerDown && this.evCache.length === 0) {
             this.isPointerDown = false;
             
-            if (this.state.mode === "backstitch") {
+            if (this.state.activeTool === "picker") {
+                // Picker doesn't need pointer up handling
+            } else if (this.state.mode === "backstitch") {
                 const tool = ToolRegistry[this.state.activeBackstitchTool];
                 if (tool) {
                     tool.onPointerUp(this.state);

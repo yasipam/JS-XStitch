@@ -135,9 +135,53 @@ export class FillTool extends BaseTool {
 
 export class PickerTool extends BaseTool {
     cursor = "copy";
-    onPointerDown(state, gx, gy) {
-        const px = state.pixelGrid.get(gx, gy);
-        if (px) state.setColor(px);
+    onPointerDown(state, gx, gy, screenX, screenY) {
+        let colorPicked = false;
+        let pickedColor = null;
+        
+        // Check backstitch first (if in backstitch mode or backstitch exists)
+        if (state.mode === "backstitch" || state.backstitchGrid.getLines().length > 0) {
+            const coords = state.renderer.screenToIntersection(screenX, screenY);
+            const bsColor = state.backstitchGrid.getColorAt(coords.ix, coords.iy);
+            if (bsColor) {
+                state.setColor(bsColor);
+                colorPicked = true;
+                pickedColor = bsColor;
+            }
+        }
+        
+        // Fall back to pixel grid
+        if (!colorPicked) {
+            const px = state.pixelGrid.get(gx, gy);
+            if (px) {
+                state.setColor(px);
+                colorPicked = true;
+                pickedColor = px;
+            }
+        }
+        
+        // Auto-switch to brush tool after picking and notify parent
+        if (colorPicked) {
+            // Notify parent of color change (for UI update)
+            window.parent.postMessage({
+                type: 'COLOR_CHANGED',
+                payload: pickedColor
+            }, '*');
+            
+            if (state.mode === "backstitch") {
+                state.setBackstitchTool("backstitchPencil");
+                window.parent.postMessage({
+                    type: 'SET_BACKSTITCH_TOOL',
+                    payload: 'backstitchPencil'
+                }, '*');
+            } else {
+                state.setTool("pencil");
+                window.parent.postMessage({
+                    type: 'SET_TOOL',
+                    payload: 'pencil'
+                }, '*');
+            }
+        }
     }
 }
 
