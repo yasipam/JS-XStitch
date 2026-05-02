@@ -71,6 +71,7 @@ window.addEventListener('message', (e) => {
             const needsResize = !state.pixelGrid || state.pixelGrid.width !== newW || state.pixelGrid.height !== newH;
             if (needsResize) {
                 state.pixelGrid.resize(newW, newH, [255, 255, 255], false);
+                state.backstitchGrid.resize(newW, newH, false);
             }
 
             // If DMC grid included, load it
@@ -84,6 +85,7 @@ window.addEventListener('message', (e) => {
         case 'UPDATE_GRID':
             if (state && payload) {
                 state.loadGrid(payload);
+                state.renderer.drawBackstitch();
 
                 Object.values(ToolRegistry).forEach(tool => {
                     tool.lastGx = undefined;

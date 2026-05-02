@@ -262,8 +262,19 @@ export class EditorState {
         }
         this.pixelGrid.grid = newGrid.map(row => row.map(px => [...px]));
 
-        // Initialize backstitch grid to same dimensions
-        this.backstitchGrid = new BackstitchGrid(w, h);
+        // Only recreate backstitch grid if dimensions changed (preserve user edits)
+        if (!this.backstitchGrid || this.backstitchGrid.width !== w || this.backstitchGrid.height !== h) {
+            // Dimensions changed - create new grid but preserve lines within new bounds
+            const oldLines = this.backstitchGrid ? this.backstitchGrid.getLines() : [];
+            this.backstitchGrid = new BackstitchGrid(w, h);
+            // Restore lines that fit within new bounds
+            oldLines.forEach(line => {
+                const withinBounds = line.points.every(([x, y]) => x >= 0 && x <= w && y >= 0 && y <= h);
+                if (withinBounds) {
+                    this.backstitchGrid.lines.push(line);
+                }
+            });
+        }
 
         if (this.renderer) {
             this.renderer.setPixelGrid(this.pixelGrid);
