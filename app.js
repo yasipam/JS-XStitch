@@ -1934,6 +1934,8 @@ function setupModeToggle() {
     const pixelTools = document.getElementById('pixelTools');
     const backstitchTools = document.getElementById('backstitchTools');
 
+    const cropBtn = document.getElementById('cropBtn');
+    
     if (pixelModeBtn) {
         pixelModeBtn.onclick = () => {
             state.setMode('pixel');
@@ -1945,6 +1947,7 @@ function setupModeToggle() {
             // Show/hide tools
             if (pixelTools) pixelTools.style.display = 'inline-block';
             if (backstitchTools) backstitchTools.style.display = 'none';
+            if (cropBtn) cropBtn.style.display = 'inline-block';
             
             // Show all tabs (Palette and Threads)
             document.querySelectorAll('#rightSidebar .tabs .tab-link').forEach(tab => {
@@ -1970,6 +1973,7 @@ function setupModeToggle() {
             // Show/hide tools
             if (pixelTools) pixelTools.style.display = 'none';
             if (backstitchTools) backstitchTools.style.display = 'inline-block';
+            if (cropBtn) cropBtn.style.display = 'none';
             
             // Show all tabs
             document.querySelectorAll('#rightSidebar .tabs .tab-link').forEach(tab => {
