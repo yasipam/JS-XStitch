@@ -1886,7 +1886,8 @@ function setupToolButtons() {
 
                 state.setTool(id);
                 sendToCanvas('SET_TOOL', id);
-                document.querySelectorAll("#topToolbar button").forEach(b => b.classList.remove("active"));
+                // Clear all tool buttons (pixel tools, backstitch tools, picker)
+                document.querySelectorAll("#pixelTools button, #backstitchTools button, #toolPicker").forEach(b => b.classList.remove("active"));
                 btn.classList.add("active");
             };
         }
@@ -3305,8 +3306,8 @@ window.addEventListener("load", () => {
                           payload === 'fill' ? 'fillBtn' :
                           payload === 'picker' ? 'toolPicker' : null;
             if (toolId) {
-                // Remove active from all tool buttons
-                document.querySelectorAll("#topToolbar button").forEach(b => b.classList.remove("active"));
+                // Clear all tool buttons (pixel tools, backstitch tools, picker)
+                document.querySelectorAll("#pixelTools button, #backstitchTools button, #toolPicker").forEach(b => b.classList.remove("active"));
                 const btn = document.getElementById(toolId);
                 if (btn) btn.classList.add("active");
             }
@@ -3314,8 +3315,8 @@ window.addEventListener("load", () => {
         }
 
         if (type === 'SET_BACKSTITCH_TOOL') {
-            // Update backstitch toolbar buttons
-            document.querySelectorAll("#backstitchTools button").forEach(b => b.classList.remove("active"));
+            // Update backstitch toolbar buttons and clear picker button
+            document.querySelectorAll("#pixelTools button, #backstitchTools button, #toolPicker").forEach(b => b.classList.remove("active"));
             const btnId = payload === 'backstitchPencil' ? 'backstitchPencilBtn' :
                          payload === 'backstitchEraser' ? 'backstitchEraserBtn' : null;
             if (btnId) {
