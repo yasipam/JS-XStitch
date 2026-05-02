@@ -161,7 +161,37 @@ function handleCrop({ x1, y1, x2, y2 }) {
         console.log('[Parent] New grid created:', newGrid.length, 'x', newGrid[0].length);
 
         state.mappedRgbGrid = newGrid;
+
+        // Task 2: Make crop destructive - clear undo stacks
+        state.pixelGrid.undoStack.length = 0;
+        state.pixelGrid.redoStack.length = 0;
+        state.backstitchGrid.undoStack.length = 0;
+        state.backstitchGrid.redoStack.length = 0;
+        // Clear OXS baselines so crop can't be undone
+        oxsBaselineDmcGrid = null;
+        oxsBaselineRgbGrid = null;
+        oxsBaselinePalette = null;
         hasEmptyCanvasEdits = false;
+
+        // Task 3: Resize parent backstitchGrid to match cropped dimensions
+        state.backstitchGrid.resize(newWidth, newHeight, false);
+
+        // Crop mappedDmcGrid if it exists (OXS mode)
+        if (state.mappedDmcGrid) {
+            const newDmcGrid = [];
+            for (let y = y1; y < y2; y++) {
+                const row = [];
+                for (let x = x1; x < x2; x++) {
+                    if (y < state.mappedDmcGrid.length && x < state.mappedDmcGrid[y].length) {
+                        row.push(state.mappedDmcGrid[y][x]);
+                    } else {
+                        row.push("0");
+                    }
+                }
+                newDmcGrid.push(row);
+            }
+            state.mappedDmcGrid = newDmcGrid;
+        }
 
         // Send to iframe to resize and update
         console.log('[Parent] Sending INIT to iframe:', { width: newWidth, height: newHeight });
@@ -169,6 +199,9 @@ sendToCanvas('INIT', { width: newWidth, height: newHeight });
         
         console.log('[Parent] Sending UPDATE_GRID to iframe');
         sendToCanvas('UPDATE_GRID', newGrid);
+
+        // Task 2: Clear iframe's undo stacks to make crop destructive
+        sendToCanvas('CMD_CLEAR_UNDO');
 
         console.log('[Parent] Switching to pencil tool');
         switchTool('pencil');
@@ -203,6 +236,36 @@ sendToCanvas('INIT', { width: newWidth, height: newHeight });
 
         state.mappedRgbGrid = newGrid;
 
+        // Task 2: Make crop destructive - clear undo stacks
+        state.pixelGrid.undoStack.length = 0;
+        state.pixelGrid.redoStack.length = 0;
+        state.backstitchGrid.undoStack.length = 0;
+        state.backstitchGrid.redoStack.length = 0;
+        // Clear OXS baselines so crop can't be undone
+        oxsBaselineDmcGrid = null;
+        oxsBaselineRgbGrid = null;
+        oxsBaselinePalette = null;
+
+        // Task 3: Resize parent backstitchGrid to match cropped dimensions
+        state.backstitchGrid.resize(newWidth, newHeight, false);
+
+        // Crop mappedDmcGrid if it exists
+        if (state.mappedDmcGrid) {
+            const newDmcGrid = [];
+            for (let y = y1; y < y2; y++) {
+                const row = [];
+                for (let x = x1; x < x2; x++) {
+                    if (y < state.mappedDmcGrid.length && x < state.mappedDmcGrid[y].length) {
+                        row.push(state.mappedDmcGrid[y][x]);
+                    } else {
+                        row.push("0");
+                    }
+                }
+                newDmcGrid.push(row);
+            }
+            state.mappedDmcGrid = newDmcGrid;
+        }
+
         // Also update currentImage so slider doesn't restore deleted pixels
         const croppedCanvas = document.createElement('canvas');
         croppedCanvas.width = newWidth;
@@ -232,6 +295,10 @@ sendToCanvas('INIT', { width: newWidth, height: newHeight });
         console.log('[Parent] Sending INIT to iframe');
         sendToCanvas('INIT', { width: newWidth, height: newHeight });
         sendToCanvas('UPDATE_GRID', newGrid);
+
+        // Task 2: Clear iframe's undo stacks to make crop destructive
+        sendToCanvas('CMD_CLEAR_UNDO');
+
         switchTool('pencil');
 
         // Update UI elements to reflect new canvas size
