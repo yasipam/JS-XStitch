@@ -172,6 +172,8 @@ function handleCrop({ x1, y1, x2, y2 }) {
         oxsBaselineRgbGrid = null;
         oxsBaselinePalette = null;
         hasEmptyCanvasEdits = false;
+        // Update baseline grid so edit tracking works after crop
+        lastBaselineGrid = newGrid.map(row => row.map(cell => [...cell]));
 
         // Task 3: Resize parent backstitchGrid to match cropped dimensions
         state.backstitchGrid.resize(newWidth, newHeight, false);
@@ -245,9 +247,13 @@ sendToCanvas('INIT', { width: newWidth, height: newHeight });
         oxsBaselineDmcGrid = null;
         oxsBaselineRgbGrid = null;
         oxsBaselinePalette = null;
+        hasEmptyCanvasEdits = false;
 
         // Task 3: Resize parent backstitchGrid to match cropped dimensions
         state.backstitchGrid.resize(newWidth, newHeight, false);
+
+        // Update baseline grid so edit tracking works after crop
+        lastBaselineGrid = newGrid.map(row => row.map(cell => [...cell]));
 
         // Crop mappedDmcGrid if it exists
         if (state.mappedDmcGrid) {
@@ -319,6 +325,7 @@ let oxsBaselinePalette = null; // Original palette for OXS (to allow undo)
 // Empty Canvas Drawing Mode
 let isEmptyCanvas = false; // True when user creates new canvas without image/OXS
 let hasEmptyCanvasEdits = false; // Tracks if user has drawn on empty canvas
+let hasBackstitchEdits = false; // Tracks if user has made backstitch edits
 
 // CM Dimension Inputs
 let cmWidthInput = null;
@@ -1062,6 +1069,8 @@ function setupUpload() {
                 state.clear();
                 userEditDiff.clear();
                 lastBaselineGrid = null;
+                hasBackstitchEdits = false; // Reset backstitch edits flag
+                updateCropToolState(); // Re-enable crop tool after reset
                 // Tell the iframe to prepare for an 80px grid
                 // clearBackstitch flag ensures all backstitches are removed on new image upload
                 sendToCanvas('INIT', {
@@ -1251,9 +1260,10 @@ function setupNewCanvas() {
 
 function createEmptyCanvas(width, height) {
     console.log(`Creating empty canvas: ${width}x${height}`);
-    
+
     isEmptyCanvas = true;
     hasEmptyCanvasEdits = false;
+    hasBackstitchEdits = false; // Reset backstitch edits flag
     isOxsLoaded = false;
     loadedOxsPalette = null;
     currentImage = null;
@@ -1262,6 +1272,9 @@ function createEmptyCanvas(width, height) {
 
     // Use shared reset logic (resets config values and UI elements)
     resetUIElements({ resetMask: true });
+
+    // Re-enable crop tool for new empty canvas
+    updateCropToolState();
 
     // Specific resets for empty canvas mode
     state.clear();
@@ -1419,8 +1432,10 @@ function loadOxsPattern(parsed) {
     isOxsLoaded = true;
     loadedOxsPalette = dmcPalette;
     currentImage = null;
+    hasBackstitchEdits = false; // Reset backstitch edits flag
 
     resetUIControls();
+    updateCropToolState(); // Re-enable crop for new OXS file
 
     state.clear();
     userEditDiff.clear();
@@ -1624,6 +1639,7 @@ function applyOxsPostProcessingWithUndo(control, value, prevValue = null) {
         state.mappedDmcGrid = patchDmcGrid(state.mappedDmcGrid, userEditDiff, 'cie76');
         rebuildRgbFromDmc();
         sendToCanvas('SET_DMC_GRID', state.mappedDmcGrid);
+        updateCropToolState(); // Disable crop after edits
     }
 }
 
@@ -1972,6 +1988,12 @@ function setupToolButtons() {
 
                 if (isLongPress) {
                     isLongPress = false;
+                    return;
+                }
+
+                // Disable crop tool once user edits are made (too complex to handle reliably)
+                if (id === 'crop' && (hasEmptyCanvasEdits || userEditDiff.size > 0)) {
+                    alert("Crop tool is disabled after edits. Reset the image or reload to use crop.");
                     return;
                 }
 
@@ -2695,21 +2717,22 @@ function setupMappingControls() {
     const applyIsolatedStitchesBtn = document.getElementById("applyIsolatedStitches");
 
     // Apply Isolated Stitch Reduction - run one pass
-    if (applyIsolatedStitchesBtn) {
-        applyIsolatedStitchesBtn.onclick = () => {
-            // Save canvas state before making changes for undo
-            sendToCanvas('CMD_SAVE_UNDO');
-            
-            if (isOxsLoaded) {
-                console.log("OXS apply isolated stitch reduction");
-                applyOxsPostProcessing('reduceIsolatedStitches');
-                if (userEditDiff.size > 0) {
-                    state.mappedDmcGrid = patchDmcGrid(state.mappedDmcGrid, userEditDiff, 'cie76');
-                    rebuildRgbFromDmc();
-                    sendToCanvas('SET_DMC_GRID', state.mappedDmcGrid);
-                }
-                sendToCanvas('UPDATE_GRID', state.mappedRgbGrid);
-                updateThreadsTableFromGrid();
+            if (applyIsolatedStitchesBtn) {
+                applyIsolatedStitchesBtn.onclick = () => {
+                    // Save canvas state before making changes for undo
+                    sendToCanvas('CMD_SAVE_UNDO');
+                    
+                    if (isOxsLoaded) {
+                        console.log("OXS apply isolated stitch reduction");
+                        applyOxsPostProcessing('reduceIsolatedStitches');
+                        if (userEditDiff.size > 0) {
+                            state.mappedDmcGrid = patchDmcGrid(state.mappedDmcGrid, userEditDiff, 'cie76');
+                            rebuildRgbFromDmc();
+                            sendToCanvas('SET_DMC_GRID', state.mappedDmcGrid);
+                            updateCropToolState(); // Disable crop after edits
+                        }
+                        sendToCanvas('UPDATE_GRID', state.mappedRgbGrid);
+                        updateThreadsTableFromGrid();
                 updatePaletteAfterPostProcess();
             } else {
                 // Run isolated stitch reduction directly on current grid (normal image)
@@ -2728,6 +2751,7 @@ function setupMappingControls() {
                     state.mappedDmcGrid = patchedDmc;
                     state.mappedRgbGrid = patchedDmc.map(row => row.map(c => getRgbFromCode(c)));
                     state.setMappingResults(state.mappedRgbGrid, patchedDmc);
+                    updateCropToolState(); // Disable crop after edits
                 }
 
                 sendToCanvas('SET_DMC_GRID', state.mappedDmcGrid);
@@ -3310,6 +3334,27 @@ function resetUIControls() {
     resetUIElements();
 }
 
+// Update crop tool state based on whether user edits have been made
+function updateCropToolState() {
+    const cropBtn = document.getElementById('cropBtn');
+    if (!cropBtn) return;
+
+    // Disable crop if user has made edits (pixel or backstitch)
+    const hasEdits = hasEmptyCanvasEdits || userEditDiff.size > 0 || hasBackstitchEdits;
+    cropBtn.disabled = hasEdits;
+
+    // Visual feedback
+    if (hasEdits) {
+        cropBtn.title = "Crop disabled after edits. Reset to enable.";
+        cropBtn.style.opacity = "0.5";
+    } else {
+        cropBtn.title = "Crop";
+        cropBtn.style.opacity = "1";
+    }
+
+    console.log('[updateCropToolState]', { hasEdits, hasEmptyCanvasEdits, userEditDiffSize: userEditDiff.size, hasBackstitchEdits });
+}
+
 // -----------------------------------------------------------------------------
 // BOOTSTRAP
 // -----------------------------------------------------------------------------
@@ -3534,6 +3579,7 @@ window.addEventListener("load", () => {
                     if (!hasEmptyCanvasEdits && hasEdits) {
                         hasEmptyCanvasEdits = true;
                         setMappingControlsEnabled(false, false); // Lock after first user edit
+                        updateCropToolState(); // Disable crop tool after edits
                         console.log("Empty canvas: actual edit made, locking controls");
                     }
                     state.mappedRgbGrid = payload;
@@ -3581,6 +3627,10 @@ window.addEventListener("load", () => {
                     }
                 });
                 console.log('[Parent] Backstitch data synced, total lines:', state.backstitchGrid.lines.length);
+
+                // Disable crop tool after backstitch edits
+                hasBackstitchEdits = true;
+                updateCropToolState();
             }
             return;
         }
