@@ -1,6 +1,7 @@
 import { EditorState } from "./state.js";
 import { EditorEvents } from "./events.js";
 import { ToolRegistry } from "./tools.js";
+import { BackstitchGrid } from "./backstitchGrid.js";
 let state;
 let events;
 let syncTimeout;
@@ -68,10 +69,23 @@ window.addEventListener('message', (e) => {
             }
             const newW = payload.width;
             const newH = payload.height;
+
+            // Clear backstitches if explicitly requested (new image upload or reset)
+            // Crop operations should preserve backstitches within new bounds
+            if (payload.clearBackstitch) {
+                state.backstitchGrid = new BackstitchGrid(newW, newH);
+                if (state.renderer) {
+                    state.renderer.setBackstitchGrid(state.backstitchGrid);
+                }
+            }
+
             const needsResize = !state.pixelGrid || state.pixelGrid.width !== newW || state.pixelGrid.height !== newH;
+            if (needsResize && !payload.clearBackstitch) {
+                // For crop/mapping operations, resize preserves backstitches within bounds
+                state.backstitchGrid.resize(newW, newH, false);
+            }
             if (needsResize) {
                 state.pixelGrid.resize(newW, newH, [255, 255, 255], false);
-                state.backstitchGrid.resize(newW, newH, false);
             }
 
             // If DMC grid included, load it
@@ -231,6 +245,16 @@ window.addEventListener('message', (e) => {
         case 'SET_CONTEXT_MENU_OPEN':
             if (events) {
                 events.setContextMenuOpen(!!payload);
+            }
+            break;
+
+        case 'CMD_CLEAR_BACKSTITCH':
+            if (state) {
+                state.backstitchGrid.clear(false);
+                if (state.renderer) {
+                    state.renderer.setBackstitchGrid(state.backstitchGrid);
+                    state.renderer.draw();
+                }
             }
             break;
 

@@ -1063,9 +1063,11 @@ function setupUpload() {
                 userEditDiff.clear();
                 lastBaselineGrid = null;
                 // Tell the iframe to prepare for an 80px grid
+                // clearBackstitch flag ensures all backstitches are removed on new image upload
                 sendToCanvas('INIT', {
                     width: 80,
-                    height: Math.floor(80 * (img.height / img.width))
+                    height: Math.floor(80 * (img.height / img.width)),
+                    clearBackstitch: true
                 });
 
                 runMapping(true); // isReset=true so view resets to best-fit
@@ -1297,7 +1299,8 @@ function createEmptyCanvas(width, height) {
     state.mappedDmcGrid = emptyDmcGrid;
     state.mappedRgbGrid = emptyRgbGrid;
 
-    sendToCanvas('INIT', { width, height });
+    // Clear backstitches in iframe when creating new empty canvas
+    sendToCanvas('INIT', { width, height, clearBackstitch: true });
     sendToCanvas('UPDATE_GRID', emptyRgbGrid);
 
     // Enable all controls for empty canvas mode
@@ -2198,6 +2201,8 @@ function setupResetControls() {
                 }
                 resetUIControls();
                 userEditDiff.clear();
+                state.backstitchGrid.clear(false);
+                sendToCanvas('CMD_CLEAR_BACKSTITCH');
                 lastBaselineGrid = null;
                 runMapping(true);
             }
