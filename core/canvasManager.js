@@ -102,6 +102,12 @@ window.addEventListener('message', (e) => {
         case 'SET_COLOR': if (state) state.setColor(payload); break;
         case 'SET_MODE': if (state) state.setMode(payload); break;
         case 'SET_BACKSTITCH_TOOL': if (state) state.setBackstitchTool(payload); break;
+        case 'SET_BACKSTITCH_SIZE': 
+            if (state && state.mode === 'backstitch') {
+                const tool = ToolRegistry.backstitchPencil;
+                if (tool) tool.minSegmentLength = payload;
+            }
+            break;
 
         case 'CROP_CONFIRM':
         case 'CROP_CANCEL':

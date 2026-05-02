@@ -1826,7 +1826,7 @@ function updateThreadsTableFromGrid() {
 
 function setupToolButtons() {
     const tools = ["pencil", "eraser", "fill", "picker", "crop"];
-    const dropdownTools = ["pencil", "eraser"];
+    const dropdownTools = ["pencil", "eraser", "backstitchPencil"];
     let pressTimer = null;
     let isLongPress = false;
 
@@ -1997,8 +1997,50 @@ function setupBackstitchTools() {
     const backstitchPencilBtn = document.getElementById('backstitchPencilBtn');
     const backstitchEraserBtn = document.getElementById('backstitchEraserBtn');
 
+    // Long-press setup for backstitch pencil (for size dropdown)
+    let backstitchPressTimer = null;
+    let backstitchLongPress = false;
+
+    const startBackstitchLongPress = (btn, e) => {
+        const dropdown = btn.querySelector('.tool-dropdown');
+        if (!dropdown) return;
+        backstitchLongPress = false;
+        backstitchPressTimer = setTimeout(() => {
+            backstitchLongPress = true;
+            document.querySelectorAll('.tool-dropdown.open').forEach(d => {
+                if (d !== dropdown) d.classList.remove('open');
+            });
+            dropdown.classList.add('open');
+            e.stopPropagation();
+        }, 500);
+    };
+
+    const cancelBackstitchLongPress = () => {
+        clearTimeout(backstitchPressTimer);
+        backstitchPressTimer = null;
+    };
+
     if (backstitchPencilBtn) {
-        backstitchPencilBtn.onclick = () => {
+        // Long-press events
+        backstitchPencilBtn.addEventListener('mousedown', (e) => {
+            startBackstitchLongPress(backstitchPencilBtn, e);
+        });
+        backstitchPencilBtn.addEventListener('mouseup', () => {
+            cancelBackstitchLongPress();
+        });
+        backstitchPencilBtn.addEventListener('touchstart', (e) => {
+            startBackstitchLongPress(backstitchPencilBtn, e);
+        });
+        backstitchPencilBtn.addEventListener('touchend', () => {
+            cancelBackstitchLongPress();
+        });
+
+        backstitchPencilBtn.onclick = (e) => {
+            if (backstitchLongPress) {
+                backstitchLongPress = false;
+                return;
+            }
+
             state.setBackstitchTool('backstitchPencil');
             sendToCanvas('SET_BACKSTITCH_TOOL', 'backstitchPencil');
             
@@ -2016,6 +2058,22 @@ function setupBackstitchTools() {
             backstitchEraserBtn.classList.add("active");
         };
     }
+
+    // Setup backstitch size dropdown
+    document.querySelectorAll('#backstitchPencilBtn .tool-radio input').forEach(radio => {
+        radio.onclick = (e) => {
+            e.stopPropagation();
+            const size = parseFloat(radio.value);
+            const sizeText = radio.value === '1' ? '1×' : radio.value === '0.5' ? '0.5×' : '0.25×';
+            
+            // Update display
+            const sizeSpan = backstitchPencilBtn.querySelector('.tool-size');
+            if (sizeSpan) sizeSpan.textContent = sizeText;
+            
+            // Send to iframe
+            sendToCanvas('SET_BACKSTITCH_SIZE', size);
+        };
+    });
 }
 
 // -----------------------------------------------------------------------------

@@ -273,70 +273,60 @@ export class CropTool extends BaseTool {
 export class BackstitchPencilTool extends BaseTool {
     cursor = "crosshair";
     drawing = false;
-    currentLine = null; // { points: [[x,y],...], color: [r,g,b] }
-    lastIntersection = null; // Last snapped intersection point
+    currentLine = null;
+    lastIntersection = null;
+    minSegmentLength = 1.0; // Full - can be changed via dropdown
+    angleDeadzone = Math.PI / 12;
 
     onPointerDown(state, ix, iy) {
-        // ix, iy are grid intersection coordinates (not pixel grid coords)
-        // Use floating-point coordinates for OXS compatibility
-        console.log('[BackstitchPencil] onPointerDown', { ix, iy, mode: state.mode });
-
         if (ix < 0 || iy < 0 || ix > state.backstitchGrid.width || iy > state.backstitchGrid.height) return;
-
         state.backstitchGrid.pushUndo();
         this.drawing = true;
         this.currentLine = {
             points: [[ix, iy]],
             color: [...state.activeColor]
         };
-        console.log('[BackstitchPencil] onPointerDown color from state:', state.activeColor);
         this.lastIntersection = [ix, iy];
+        this.lastAngle = null;
     }
 
     onPointerMove(state, ix, iy) {
         if (!this.drawing || !this.currentLine) return;
-
         if (ix < 0 || iy < 0 || ix > state.backstitchGrid.width || iy > state.backstitchGrid.height) return;
 
-        // Only add point if it's different from last and valid direction
-        if (this.lastIntersection[0] !== ix || this.lastIntersection[1] !== iy) {
-            // Snap to 8-direction if we have a previous point
-            const snapped = this._snapTo8Directions(
-                this.lastIntersection[0], this.lastIntersection[1],
-                ix, iy
-            );
+        const dx = ix - this.lastIntersection[0];
+        const dy = iy - this.lastIntersection[1];
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < this.minSegmentLength) return;
 
-            if (snapped) {
-                console.log('[BackstitchPencil] adding point', { from: this.lastIntersection, to: [snapped.x, snapped.y] });
-                this.currentLine.points.push([snapped.x, snapped.y]);
-                this.lastIntersection = [snapped.x, snapped.y];
+        const rawAngle = Math.atan2(dy, dx);
+        const stabilized = this._stabilizeAngle(rawAngle, this.lastAngle);
+        const newX = this.lastIntersection[0] + Math.cos(stabilized) * dist;
+        const newY = this.lastIntersection[1] + Math.sin(stabilized) * dist;
 
-                // Render preview
-                if (state.renderer) {
-                    state.renderer.drawBackstitchPreview(this.currentLine);
-                }
-            }
+        this.currentLine.points.push([newX, newY]);
+        this.lastIntersection = [newX, newY];
+        this.lastAngle = stabilized;
+
+        if (state.renderer) {
+            state.renderer.drawBackstitchPreview(this.currentLine);
         }
     }
 
     onPointerUp(state) {
-        console.log('[BackstitchPencil] onPointerUp', { drawing: this.drawing, hasLine: !!this.currentLine, points: this.currentLine?.points?.length });
-        
         if (!this.drawing || !this.currentLine) {
             this.drawing = false;
             this.currentLine = null;
             this.lastIntersection = null;
+            this.lastAngle = null;
             return;
         }
 
-        // Save the line to backstitchGrid
         if (this.currentLine.points.length >= 2) {
-            console.log('[BackstitchPencil] saving line to backstitchGrid', { points: this.currentLine.points, color: this.currentLine.color });
             state.backstitchGrid.addLine(
                 this.currentLine.points,
                 this.currentLine.color
             );
-            
             if (state.renderer) {
                 state.renderer.drawBackstitch();
             }
@@ -346,24 +336,16 @@ export class BackstitchPencilTool extends BaseTool {
         this.drawing = false;
         this.currentLine = null;
         this.lastIntersection = null;
+        this.lastAngle = null;
     }
 
-    // Snap to 8 cardinal/intercardinal directions
-    _snapTo8Directions(x0, y0, x1, y1) {
-        const dx = x1 - x0;
-        const dy = y1 - y0;
-
-        // If no movement, return null
-        if (dx === 0 && dy === 0) return null;
-
-        const angle = Math.atan2(dy, dx);
-        const octant = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
-
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        const snappedX = x0 + Math.cos(octant) * dist;
-        const snappedY = y0 + Math.sin(octant) * dist;
-
-        return { x: snappedX, y: snappedY };
+    _stabilizeAngle(rawAngle, lastAngle) {
+        if (lastAngle === null) return rawAngle;
+        let diff = rawAngle - lastAngle;
+        while (diff > Math.PI) diff -= 2 * Math.PI;
+        while (diff < -Math.PI) diff += 2 * Math.PI;
+        if (Math.abs(diff) < this.angleDeadzone) return lastAngle;
+        return Math.round(rawAngle / (Math.PI / 4)) * (Math.PI / 4);
     }
 }
 
