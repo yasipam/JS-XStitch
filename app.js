@@ -1750,28 +1750,42 @@ function findAvailableDmcCode(rgb) {
 }
 
 function getLiveDmcGridFromRgb(rgbGrid) {
-    if (!rgbGrid || !loadedOxsPalette) return null;
+    if (!rgbGrid) return null;
 
     const h = rgbGrid.length;
     const w = rgbGrid[0].length;
     const dmcGrid = Array.from({ length: h }, () => Array(w).fill("0"));
 
-    // Build searchable palette array from loadedOxsPalette
-    const paletteArray = Object.entries(loadedOxsPalette).map(([code, entry]) => [code, entry.name, entry.rgb]);
+    // Use loadedOxsPalette if available, otherwise fall back to DMC_RGB
+    let paletteArray;
+    if (loadedOxsPalette) {
+        paletteArray = Object.entries(loadedOxsPalette).map(([code, entry]) => [code, entry.name, entry.rgb]);
+    } else {
+        paletteArray = DMC_RGB;
+    }
+    console.log('[getLiveDmcGridFromRgb] Using palette:', loadedOxsPalette ? 'loadedOxsPalette' : 'DMC_RGB');
+
+    let skippedWhite = 0;
+    let skippedSentinel = 0;
+    let mappedCount = 0;
 
     for (let y = 0; y < h; y++) {
         for (let x = 0; x < w; x++) {
             const rgb = rgbGrid[y][x];
             const isWhite = rgb[0] === 255 && rgb[1] === 255 && rgb[2] === 255;
-            if (isWhite) continue;
+            const isClothSentinel = rgb[0] === 254 && rgb[1] === 254 && rgb[2] === 254;
+            if (isWhite) { skippedWhite++; continue; }
+            if (isClothSentinel) { skippedSentinel++; continue; }
 
             const matchedCode = findNearestDmcCode(rgb, paletteArray);
             if (matchedCode) {
                 dmcGrid[y][x] = matchedCode;
+                mappedCount++;
             }
         }
     }
 
+    console.log('[getLiveDmcGridFromRgb] Skipped white:', skippedWhite, ', skipped sentinel:', skippedSentinel, ', mapped:', mappedCount);
     return dmcGrid;
 }
 
@@ -2886,12 +2900,28 @@ function setupExportButtons() {
     if (exportPdfBtn) {
         exportPdfBtn.onclick = async () => {
             try {
+                console.log('[PDF Export] Starting export...');
+                console.log('[PDF Export] state.mappedRgbGrid exists:', !!state.mappedRgbGrid);
+                console.log('[PDF Export] state.mappedDmcGrid exists:', !!state.mappedDmcGrid);
+
                 let exportDmcGrid = state.mappedDmcGrid;
                 let exportRgbGrid = state.mappedRgbGrid;
 
-                // For OXS or empty canvas mode, get the live grid from canvas with user edits
-                if ((isOxsLoaded || isEmptyCanvas) && state.mappedRgbGrid) {
-                    exportDmcGrid = getLiveDmcGridFromRgb(state.mappedRgbGrid) || exportDmcGrid;
+                // Always get live grid from canvas to capture user edits (including eraser)
+                if (state.mappedRgbGrid) {
+                    const convertedGrid = getLiveDmcGridFromRgb(state.mappedRgbGrid);
+                    console.log('[PDF Export] getLiveDmcGridFromRgb result:', convertedGrid ? 'valid' : 'null');
+                    if (convertedGrid) {
+                        // Debug: count "0" codes in converted grid
+                        let zeroCount = 0;
+                        for (let y = 0; y < Math.min(5, convertedGrid.length); y++) {
+                            for (let x = 0; x < Math.min(5, convertedGrid[0].length); x++) {
+                                if (convertedGrid[y][x] === "0") zeroCount++;
+                            }
+                        }
+                        console.log('[PDF Export] First 5x5 has', zeroCount, '"0" codes');
+                    }
+                    exportDmcGrid = convertedGrid || exportDmcGrid;
                     exportRgbGrid = state.mappedRgbGrid;
                 }
 
@@ -2909,37 +2939,36 @@ function setupExportButtons() {
                     mode: modeSelect.value
                 });
 
-                // Override grids with live data for OXS or empty canvas
-                if (isOxsLoaded || isEmptyCanvas) {
-                    data.dmcGrid = exportDmcGrid;
-                    data.rgbGrid = exportVisualGrid;
-                    
-                    // Rebuild palette with stamped colors if needed
-                    const usedCodes = new Set(exportDmcGrid.flat().map(String));
-                    
-                    // For empty canvas, use DMC_RGB; for OXS, use loadedOxsPalette
-                    let dataPalette = [];
-                    if (isEmptyCanvas) {
-                        dataPalette = DMC_RGB.filter(d => usedCodes.has(String(d[0]))).map(d => ({
-                            code: String(d[0]),
-                            name: d[1],
-                            rgb: d[2],
-                            stampedRgb: mappingConfig.stampedMode ? (stampedLookup[String(d[0])] || null) : null,
-                            count: exportDmcGrid.flat().filter(c => String(c) === String(d[0])).length
+                // Always override grids with live data to capture user edits (including eraser)
+                data.dmcGrid = exportDmcGrid;
+                data.rgbGrid = exportVisualGrid;
+
+                // Rebuild palette with live data
+                const usedCodes = new Set(exportDmcGrid.flat().map(String));
+
+                // For OXS, use loadedOxsPalette; for empty canvas or image, use DMC_RGB
+                let dataPalette = [];
+                if (isOxsLoaded) {
+                    dataPalette = Object.entries(loadedOxsPalette)
+                        .filter(([code]) => usedCodes.has(code))
+                        .map(([code, entry]) => ({
+                            code: code,
+                            name: entry.name,
+                            rgb: entry.rgb,
+                            stampedRgb: mappingConfig.stampedMode ? (stampedLookup[code] || null) : null,
+                            count: exportDmcGrid.flat().filter(c => String(c) === code).length
                         }));
-                    } else {
-                        dataPalette = Object.entries(loadedOxsPalette)
-                            .filter(([code]) => usedCodes.has(code))
-                            .map(([code, entry]) => ({
-                                code: code,
-                                name: entry.name,
-                                rgb: entry.rgb,
-                                stampedRgb: mappingConfig.stampedMode ? (stampedLookup[code] || null) : null,
-                                count: exportDmcGrid.flat().filter(c => String(c) === code).length
-                            }));
-                    }
-                    data.palette = dataPalette.sort((a, b) => b.count - a.count);
+                } else {
+                    // Empty canvas or image mode - use DMC_RGB
+                    dataPalette = DMC_RGB.filter(d => usedCodes.has(String(d[0]))).map(d => ({
+                        code: String(d[0]),
+                        name: d[1],
+                        rgb: d[2],
+                        stampedRgb: mappingConfig.stampedMode ? (stampedLookup[String(d[0])] || null) : null,
+                        count: exportDmcGrid.flat().filter(c => String(c) === String(d[0])).length
+                    }));
                 }
+                data.palette = dataPalette.sort((a, b) => b.count - a.count);
 
                 const exportType = pdfTypeSelect ? pdfTypeSelect.value : 'PRINTABLE';
                 await exportPDF(data, exportType);
@@ -2963,12 +2992,9 @@ function setupExportButtons() {
                 return;
             }
 
-            // For empty canvas or OXS with stamped mode, build from live DMC grid
-            if (mappingConfig.stampedMode && state.mappedDmcGrid) {
-                let dmcGrid = state.mappedDmcGrid;
-                if ((isEmptyCanvas || isOxsLoaded) && state.mappedRgbGrid) {
-                    dmcGrid = getLiveDmcGridFromRgb(state.mappedRgbGrid) || dmcGrid;
-                }
+            // Always get live DMC grid to capture user edits (including eraser)
+            if (mappingConfig.stampedMode && state.mappedDmcGrid && state.mappedRgbGrid) {
+                let dmcGrid = getLiveDmcGridFromRgb(state.mappedRgbGrid) || state.mappedDmcGrid;
                 rgbGrid = buildStampedRgbGrid(dmcGrid);
             }
 
@@ -2986,8 +3012,9 @@ function setupExportButtons() {
 
             let exportDmcGrid = state.mappedDmcGrid;
 
-            // For OXS or empty canvas mode, get the live grid from canvas with user edits
-            if ((isOxsLoaded || isEmptyCanvas) && state.mappedRgbGrid) {
+            // Always get live grid from canvas to capture user edits (including eraser)
+            if (state.mappedRgbGrid) {
+                console.log('[OXS Export] Converting live grid...');
                 exportDmcGrid = getLiveDmcGridFromRgb(state.mappedRgbGrid) || exportDmcGrid;
             }
 

@@ -89,7 +89,8 @@ export function buildStampedGrid(dmcGrid, options = {}) {
     for (let y = 0; y < h; y++) {
         for (let x = 0; x < w; x++) {
             const code = String(dmcGrid[y][x]);
-            stampedGrid[y][x] = code === "0" ? [255, 255, 255] : [...stampedMap[code]];
+            // Use cloth sentinel (254,254,254) for code "0" to ensure transparent export
+            stampedGrid[y][x] = code === "0" ? [254, 254, 254] : [...stampedMap[code]];
         }
     }
 

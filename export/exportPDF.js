@@ -69,6 +69,8 @@ async function drawCoverPage(doc, data) {
         for (let x = 0; x < cols; x++) {
             const code = String(grid[y][x]);
             if (code === "0") continue;
+            const rgb = data.rgbGrid[y][x];
+            if (rgb[0] === 254 && rgb[1] === 254 && rgb[2] === 254) continue;
             const entry = data.palette.find(p => p.code === code);
             if (entry) {
                 doc.setFillColor(entry.rgb[0], entry.rgb[1], entry.rgb[2]);
