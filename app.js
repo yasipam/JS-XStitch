@@ -3145,20 +3145,13 @@ function setupReferenceButton() {
     function updateReferenceImage() {
         const imgToUse = bgRemoved ? currentImage : referenceImage;
         if (imgToUse && state && state.mappedRgbGrid) {
-            const gridW = state.mappedRgbGrid[0].length;
-            const gridH = state.mappedRgbGrid.length;
+            const originalWidth = imgToUse.naturalWidth;
+            const originalHeight = imgToUse.naturalHeight;
 
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = gridW;
-            tempCanvas.height = gridH;
-            const ctx = tempCanvas.getContext('2d', { alpha: true });
-            ctx.drawImage(imgToUse, 0, 0, gridW, gridH);
-
-            const scaledImageData = tempCanvas.toDataURL("image/png");
             sendToCanvas('SET_REFERENCE_IMAGE', {
-                imageData: scaledImageData,
-                width: gridW,
-                height: gridH
+                imageData: imgToUse.src,
+                width: originalWidth,
+                height: originalHeight
             });
         }
     }

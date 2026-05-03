@@ -117,13 +117,27 @@ export class LayeredRenderer {
         const refW = this.referenceWidth;
         const refH = this.referenceHeight;
 
-        const refImgW = Math.floor(this.offsetX + refW * this.zoom);
-        const refImgH = Math.floor(this.offsetY + refH * this.zoom);
-        const startX = Math.floor(this.offsetX);
-        const startY = Math.floor(this.offsetY);
+        if (!refW || !refH || !gridW || !gridH) return;
+
+        const refAspect = refW / refH;
+        const patternAspect = gridW / gridH;
+
+        let scaleW, scaleH;
+        if (refAspect > patternAspect) {
+            scaleW = gridW;
+            scaleH = gridW / refAspect;
+        } else {
+            scaleH = gridH;
+            scaleW = gridH * refAspect;
+        }
+
+        const drawW = scaleW * this.zoom;
+        const drawH = scaleH * this.zoom;
+        const startX = this.offsetX;
+        const startY = this.offsetY;
 
         ctx.globalAlpha = this.referenceOpacity;
-        ctx.drawImage(this.referenceImage, startX, startY, refImgW - startX, refImgH - startY);
+        ctx.drawImage(this.referenceImage, startX, startY, drawW, drawH);
         ctx.globalAlpha = 1;
     }
 
