@@ -149,6 +149,8 @@ export class EditorEvents {
     }
 
     _onPointerDown(e) {
+        window.parent?.postMessage({ type: 'CANVAS_POINTER_EVENT' }, '*');
+
         // Add to multi-touch cache for gestures
         this.evCache.push(e);
 

@@ -2041,16 +2041,36 @@ function setupToolButtons() {
         };
     });
 
-    // Close dropdowns when clicking outside the button and dropdown
+    // Close dropdowns when clicking outside dropdown element
     document.addEventListener('click', (e) => {
-         const dropdownTools = ['pencilBtn', 'eraserBtn', 'backstitchPencilBtn'];
-         const isOutsideButtonAndDropdown = !e.target.closest('#pencilBtn') && 
-                                     !e.target.closest('#eraserBtn') && 
-                                     !e.target.closest('#backstitchPencilBtn') && 
-                                     !e.target.closest('.tool-dropdown');
-        if (isOutsideButtonAndDropdown) {
-            document.querySelectorAll('.tool-dropdown.open').forEach(d => d.classList.remove('open'));
-        }
+        const openDropdowns = document.querySelectorAll('.tool-dropdown.open');
+        if (openDropdowns.length === 0) return;
+
+        openDropdowns.forEach(dropdown => {
+            const isOutsideDropdown = !dropdown.contains(e.target);
+            const parentButton = dropdown.closest('button');
+            const isOutsideButton = !parentButton || !parentButton.contains(e.target);
+
+            if (isOutsideDropdown && isOutsideButton) {
+                dropdown.classList.remove('open');
+            }
+        });
+    });
+
+    // Also listen for mousedown to catch canvas clicks
+    document.addEventListener('mousedown', (e) => {
+        const openDropdowns = document.querySelectorAll('.tool-dropdown.open');
+        if (openDropdowns.length === 0) return;
+
+        openDropdowns.forEach(dropdown => {
+            const isOutsideDropdown = !dropdown.contains(e.target);
+            const parentButton = dropdown.closest('button');
+            const isOutsideButton = !parentButton || !parentButton.contains(e.target);
+
+            if (isOutsideDropdown && isOutsideButton) {
+                dropdown.classList.remove('open');
+            }
+        });
     });
 }
 
@@ -2231,7 +2251,7 @@ function setupBackstitchTools() {
         });
     }
 
-    // Setup backstitch straight-line assist toggle
+// Setup backstitch straight-line assist toggle
     const backstitchStraightLineCheckbox = document.getElementById('backstitchStraightLine');
     if (backstitchStraightLineCheckbox) {
         backstitchStraightLineCheckbox.addEventListener('change', (e) => {
@@ -2242,6 +2262,8 @@ function setupBackstitchTools() {
             e.stopPropagation();
         });
     }
+
+    // Document-level handler (above) now handles dropdown close on outside click - no additional window-level handler needed
 }
 
 // -----------------------------------------------------------------------------
@@ -3139,6 +3161,9 @@ function setupReferenceButton() {
     window.addEventListener("message", (e) => {
         if (e.data.type === 'SYNC_GRID_TO_PARENT') {
             updateReferenceImage();
+        }
+        if (e.data.type === 'CANVAS_POINTER_EVENT') {
+            document.querySelectorAll('.tool-dropdown.open').forEach(d => d.classList.remove('open'));
         }
     });
 }
