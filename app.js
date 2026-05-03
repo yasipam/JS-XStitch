@@ -2215,6 +2215,33 @@ function setupBackstitchTools() {
             e.stopPropagation();
         });
     }
+
+    // Setup backstitch stabilisation slider
+    const backstitchStabilisationSlider = document.getElementById('backstitchStabilisation');
+    const backstitchStabilisationValue = backstitchStabilisationSlider?.parentElement.querySelector('.slider-value');
+    if (backstitchStabilisationSlider && backstitchStabilisationValue) {
+        backstitchStabilisationSlider.addEventListener('input', (e) => {
+            e.stopPropagation();
+            const value = parseInt(e.target.value);
+            backstitchStabilisationValue.textContent = value + '%';
+            sendToCanvas('SET_BACKSTITCH_STABILISATION', value);
+        });
+        backstitchStabilisationSlider.parentElement.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+    }
+
+    // Setup backstitch straight-line assist toggle
+    const backstitchStraightLineCheckbox = document.getElementById('backstitchStraightLine');
+    if (backstitchStraightLineCheckbox) {
+        backstitchStraightLineCheckbox.addEventListener('change', (e) => {
+            e.stopPropagation();
+            sendToCanvas('SET_BACKSTITCH_STRAIGHT_LINE', e.target.checked);
+        });
+        backstitchStraightLineCheckbox.parentElement.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+    }
 }
 
 // -----------------------------------------------------------------------------

@@ -138,6 +138,18 @@ window.addEventListener('message', (e) => {
                 if (tool) tool.setSnapEnabled(payload);
             }
             break;
+        case 'SET_BACKSTITCH_STABILISATION':
+            if (state && state.mode === 'backstitch') {
+                const tool = ToolRegistry.backstitchPencil;
+                if (tool) tool.setStabilisation(payload);
+            }
+            break;
+        case 'SET_BACKSTITCH_STRAIGHT_LINE':
+            if (state && state.mode === 'backstitch') {
+                const tool = ToolRegistry.backstitchPencil;
+                if (tool) tool.setStraightLineAssist(payload);
+            }
+            break;
 
         case 'CROP_CONFIRM':
         case 'CROP_CANCEL':

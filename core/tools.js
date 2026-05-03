@@ -278,29 +278,50 @@ export class BackstitchPencilTool extends BaseTool {
     minSegmentLength = 1.0;
     angleDeadzone = Math.PI / 12;
     snapEnabled = true;
+    stabilisation = 0;
+    straightLineAssist = false;
+    straightLineOrigin = null;
+    inputBuffer = [];
 
     setSnapEnabled(enabled) {
         this.snapEnabled = enabled;
+    }
+
+    setStabilisation(value) {
+        this.stabilisation = Math.max(0, Math.min(100, value));
+    }
+
+    setStraightLineAssist(enabled) {
+        this.straightLineAssist = enabled;
     }
 
     onPointerDown(state, ix, iy) {
         if (ix < 0 || iy < 0 || ix > state.backstitchGrid.width || iy > state.backstitchGrid.height) return;
         state.backstitchGrid.pushUndo();
         this.drawing = true;
+        this.inputBuffer = [[ix, iy]];
         this.currentLine = {
             points: [[ix, iy]],
             color: [...state.activeColor]
         };
         this.lastIntersection = [ix, iy];
         this.lastAngle = null;
+        this.straightLineOrigin = null;
     }
 
     onPointerMove(state, ix, iy) {
         if (!this.drawing || !this.currentLine) return;
         if (ix < 0 || iy < 0 || ix > state.backstitchGrid.width || iy > state.backstitchGrid.height) return;
 
-        const dx = ix - this.lastIntersection[0];
-        const dy = iy - this.lastIntersection[1];
+        this.inputBuffer.push([ix, iy]);
+
+        let smoothedPoint = this._applyStabilisation();
+
+        if (!smoothedPoint) return;
+
+        const currentLast = this.lastIntersection || this.inputBuffer[0];
+        const dx = smoothedPoint[0] - currentLast[0];
+        const dy = smoothedPoint[1] - currentLast[1];
         const dist = Math.sqrt(dx * dx + dy * dy);
 
         let newX, newY, computedAngle = null;
@@ -310,25 +331,92 @@ export class BackstitchPencilTool extends BaseTool {
 
             const rawAngle = Math.atan2(dy, dx);
             const stabilized = this._stabilizeAngle(rawAngle, this.lastAngle);
-            newX = this.lastIntersection[0] + Math.cos(stabilized) * dist;
-            newY = this.lastIntersection[1] + Math.sin(stabilized) * dist;
+            newX = currentLast[0] + Math.cos(stabilized) * dist;
+            newY = currentLast[1] + Math.sin(stabilized) * dist;
             computedAngle = stabilized;
         } else {
             if (dist === 0) return;
 
-            newX = ix;
-            newY = iy;
+            newX = smoothedPoint[0];
+            newY = smoothedPoint[1];
+
+            if (this.straightLineAssist) {
+                if (!this.straightLineOrigin) {
+                    this.straightLineOrigin = [...currentLast];
+                }
+                const corrected = this._applyStraightLineAssist(
+                    this.straightLineOrigin[0], this.straightLineOrigin[1],
+                    newX, newY
+                );
+                if (corrected) {
+                    newX = corrected[0];
+                    newY = corrected[1];
+                }
+            }
         }
 
         this.currentLine.points.push([newX, newY]);
         this.lastIntersection = [newX, newY];
         if (this.snapEnabled) {
             this.lastAngle = computedAngle;
+        } else if (this.straightLineAssist && computedAngle !== null) {
+            this.lastAngle = computedAngle;
         }
 
         if (state.renderer) {
             state.renderer.drawBackstitchPreview(this.currentLine);
         }
+    }
+
+    _applyStabilisation() {
+        if (this.stabilisation === 0 || this.inputBuffer.length < 2) {
+            const point = this.inputBuffer.shift();
+            return point || null;
+        }
+
+        const bufferSize = 1 + Math.floor(this.stabilisation * this.inputBuffer.length / 100);
+
+        let sumX = 0, sumY = 0, count = 0;
+        const startIdx = Math.max(0, this.inputBuffer.length - bufferSize);
+
+        for (let i = startIdx; i < this.inputBuffer.length; i++) {
+            sumX += this.inputBuffer[i][0];
+            sumY += this.inputBuffer[i][1];
+            count++;
+        }
+
+        while (this.inputBuffer.length > startIdx) {
+            this.inputBuffer.shift();
+        }
+
+        return count > 0 ? [sumX / count, sumY / count] : null;
+    }
+
+    _applyStraightLineAssist(originX, originY, currentX, currentY) {
+        const dx = currentX - originX;
+        const dy = currentY - originY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < this.minSegmentLength * 0.5) return null;
+
+        const rawAngle = Math.atan2(dy, dx);
+        const snapAngles = [0, Math.PI / 4, Math.PI / 2, 3 * Math.PI / 4, Math.PI, -Math.PI / 4, -Math.PI / 2, -3 * Math.PI / 4];
+        const deadzone = Math.PI / 12;
+
+        for (const snapAngle of snapAngles) {
+            let diff = rawAngle - snapAngle;
+            while (diff > Math.PI) diff -= 2 * Math.PI;
+            while (diff < -Math.PI) diff += 2 * Math.PI;
+
+            if (Math.abs(diff) < deadzone) {
+                return [
+                    originX + Math.cos(snapAngle) * dist,
+                    originY + Math.sin(snapAngle) * dist
+                ];
+            }
+        }
+
+        return null;
     }
 
     onPointerUp(state) {
@@ -355,6 +443,8 @@ export class BackstitchPencilTool extends BaseTool {
         this.currentLine = null;
         this.lastIntersection = null;
         this.lastAngle = null;
+        this.inputBuffer = [];
+        this.straightLineOrigin = null;
     }
 
     _stabilizeAngle(rawAngle, lastAngle) {

@@ -405,6 +405,37 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .tool-toggle span { }
 
+.tool-slider {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-size: 0.95rem;
+    border-top: 1px solid #e0e0e0;
+    margin-top: 4px;
+}
+
+.tool-slider:hover { background: #f0f0f0; }
+
+.tool-slider label {
+    min-width: 80px;
+    cursor: pointer;
+}
+
+.tool-slider input[type="range"] {
+    flex: 1;
+    cursor: pointer;
+    height: 4px;
+}
+
+.tool-slider .slider-value {
+    min-width: 35px;
+    text-align: right;
+    font-size: 0.85rem;
+    color: #666;
+}
+
 .tool-status {
     font-size: 0.85rem;
     color: #666;
