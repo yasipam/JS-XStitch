@@ -158,15 +158,18 @@ export function removeIsolatedStitches(dmcGrid, rgbGrid, minSame = 1, rareThresh
     return cleaned;
 }
 
-export function cleanupMinOccurrence(dmcGrid, minOccurrence, codeToRgb) {
+export function cleanupMinOccurrence(dmcGrid, minOccurrence, codeToRgb, userEdits = null) {
     if (minOccurrence <= 1) return dmcGrid;
 
     const h = dmcGrid.length;
     const w = dmcGrid[0].length;
+    const editKeys = userEdits ? new Set(userEdits.keys()) : null;
 
     const countMap = {};
     for (let i = 0; i < h; i++) {
         for (let j = 0; j < w; j++) {
+            const key = `${j},${i}`;
+            if (editKeys && editKeys.has(key)) continue;
             const code = String(dmcGrid[i][j]);
             countMap[code] = (countMap[code] || 0) + 1;
         }
@@ -183,34 +186,44 @@ export function cleanupMinOccurrence(dmcGrid, minOccurrence, codeToRgb) {
     if (remaining.length === 0) return dmcGrid;
 
     const newGrid = dmcGrid.map(row => row.slice());
+    let changed = false;
 
     for (let i = 0; i < h; i++) {
         for (let j = 0; j < w; j++) {
+            const key = `${j},${i}`;
+            if (editKeys && editKeys.has(key)) continue;
+
             const code = String(dmcGrid[i][j]);
             if (!toRemove.has(code)) continue;
 
-            const orig = codeToRgb[code] || [128, 128, 128];
-            let bestCode = null;
+            const origRgb = codeToRgb.get(code) || codeToRgb.get("0") || [128, 128, 128];
+
+            let bestCode = remaining[0];
             let bestDist = Infinity;
 
             for (const remCode of remaining) {
-                const rgb = codeToRgb[remCode];
+                const remKey = String(remCode);
+                const rgb = codeToRgb.get(remKey);
                 if (!rgb) continue;
-                const dr = orig[0] - rgb[0];
-                const dg = orig[1] - rgb[1];
-                const db = orig[2] - rgb[2];
+
+                const dr = origRgb[0] - rgb[0];
+                const dg = origRgb[1] - rgb[1];
+                const db = origRgb[2] - rgb[2];
                 const d = dr * dr + dg * dg + db * db;
                 if (d < bestDist) {
                     bestDist = d;
-                    bestCode = remCode;
+                    bestCode = remKey;
                 }
             }
 
-            newGrid[i][j] = bestCode || code;
+            if (bestCode && bestCode !== code) {
+                newGrid[i][j] = bestCode;
+                changed = true;
+            }
         }
     }
 
-    return newGrid;
+    return changed ? newGrid : dmcGrid;
 }
 
 export function mapFullWithPalette(

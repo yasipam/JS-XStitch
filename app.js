@@ -440,16 +440,16 @@ function enforceMaxColors(dmcGrid, maxColours) {
     return result;
 }
 
-function applyFilteringToGrid(dmcGrid) {
-    let filtered = dmcGrid.map(row => row.map(c => String(c)));
+function applyFilteringToGrid(dmcGrid, userEdits = null) {
+    let filtered = dmcGrid;
 
     if (mappingConfig.reduceIsolatedStitches) {
-        const rgbGrid = filtered.map(row => row.map(c => codeToRgbMap[c] || [0, 0, 0]));
-        filtered = removeIsolatedStitches(filtered, rgbGrid);
+        const rgbGrid = dmcGrid.map(row => row.map(c => codeToRgbMap[c] || [0, 0, 0]));
+        filtered = removeIsolatedStitches(dmcGrid, rgbGrid);
     }
 
     if (mappingConfig.minOccurrence > 1) {
-        filtered = cleanupMinOccurrence(filtered, mappingConfig.minOccurrence, codeToRgbMap);
+        filtered = cleanupMinOccurrence(filtered, mappingConfig.minOccurrence, codeToRgbMap, userEdits);
     }
 
     return filtered;
@@ -458,7 +458,7 @@ function applyFilteringToGrid(dmcGrid) {
 function reapplyFiltering() {
     if (!state.mappedDmcGrid) return;
 
-    let filteredDmcGrid = applyFilteringToGrid(state.mappedDmcGrid);
+    let filteredDmcGrid = applyFilteringToGrid(state.mappedDmcGrid, userEditDiff);
     filteredDmcGrid = enforceMaxColors(filteredDmcGrid, mappingConfig.maxColours);
     const filteredRgbGrid = filteredDmcGrid.map(row => row.map(c => getRgbFromCode(c)));
 
@@ -661,8 +661,20 @@ async function runMapping(isReset = false) {
             ? patchDmcGrid(dmcGrid, userEditDiff, mappingConfig.distanceMethod)
             : dmcGrid;
 
-        liveDmcGrid = applyFilteringToGrid(liveDmcGrid);
         liveDmcGrid = enforceMaxColors(liveDmcGrid, maxColours);
+
+        let changed = true;
+        let iterations = 0;
+        const maxIterations = 10;
+        while (changed && iterations < maxIterations) {
+            const filtered = applyFilteringToGrid(liveDmcGrid, userEditDiff);
+            changed = filtered !== liveDmcGrid;
+            if (changed) {
+                liveDmcGrid = filtered;
+                liveDmcGrid = enforceMaxColors(liveDmcGrid, maxColours);
+            }
+            iterations++;
+        }
         state.mappedDmcGrid = liveDmcGrid;
 
         // 8. Build true-color RGB grid from DMC (always from DMC, never from stamped)
@@ -1535,8 +1547,7 @@ function setMappingControlsEnabled(enabled, isOxsMode = false) {
         "mergeNearest",
         "reduceIsolatedStitches",
         "antiNoise",
-        "minOccurrenceInput",
-        "reapplyFilterBtn"
+        "minOccurrenceInput"
     ];
 
     mappingControls.forEach(id => {
@@ -3011,24 +3022,6 @@ function setupMappingControls() {
             const val = parseInt(minOccurrenceInput.value, 10) || 1;
             mappingConfig.minOccurrence = val;
             runMapping();
-        };
-    }
-
-    const reapplyFilterBtn = document.getElementById("reapplyFilterBtn");
-    if (reapplyFilterBtn) {
-        reapplyFilterBtn.onclick = () => {
-            if (isOxsLoaded) {
-                const minOcc = parseInt(document.getElementById("minOccurrenceInput")?.value || 1, 10);
-                console.log(`OXS minOccurrence button clicked, value = ${minOcc}`);
-                applyOxsPostProcessingWithUndo('minOccurrence', minOcc);
-                return;
-            }
-
-            if (!currentImage) {
-                alert("Please upload an image first.");
-                return;
-            }
-            reapplyFiltering();
         };
     }
 } // <--- Properly closing setupMappingControls here
