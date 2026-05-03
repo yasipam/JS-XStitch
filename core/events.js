@@ -31,6 +31,9 @@ export class EditorEvents {
         this.longPressStartX = 0;
         this.longPressStartY = 0;
 
+        // Stylus long-press tracking (pen input)
+        this.isStylusLongPress = false;
+
         // Context menu state (tracked from parent)
         this.isContextMenuOpen = false;
 
@@ -148,6 +151,40 @@ export class EditorEvents {
         this.longPressTimer = null;
     }
 
+    _showLongPressMenuStylus() {
+        if (this.longPressGx < 0 || !this.state) return;
+        
+        this.isStylusLongPress = false;
+        
+        if (this.state.mode === "backstitch") {
+            window.parent.postMessage({
+                type: 'CONTEXT_MENU',
+                payload: {
+                    ix: this.longPressGx,
+                    iy: this.longPressGy,
+                    mode: 'backstitch',
+                    clientX: this.longPressStartX,
+                    clientY: this.longPressStartY
+                }
+            }, '*');
+        } else {
+            if (!this.state.pixelGrid) return;
+            
+            window.parent.postMessage({
+                type: 'CONTEXT_MENU',
+                payload: {
+                    gx: this.longPressGx,
+                    gy: this.longPressGy,
+                    rgb: this.longPressPixelRgb,
+                    clientX: this.longPressStartX,
+                    clientY: this.longPressStartY
+                }
+            }, '*');
+        }
+        
+        this.longPressTimer = null;
+    }
+
     _onPointerDown(e) {
         window.parent?.postMessage({ type: 'CANVAS_POINTER_EVENT' }, '*');
 
@@ -161,6 +198,7 @@ export class EditorEvents {
         }
 
         const isTouch = e.pointerType === 'touch';
+        const isStylus = e.pointerType === 'pen';
         const isMultiTouch = this.evCache.length > 1;
 
         // Touch/Fingers: ONLY pan/zoom, no drawing
@@ -194,6 +232,35 @@ export class EditorEvents {
                 
                 this.longPressTimer = setTimeout(() => this._showLongPressMenu(), this.longPressThreshold);
             }
+        } else if (isStylus) {
+            // Stylus: Don't draw immediately - start long-press detection
+            this.isPointerDown = false;
+            this.isPanning = false;
+            this.isStylusLongPress = true;
+            this.lastPointerX = e.clientX;
+            this.lastPointerY = e.clientY;
+
+            // Get coordinates for long-press menu
+            this.longPressStartX = e.clientX;
+            this.longPressStartY = e.clientY;
+            
+            if (this.state.mode === "backstitch") {
+                const { ix, iy } = this.state.renderer.screenToIntersection(e.clientX, e.clientY);
+                this.longPressGx = ix;
+                this.longPressGy = iy;
+                this.longPressPixelRgb = null;
+            } else {
+                const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
+                this.longPressGx = gx;
+                this.longPressGy = gy;
+                if (gx >= 0 && gy >= 0 && gx < this.state.pixelGrid.width && gy < this.state.pixelGrid.height) {
+                    this.longPressPixelRgb = this.state.pixelGrid.grid[gy][gx];
+                } else {
+                    this.longPressPixelRgb = null;
+                }
+            }
+            
+            this.longPressTimer = setTimeout(() => this._showLongPressMenuStylus(), this.longPressThreshold);
         } else if (e.button === 2) {
             // Right Click -> Start tracking for context menu
             // Don't start panning yet - wait to see if user drags
@@ -300,6 +367,26 @@ export class EditorEvents {
             if (distance > this.PAN_THRESHOLD) {
                 clearTimeout(this.longPressTimer);
                 this.longPressTimer = null;
+                
+                if (this.isStylusLongPress) {
+                    this.isStylusLongPress = false;
+                    this.isPointerDown = true;
+                    
+                    if (this.state.activeTool === "picker") {
+                    } else if (this.state.mode === "backstitch") {
+                        const tool = ToolRegistry[this.state.activeBackstitchTool];
+                        if (tool) {
+                            const coords = this.state.renderer.screenToIntersection(e.clientX, e.clientY);
+                            tool.onPointerDown(this.state, coords.ix, coords.iy);
+                        }
+                    } else {
+                        const tool = ToolRegistry[this.state.activeTool];
+                        if (tool) {
+                            const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
+                            tool.onPointerDown(this.state, gx, gy, e.clientX, e.clientY, { shiftKey: e.shiftKey });
+                        }
+                    }
+                }
             }
         }
 
@@ -513,6 +600,11 @@ export class EditorEvents {
             this.longPressGx = -1;
             this.longPressGy = -1;
             this.longPressPixelRgb = null;
+        }
+
+        // Reset stylus long-press tracking
+        if (this.isStylusLongPress) {
+            this.isStylusLongPress = false;
         }
 
         this.canvas.releasePointerCapture(e.pointerId);
