@@ -18,6 +18,62 @@ function getDmcCodeFromNumber(numberAttr) {
     return match ? match[1] : null;
 }
 
+function pointsEqual(p1, p2, tolerance = 0.01) {
+    return Math.abs(p1[0] - p2[0]) < tolerance && Math.abs(p1[1] - p2[1]) < tolerance;
+}
+
+function groupBackstitchSegments(segments) {
+    const lines = [];
+    const used = new Set();
+
+    for (let i = 0; i < segments.length; i++) {
+        if (used.has(i)) continue;
+
+        const line = {
+            points: [segments[i].start, segments[i].end],
+            palindex: segments[i].palindex
+        };
+        used.add(i);
+
+        let extended = true;
+        while (extended) {
+            extended = false;
+
+            for (let j = 0; j < segments.length; j++) {
+                if (used.has(j)) continue;
+                if (segments[j].palindex !== line.palindex) continue;
+
+                const segStart = segments[j].start;
+                const segEnd = segments[j].end;
+                const lineStart = line.points[0];
+                const lineEnd = line.points[line.points.length - 1];
+
+                if (pointsEqual(segEnd, lineStart)) {
+                    line.points.unshift(segStart);
+                    used.add(j);
+                    extended = true;
+                } else if (pointsEqual(segStart, lineStart)) {
+                    line.points.unshift(segEnd);
+                    used.add(j);
+                    extended = true;
+                } else if (pointsEqual(segStart, lineEnd)) {
+                    line.points.push(segEnd);
+                    used.add(j);
+                    extended = true;
+                } else if (pointsEqual(segEnd, lineEnd)) {
+                    line.points.push(segStart);
+                    used.add(j);
+                    extended = true;
+                }
+            }
+        }
+
+        lines.push(line);
+    }
+
+    return lines;
+}
+
 export function parseOxsFile(xmlString) {
     const parser = new DOMParser();
     const doc = parser.parseFromString(xmlString, "text/xml");
@@ -85,12 +141,48 @@ export function parseOxsFile(xmlString) {
         }
     });
 
+    const backstitchLines = [];
+    const backstitches = chart.querySelectorAll("backstitch");
+
+    if (backstitches.length > 0) {
+        const segments = [];
+
+        backstitches.forEach(bs => {
+            const x1 = parseFloat(bs.getAttribute("x1"));
+            const y1 = parseFloat(bs.getAttribute("y1"));
+            const x2 = parseFloat(bs.getAttribute("x2"));
+            const y2 = parseFloat(bs.getAttribute("y2"));
+            const palindex = bs.getAttribute("palindex");
+
+            if (!isNaN(x1) && !isNaN(y1) && !isNaN(x2) && !isNaN(y2) && palindex && paletteMap[palindex]) {
+                segments.push({
+                    start: [x1, y1],
+                    end: [x2, y2],
+                    palindex: palindex
+                });
+            }
+        });
+
+        const groupedLines = groupBackstitchSegments(segments);
+
+        groupedLines.forEach(line => {
+            const paletteEntry = paletteMap[line.palindex];
+            if (paletteEntry) {
+                backstitchLines.push({
+                    points: line.points,
+                    color: [...paletteEntry.rgb]
+                });
+            }
+        });
+    }
+
     return {
         width,
         height,
         dmcGrid,
         rgbGrid,
-        dmcPalette
+        dmcPalette,
+        backstitchLines
     };
 }
 

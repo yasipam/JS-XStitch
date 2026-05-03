@@ -1430,7 +1430,7 @@ function updateSidebarFromEmptyCanvas() {
 }
 
 function loadOxsPattern(parsed) {
-    const { width, height, dmcGrid, rgbGrid, dmcPalette } = parsed;
+    const { width, height, dmcGrid, rgbGrid, dmcPalette, backstitchLines = [] } = parsed;
 
     isOxsLoaded = true;
     loadedOxsPalette = dmcPalette;
@@ -1462,6 +1462,11 @@ function loadOxsPattern(parsed) {
     state.mappedRgbGrid = rgbGrid;
 
     sendToCanvas('UPDATE_GRID', rgbGrid);
+
+    // Load backstitches if present
+    if (backstitchLines.length > 0) {
+        sendToCanvas('LOAD_BACKSTITCH', backstitchLines);
+    }
 
     setMappingControlsEnabled(false, true); // Disable mapping controls but enable post-processing
 

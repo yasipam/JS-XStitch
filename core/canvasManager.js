@@ -282,5 +282,20 @@ window.addEventListener('message', (e) => {
                 state.floodFill(gx, gy, rgb);
             }
             break;
+
+        case 'LOAD_BACKSTITCH':
+            if (state && payload && Array.isArray(payload)) {
+                state.backstitchGrid.clear(false);
+                payload.forEach(line => {
+                    if (line.points && line.color) {
+                        state.backstitchGrid.addLine(line.points, line.color);
+                    }
+                });
+                if (state.renderer) {
+                    state.renderer.setBackstitchGrid(state.backstitchGrid);
+                }
+                state.emit("backstitchChanged");
+            }
+            break;
     }
 });
