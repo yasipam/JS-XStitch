@@ -348,6 +348,13 @@ export class LayeredRenderer {
         ctx.restore();
     }
 
+    clearStabilisationRope() {
+        const ctx = this.ctxs.ui;
+        if (!ctx) return;
+        const dpr = window.devicePixelRatio || 1;
+        ctx.clearRect(0, 0, this.canvases.ui.width / dpr, this.canvases.ui.height / dpr);
+    }
+
     // -------------------------------------------------------------------------
     // GRID UTILITIES
     // -------------------------------------------------------------------------

@@ -279,6 +279,10 @@ export class BackstitchPencilTool extends BaseTool {
     angleDeadzone = Math.PI / 12;
     snapEnabled = true;
     stabilisation = 0;
+    exponentialAlpha = 0;
+    chaikinIterations = 0;
+    pointInterval = 0;
+    lastPointTime = 0;
     straightLineAssist = false;
     straightLineOrigin = null;
     inputBuffer = [];
@@ -290,6 +294,20 @@ export class BackstitchPencilTool extends BaseTool {
 
     setStabilisation(value) {
         this.stabilisation = Math.max(0, Math.min(100, value));
+        this.exponentialAlpha = 0.3 + (this.stabilisation / 100) * 0.55;
+        if (this.stabilisation < 25) {
+            this.chaikinIterations = 0;
+            this.pointInterval = 0;
+        } else if (this.stabilisation < 50) {
+            this.chaikinIterations = 1;
+            this.pointInterval = 8;
+        } else if (this.stabilisation < 75) {
+            this.chaikinIterations = 2;
+            this.pointInterval = 16;
+        } else {
+            this.chaikinIterations = 4;
+            this.pointInterval = 33;
+        }
     }
 
     setStraightLineAssist(enabled) {
@@ -302,6 +320,7 @@ export class BackstitchPencilTool extends BaseTool {
         this.drawing = true;
         this.inputBuffer = [[ix, iy]];
         this.ropePoints = [[ix, iy]];
+        this.lastPointTime = 0;
         this.currentLine = {
             points: [[ix, iy]],
             color: [...state.activeColor]
@@ -314,6 +333,12 @@ export class BackstitchPencilTool extends BaseTool {
     onPointerMove(state, ix, iy) {
         if (!this.drawing || !this.currentLine) return;
         if (ix < 0 || iy < 0 || ix > state.backstitchGrid.width || iy > state.backstitchGrid.height) return;
+
+        if (this.pointInterval > 0) {
+            const now = performance.now();
+            if (now - this.lastPointTime < this.pointInterval) return;
+            this.lastPointTime = now;
+        }
 
         this.inputBuffer.push([ix, iy]);
         this.ropePoints.push([ix, iy]);
@@ -345,6 +370,11 @@ export class BackstitchPencilTool extends BaseTool {
 
             newX = smoothedPoint[0];
             newY = smoothedPoint[1];
+
+            if (this.exponentialAlpha > 0 && this.lastIntersection) {
+                newX = this.lastIntersection[0] + this.exponentialAlpha * (newX - this.lastIntersection[0]);
+                newY = this.lastIntersection[1] + this.exponentialAlpha * (newY - this.lastIntersection[1]);
+            }
 
             if (this.straightLineAssist) {
                 if (!this.straightLineOrigin) {
@@ -437,12 +467,19 @@ export class BackstitchPencilTool extends BaseTool {
             this.inputBuffer = [];
             this.ropePoints = [];
             this.straightLineOrigin = null;
+            if (state.renderer) {
+                state.renderer.clearStabilisationRope();
+            }
             return;
         }
 
         if (this.currentLine.points.length >= 2) {
+            let finalPoints = this.currentLine.points;
+            for (let i = 0; i < this.chaikinIterations; i++) {
+                finalPoints = this._chaikinSmooth(finalPoints);
+            }
             state.backstitchGrid.addLine(
-                this.currentLine.points,
+                finalPoints,
                 this.currentLine.color
             );
             if (state.renderer) {
@@ -458,6 +495,9 @@ export class BackstitchPencilTool extends BaseTool {
         this.inputBuffer = [];
         this.ropePoints = [];
         this.straightLineOrigin = null;
+        if (state.renderer) {
+            state.renderer.clearStabilisationRope();
+        }
     }
 
     _stabilizeAngle(rawAngle, lastAngle) {
@@ -467,6 +507,29 @@ export class BackstitchPencilTool extends BaseTool {
         while (diff < -Math.PI) diff += 2 * Math.PI;
         if (Math.abs(diff) < this.angleDeadzone) return lastAngle;
         return Math.round(rawAngle / (Math.PI / 4)) * (Math.PI / 4);
+    }
+
+    _chaikinSmooth(points) {
+        if (!points || points.length < 3) return points;
+
+        const result = [points[0]];
+        for (let i = 0; i < points.length - 1; i++) {
+            const p0 = points[i];
+            const p1 = points[i + 1];
+
+            const q = [
+                0.75 * p0[0] + 0.25 * p1[0],
+                0.75 * p0[1] + 0.25 * p1[1]
+            ];
+            const r = [
+                0.25 * p0[0] + 0.75 * p1[0],
+                0.25 * p0[1] + 0.75 * p1[1]
+            ];
+
+            result.push(q, r);
+        }
+        result.push(points[points.length - 1]);
+        return result;
     }
 }
 
