@@ -201,15 +201,28 @@ export class LayeredRenderer {
                 }
                 const px = Math.floor(this.offsetX + x * this.zoom);
                 const py = Math.floor(this.offsetY + y * this.zoom);
+                const cellSize = Math.ceil(this.zoom) + 0.3;
+
+                // Apply light halo for highlighted pixels (behind the pixel)
+                if (this.highlightMode && this.highlightedColor && this.highlightedColor[0] !== 254) {
+                    const isHighlighted = r === this.highlightedColor[0] && g === this.highlightedColor[1] && b === this.highlightedColor[2];
+                    if (isHighlighted) {
+                        // Draw light halo behind the pixel
+                        ctx.fillStyle = 'rgba(255, 255, 220, 0.9)'; // Light pale yellow
+                        const haloSize = cellSize + 2;
+                        ctx.fillRect(px - 1, py - 1, haloSize, haloSize);
+                    }
+                }
+
                 ctx.fillStyle = fillStyle;
-                ctx.fillRect(px, py, Math.ceil(this.zoom) + 0.3, Math.ceil(this.zoom) + 0.3);
+                ctx.fillRect(px, py, cellSize, cellSize);
 
                 // Apply highlight overlay if mode is enabled and this isn't the highlighted color
                 if (this.highlightMode && this.highlightedColor && this.highlightedColor[0] !== 254) {
                     const isHighlighted = r === this.highlightedColor[0] && g === this.highlightedColor[1] && b === this.highlightedColor[2];
                     if (!isHighlighted) {
                         ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-                        ctx.fillRect(px, py, Math.ceil(this.zoom) + 0.3, Math.ceil(this.zoom) + 0.3);
+                        ctx.fillRect(px, py, cellSize, cellSize);
                     }
                 }
             }
@@ -265,6 +278,26 @@ export class LayeredRenderer {
 
             const [r, g, b] = line.color;
             console.log(`[Renderer] drawBackstitch line ${idx} color:`, line.color);
+
+            // Apply light halo for highlighted backstitch lines (behind the line)
+            if (this.highlightMode && this.highlightedColor) {
+                const isHighlighted = r === this.highlightedColor[0] && g === this.highlightedColor[1] && b === this.highlightedColor[2];
+                if (isHighlighted) {
+                    ctx.beginPath();
+                    ctx.strokeStyle = 'rgba(255, 255, 220, 0.8)';
+                    ctx.lineWidth = baseLineWidth + 4;
+                    ctx.lineCap = "round";
+                    ctx.lineJoin = "round";
+                    const [hStartX, hStartY] = line.points[0];
+                    ctx.moveTo(Math.floor(this.offsetX + hStartX * this.zoom), Math.floor(this.offsetY + hStartY * this.zoom));
+                    for (let i = 1; i < line.points.length; i++) {
+                        const [hx, hy] = line.points[i];
+                        ctx.lineTo(Math.floor(this.offsetX + hx * this.zoom), Math.floor(this.offsetY + hy * this.zoom));
+                    }
+                    ctx.stroke();
+                }
+            }
+
             ctx.beginPath();
             ctx.strokeStyle = `rgb(${r},${g},${b})`;
             ctx.lineWidth = baseLineWidth;
