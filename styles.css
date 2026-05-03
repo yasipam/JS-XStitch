@@ -1101,3 +1101,24 @@ select {
     font-weight: 600;
     cursor: pointer;
 }
+
+/* Sidebar Disabled State (for Highlight Mode) */
+.sidebar-disabled {
+    opacity: 0.5;
+    pointer-events: none;
+    user-select: none;
+}
+
+.sidebar-disabled * {
+    opacity: inherit;
+    pointer-events: inherit;
+}
+
+/* Highlight mode active indicator */
+#highlightModeBtn.active {
+    background: var(--color-purple);
+}
+
+#highlightModeBtn.active img {
+    filter: brightness(1.2);
+}

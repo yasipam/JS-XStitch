@@ -2096,6 +2096,30 @@ function setupToolButtons() {
 // -----------------------------------------------------------------------------
 // MODE TOGGLE & BACKSTITCH TOOLS
 // -----------------------------------------------------------------------------
+
+function setLeftSidebarDisabled(disabled) {
+    const leftSidebar = document.getElementById('leftSidebar');
+    
+    if (disabled) {
+        leftSidebar?.classList.add('sidebar-disabled');
+    } else {
+        leftSidebar?.classList.remove('sidebar-disabled');
+    }
+
+    // Disable form inputs in left sidebar
+    const leftInputs = leftSidebar?.querySelectorAll('input, select, button, .sliderRow span');
+    leftInputs?.forEach(el => {
+        if (el.tagName === 'INPUT' || el.tagName === 'SELECT') {
+            el.disabled = disabled;
+        }
+    });
+}
+
+function setSidebarControlsDisabled(disabled) {
+    // Only disable left sidebar - right sidebar (palette) stays enabled for colour selection
+    setLeftSidebarDisabled(disabled);
+}
+
 function setupModeToggle() {
     const pixelModeBtn = document.getElementById('pixelModeBtn');
     const backstitchModeBtn = document.getElementById('backstitchModeBtn');
@@ -2117,6 +2141,7 @@ function setupModeToggle() {
                 highlightModeBtn.classList.remove('active');
                 state.toggleHighlightMode(false);
                 sendToCanvas('SET_HIGHLIGHT_MODE', false);
+                setSidebarControlsDisabled(false);
             }
             
             pixelModeBtn.classList.add('active');
@@ -2152,6 +2177,7 @@ function setupModeToggle() {
                 highlightModeBtn.classList.remove('active');
                 state.toggleHighlightMode(false);
                 sendToCanvas('SET_HIGHLIGHT_MODE', false);
+                setSidebarControlsDisabled(false);
             }
             
             backstitchModeBtn.classList.add('active');
@@ -2186,11 +2212,13 @@ function setupModeToggle() {
                 highlightModeBtn.classList.remove('active');
                 state.toggleHighlightMode(false);
                 sendToCanvas('SET_HIGHLIGHT_MODE', false);
+                setSidebarControlsDisabled(false);
             } else {
                 // Turn on highlight mode
                 highlightModeBtn.classList.add('active');
                 state.toggleHighlightMode(true);
                 sendToCanvas('SET_HIGHLIGHT_MODE', true);
+                setSidebarControlsDisabled(true);
             }
         };
     }
