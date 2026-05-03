@@ -356,7 +356,9 @@ function patchDmcGrid(baselineDmcGrid, edits, distanceMethod) {
     for (const [key, rgb] of edits) {
         const [x, y] = key.split(',').map(Number);
         if (liveDmcGrid[y] && liveDmcGrid[y][x] !== undefined) {
-            if (rgb[0] === 255 && rgb[1] === 255 && rgb[2] === 255) {
+            const isWhite = rgb[0] === 255 && rgb[1] === 255 && rgb[2] === 255;
+            const isClothSentinel = rgb[0] === 254 && rgb[1] === 254 && rgb[2] === 254;
+            if (isWhite || isClothSentinel) {
                 liveDmcGrid[y][x] = "0";
             } else {
                 const match = nearestDmcColor(rgb, distFn, labCache, DMC_RGB);
@@ -1383,7 +1385,8 @@ function updateSidebarFromEmptyCanvas() {
         for (let x = 0; x < rgbGrid[0].length; x++) {
             const rgb = rgbGrid[y][x];
             const isWhite = rgb[0] === 255 && rgb[1] === 255 && rgb[2] === 255;
-            if (isWhite) continue;
+            const isClothSentinel = rgb[0] === 254 && rgb[1] === 254 && rgb[2] === 254;
+            if (isWhite || isClothSentinel) continue;
 
             const matchedCode = findNearestDmcCode(rgb, DMC_RGB);
 
@@ -1676,7 +1679,8 @@ function updateSidebarFromOxsGrid(rgbGrid) {
         for (let x = 0; x < rgbGrid[0].length; x++) {
             const rgb = rgbGrid[y][x];
             const isWhite = rgb[0] === 255 && rgb[1] === 255 && rgb[2] === 255;
-            if (isWhite) continue;
+            const isClothSentinel = rgb[0] === 254 && rgb[1] === 254 && rgb[2] === 254;
+            if (isWhite || isClothSentinel) continue;
 
             let matchedCode = null;
             let bestDist = Infinity;
@@ -3590,12 +3594,14 @@ window.addEventListener("load", () => {
                 } else if (isEmptyCanvas) {
 
                     
-                    // Check if there are any non-white pixels (actual edits)
+                    // Check if there are any non-white/non-cloth pixels (actual edits)
                     let hasEdits = false;
                     for (let y = 0; y < payload.length && !hasEdits; y++) {
                         for (let x = 0; x < payload[0].length && !hasEdits; x++) {
                             const rgb = payload[y][x];
-                            if (!(rgb[0] === 255 && rgb[1] === 255 && rgb[2] === 255)) {
+                            const isWhite = rgb[0] === 255 && rgb[1] === 255 && rgb[2] === 255;
+                            const isClothSentinel = rgb[0] === 254 && rgb[1] === 254 && rgb[2] === 254;
+                            if (!isWhite && !isClothSentinel) {
                                 hasEdits = true;
                             }
                         }
@@ -3614,8 +3620,9 @@ window.addEventListener("load", () => {
                     // Convert RGB grid to DMC codes for exports
                     const newDmcGrid = payload.map(row => row.map(rgb => {
                         const isWhite = rgb[0] === 255 && rgb[1] === 255 && rgb[2] === 255;
-                        if (isWhite) return "0";
-                        
+                        const isClothSentinel = rgb[0] === 254 && rgb[1] === 254 && rgb[2] === 254;
+                        if (isWhite || isClothSentinel) return "0";
+
                         // Find nearest DMC using shared utility
                         const bestCode = findNearestDmcCode(rgb, DMC_RGB);
                         return bestCode || "310";
