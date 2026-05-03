@@ -280,7 +280,10 @@ export function mapFullWithPalette(
         rgb2D.push(row);
     }
 
-    const dithered2D = applyDitherRGB(rgb2D, ditherMode, ditherStrength);
+    // Extract RGB values from palette for dithering
+    const paletteRgb = palette.map(d => d[2]);
+
+    const dithered2D = applyDitherRGB(rgb2D, ditherMode, ditherStrength, paletteRgb);
 
     // Convert 2D back to flat for BSC bias and subsequent processing
     const ditheredFlat = dithered2D.flat();
