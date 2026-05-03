@@ -23,6 +23,9 @@ export class LayeredRenderer {
         this.referenceWidth = 0;
         this.referenceHeight = 0;
 
+        this.highlightMode = false;
+        this.highlightedColor = null;
+
         Object.values(this.ctxs).forEach(ctx => {
             if (ctx) ctx.imageSmoothingEnabled = false;
         });
@@ -84,6 +87,16 @@ export class LayeredRenderer {
 
     setReferencePosition(pos) {
         this.referencePosition = pos;
+        this.draw();
+    }
+
+    setHighlightMode(enabled) {
+        this.highlightMode = enabled;
+        this.draw();
+    }
+
+    setHighlightedColor(rgb) {
+        this.highlightedColor = rgb ? [...rgb] : null;
         this.draw();
     }
 
@@ -180,14 +193,25 @@ export class LayeredRenderer {
                 // Skip cloth sentinel (254,254,254) - show checkered background
                 if (r === 254 && g === 254 && b === 254) continue;
                 // Also skip actual white thread (255,255,255) - show as white on checkered
+                let fillStyle;
                 if (r === 255 && g === 255 && b === 255) {
-                    ctx.fillStyle = '#ffffff';
+                    fillStyle = '#ffffff';
                 } else {
-                    ctx.fillStyle = `rgb(${r},${g},${b})`;
+                    fillStyle = `rgb(${r},${g},${b})`;
                 }
                 const px = Math.floor(this.offsetX + x * this.zoom);
                 const py = Math.floor(this.offsetY + y * this.zoom);
+                ctx.fillStyle = fillStyle;
                 ctx.fillRect(px, py, Math.ceil(this.zoom) + 0.3, Math.ceil(this.zoom) + 0.3);
+
+                // Apply highlight overlay if mode is enabled and this isn't the highlighted color
+                if (this.highlightMode && this.highlightedColor && this.highlightedColor[0] !== 254) {
+                    const isHighlighted = r === this.highlightedColor[0] && g === this.highlightedColor[1] && b === this.highlightedColor[2];
+                    if (!isHighlighted) {
+                        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+                        ctx.fillRect(px, py, Math.ceil(this.zoom) + 0.3, Math.ceil(this.zoom) + 0.3);
+                    }
+                }
             }
         }
     }
@@ -263,6 +287,24 @@ export class LayeredRenderer {
 
             ctx.stroke();
             console.log(`[Renderer] drew line ${idx}`, { color: [r,g,b], points: line.points, px0, py0 });
+
+            // Apply highlight overlay to non-highlighted backstitch lines
+            if (this.highlightMode && this.highlightedColor) {
+                const isHighlighted = r === this.highlightedColor[0] && g === this.highlightedColor[1] && b === this.highlightedColor[2];
+                if (!isHighlighted) {
+                    ctx.beginPath();
+                    ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+                    ctx.lineWidth = baseLineWidth + 2;
+                    ctx.moveTo(px0, py0);
+                    for (let i = 1; i < line.points.length; i++) {
+                        const [x, y] = line.points[i];
+                        const px = Math.floor(this.offsetX + x * this.zoom);
+                        const py = Math.floor(this.offsetY + y * this.zoom);
+                        ctx.lineTo(px, py);
+                    }
+                    ctx.stroke();
+                }
+            }
         });
     }
 

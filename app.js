@@ -744,6 +744,13 @@ function renderPalette(usedCodes = []) {
             sendToCanvas('SET_COLOR', rgb);
             document.querySelectorAll('.palette-swatch').forEach(s => s.classList.remove('selected'));
             swatch.classList.add('selected');
+
+            // If highlight mode is active, set highlighted color
+            const highlightModeBtn = document.getElementById('highlightModeBtn');
+            if (highlightModeBtn && highlightModeBtn.classList.contains('active')) {
+                state.setHighlightedColor(rgb);
+                sendToCanvas('SET_HIGHLIGHT_COLOR', rgb);
+            }
         };
         paletteGrid.appendChild(swatch);
 
@@ -762,6 +769,13 @@ function renderPalette(usedCodes = []) {
             sendToCanvas('SET_COLOR', rgb);
             const relatedSwatch = paletteGrid.querySelector(`[data-code="${code}"]`);
             if (relatedSwatch) relatedSwatch.click();
+
+            // If highlight mode is active, set highlighted color
+            const highlightModeBtn = document.getElementById('highlightModeBtn');
+            if (highlightModeBtn && highlightModeBtn.classList.contains('active')) {
+                state.setHighlightedColor(rgb);
+                sendToCanvas('SET_HIGHLIGHT_COLOR', rgb);
+            }
         };
         paletteList.appendChild(row);
     };
@@ -2085,6 +2099,7 @@ function setupToolButtons() {
 function setupModeToggle() {
     const pixelModeBtn = document.getElementById('pixelModeBtn');
     const backstitchModeBtn = document.getElementById('backstitchModeBtn');
+    const highlightModeBtn = document.getElementById('highlightModeBtn');
     const pixelTools = document.getElementById('pixelTools');
     const backstitchTools = document.getElementById('backstitchTools');
 
@@ -2095,6 +2110,14 @@ function setupModeToggle() {
         pixelModeBtn.onclick = () => {
             state.setMode('pixel');
             sendToCanvas('SET_MODE', 'pixel');
+            
+            // Clear highlight mode when switching modes
+            const highlightModeBtn = document.getElementById('highlightModeBtn');
+            if (highlightModeBtn && highlightModeBtn.classList.contains('active')) {
+                highlightModeBtn.classList.remove('active');
+                state.toggleHighlightMode(false);
+                sendToCanvas('SET_HIGHLIGHT_MODE', false);
+            }
             
             pixelModeBtn.classList.add('active');
             backstitchModeBtn.classList.remove('active');
@@ -2122,6 +2145,14 @@ function setupModeToggle() {
         backstitchModeBtn.onclick = () => {
             state.setMode('backstitch');
             sendToCanvas('SET_MODE', 'backstitch');
+
+            // Clear highlight mode when switching modes
+            const highlightModeBtn = document.getElementById('highlightModeBtn');
+            if (highlightModeBtn && highlightModeBtn.classList.contains('active')) {
+                highlightModeBtn.classList.remove('active');
+                state.toggleHighlightMode(false);
+                sendToCanvas('SET_HIGHLIGHT_MODE', false);
+            }
             
             backstitchModeBtn.classList.add('active');
             pixelModeBtn.classList.remove('active');
@@ -2141,6 +2172,25 @@ function setupModeToggle() {
             const paletteTab = document.querySelector('#rightSidebar .tabs .tab-link:first-child');
             if (paletteTab) {
                 paletteTab.click(); // Switch to palette tab
+            }
+        };
+    }
+
+    // Highlight Mode toggle
+    if (highlightModeBtn) {
+        highlightModeBtn.onclick = () => {
+            const isActive = highlightModeBtn.classList.contains('active');
+            
+            if (isActive) {
+                // Turn off highlight mode
+                highlightModeBtn.classList.remove('active');
+                state.toggleHighlightMode(false);
+                sendToCanvas('SET_HIGHLIGHT_MODE', false);
+            } else {
+                // Turn on highlight mode
+                highlightModeBtn.classList.add('active');
+                state.toggleHighlightMode(true);
+                sendToCanvas('SET_HIGHLIGHT_MODE', true);
             }
         };
     }

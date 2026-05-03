@@ -38,6 +38,8 @@ export class EditorState {
         this.stampedMode = false;
         this.mappedRgbGrid = null;
         this.mappedDmcGrid = null;
+        this.highlightMode = false;
+        this.highlightedColor = null;
         this.showReference = false;
         this.referenceImageData = null;
         this.referenceImage = null;
@@ -59,6 +61,8 @@ export class EditorState {
         this.backstitchGrid = new BackstitchGrid(50, 50);
         this.mappedRgbGrid = null;
         this.mappedDmcGrid = null;
+        this.highlightMode = false;
+        this.highlightedColor = null;
         this.history = [];
         this.activeColor = [0, 0, 0];
 
@@ -170,6 +174,25 @@ export class EditorState {
         this.showGrid = show;
         if (this.renderer) this.renderer.toggleGrid(show);
         this.emit("gridVisibilityChanged", show);
+    }
+
+    toggleHighlightMode(enabled) {
+        this.highlightMode = enabled;
+        if (this.renderer) {
+            this.renderer.setHighlightMode(enabled);
+            if (enabled && this.highlightedColor) {
+                this.renderer.setHighlightedColor(this.highlightedColor);
+            }
+        }
+        this.emit("highlightModeChanged", enabled);
+    }
+
+    setHighlightedColor(rgb) {
+        this.highlightedColor = rgb ? [...rgb] : null;
+        if (this.renderer && this.highlightMode) {
+            this.renderer.setHighlightedColor(rgb);
+        }
+        this.emit("highlightColorChanged", rgb);
     }
 
     // -------------------------------------------------------------------------

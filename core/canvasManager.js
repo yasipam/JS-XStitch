@@ -125,6 +125,16 @@ window.addEventListener('message', (e) => {
         case 'SET_TOOL': if (state) state.setTool(payload); break;
         case 'SET_COLOR': if (state) state.setColor(payload); break;
         case 'SET_MODE': if (state) state.setMode(payload); break;
+        case 'SET_HIGHLIGHT_MODE': 
+            if (state) {
+                state.toggleHighlightMode(payload);
+            }
+            break;
+        case 'SET_HIGHLIGHT_COLOR':
+            if (state) {
+                state.setHighlightedColor(payload);
+            }
+            break;
         case 'SET_BACKSTITCH_TOOL': if (state) state.setBackstitchTool(payload); break;
         case 'SET_BACKSTITCH_SIZE': 
             if (state && state.mode === 'backstitch') {
