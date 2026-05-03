@@ -387,6 +387,24 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .tool-radio span { min-width: 30px; }
 
+.tool-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-size: 0.95rem;
+    border-top: 1px solid #e0e0e0;
+    margin-top: 4px;
+}
+
+.tool-toggle:hover { background: #f0f0f0; }
+
+.tool-toggle input { cursor: pointer; }
+
+.tool-toggle span { }
+
 .tool-status {
     font-size: 0.85rem;
     color: #666;

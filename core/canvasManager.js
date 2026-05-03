@@ -132,6 +132,12 @@ window.addEventListener('message', (e) => {
                 if (tool) tool.minSegmentLength = payload;
             }
             break;
+        case 'SET_BACKSTITCH_SNAP':
+            if (state && state.mode === 'backstitch') {
+                const tool = ToolRegistry.backstitchPencil;
+                if (tool) tool.setSnapEnabled(payload);
+            }
+            break;
 
         case 'CROP_CONFIRM':
         case 'CROP_CANCEL':

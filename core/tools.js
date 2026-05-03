@@ -275,8 +275,13 @@ export class BackstitchPencilTool extends BaseTool {
     drawing = false;
     currentLine = null;
     lastIntersection = null;
-    minSegmentLength = 1.0; // Full - can be changed via dropdown
+    minSegmentLength = 1.0;
     angleDeadzone = Math.PI / 12;
+    snapEnabled = true;
+
+    setSnapEnabled(enabled) {
+        this.snapEnabled = enabled;
+    }
 
     onPointerDown(state, ix, iy) {
         if (ix < 0 || iy < 0 || ix > state.backstitchGrid.width || iy > state.backstitchGrid.height) return;
@@ -297,16 +302,29 @@ export class BackstitchPencilTool extends BaseTool {
         const dx = ix - this.lastIntersection[0];
         const dy = iy - this.lastIntersection[1];
         const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < this.minSegmentLength) return;
 
-        const rawAngle = Math.atan2(dy, dx);
-        const stabilized = this._stabilizeAngle(rawAngle, this.lastAngle);
-        const newX = this.lastIntersection[0] + Math.cos(stabilized) * dist;
-        const newY = this.lastIntersection[1] + Math.sin(stabilized) * dist;
+        let newX, newY, computedAngle = null;
+
+        if (this.snapEnabled) {
+            if (dist < this.minSegmentLength) return;
+
+            const rawAngle = Math.atan2(dy, dx);
+            const stabilized = this._stabilizeAngle(rawAngle, this.lastAngle);
+            newX = this.lastIntersection[0] + Math.cos(stabilized) * dist;
+            newY = this.lastIntersection[1] + Math.sin(stabilized) * dist;
+            computedAngle = stabilized;
+        } else {
+            if (dist === 0) return;
+
+            newX = ix;
+            newY = iy;
+        }
 
         this.currentLine.points.push([newX, newY]);
         this.lastIntersection = [newX, newY];
-        this.lastAngle = stabilized;
+        if (this.snapEnabled) {
+            this.lastAngle = computedAngle;
+        }
 
         if (state.renderer) {
             state.renderer.drawBackstitchPreview(this.currentLine);

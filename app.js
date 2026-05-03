@@ -2198,11 +2198,23 @@ function setupBackstitchTools() {
             const sizeSpan = backstitchPencilBtn.querySelector('.tool-size');
             if (sizeSpan) sizeSpan.textContent = sizeText;
             
-             // Send to iframe
-             sendToCanvas('SET_BACKSTITCH_SIZE', size);
-             backstitchPencilBtn.querySelector('.tool-dropdown').classList.remove('open');
-         };
+// Send to iframe
+              sendToCanvas('SET_BACKSTITCH_SIZE', size);
+              backstitchPencilBtn.querySelector('.tool-dropdown').classList.remove('open');
+          };
     });
+
+    // Setup backstitch snap toggle
+    const backstitchSnapCheckbox = document.getElementById('backstitchSnap');
+    if (backstitchSnapCheckbox) {
+        backstitchSnapCheckbox.addEventListener('change', (e) => {
+            e.stopPropagation();
+            sendToCanvas('SET_BACKSTITCH_SNAP', e.target.checked);
+        });
+        backstitchSnapCheckbox.parentElement.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+    }
 }
 
 // -----------------------------------------------------------------------------
