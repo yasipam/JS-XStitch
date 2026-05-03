@@ -282,6 +282,7 @@ export class BackstitchPencilTool extends BaseTool {
     straightLineAssist = false;
     straightLineOrigin = null;
     inputBuffer = [];
+    ropePoints = [];
 
     setSnapEnabled(enabled) {
         this.snapEnabled = enabled;
@@ -300,6 +301,7 @@ export class BackstitchPencilTool extends BaseTool {
         state.backstitchGrid.pushUndo();
         this.drawing = true;
         this.inputBuffer = [[ix, iy]];
+        this.ropePoints = [[ix, iy]];
         this.currentLine = {
             points: [[ix, iy]],
             color: [...state.activeColor]
@@ -314,6 +316,10 @@ export class BackstitchPencilTool extends BaseTool {
         if (ix < 0 || iy < 0 || ix > state.backstitchGrid.width || iy > state.backstitchGrid.height) return;
 
         this.inputBuffer.push([ix, iy]);
+        this.ropePoints.push([ix, iy]);
+        if (this.ropePoints.length > 20) {
+            this.ropePoints.shift();
+        }
 
         let smoothedPoint = this._applyStabilisation();
 
@@ -365,6 +371,9 @@ export class BackstitchPencilTool extends BaseTool {
 
         if (state.renderer) {
             state.renderer.drawBackstitchPreview(this.currentLine);
+            if (this.snapEnabled || this.stabilisation > 0) {
+                state.renderer.drawStabilisationRope(this);
+            }
         }
     }
 
@@ -425,6 +434,9 @@ export class BackstitchPencilTool extends BaseTool {
             this.currentLine = null;
             this.lastIntersection = null;
             this.lastAngle = null;
+            this.inputBuffer = [];
+            this.ropePoints = [];
+            this.straightLineOrigin = null;
             return;
         }
 
@@ -444,6 +456,7 @@ export class BackstitchPencilTool extends BaseTool {
         this.lastIntersection = null;
         this.lastAngle = null;
         this.inputBuffer = [];
+        this.ropePoints = [];
         this.straightLineOrigin = null;
     }
 

@@ -291,6 +291,64 @@ export class LayeredRenderer {
     }
 
     // -------------------------------------------------------------------------
+    // STABILISATION ROPE VISUALIZATION
+    // -------------------------------------------------------------------------
+    drawStabilisationRope(tool) {
+        if (!tool || !tool.ropePoints || tool.ropePoints.length < 2) return;
+
+        const ctx = this.ctxs.ui;
+        if (!ctx) return;
+
+        const dpr = window.devicePixelRatio || 1;
+        ctx.save();
+        ctx.clearRect(0, 0, this.canvases.ui.width / dpr, this.canvases.ui.height / dpr);
+
+        const ropeColor = 'rgba(0, 180, 216, 0.6)';
+        const ropeWidth = Math.max(2, this.zoom * 0.12);
+
+        ctx.beginPath();
+        ctx.strokeStyle = ropeColor;
+        ctx.lineWidth = ropeWidth;
+        ctx.setLineDash([8, 6]);
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        const [startX, startY] = tool.ropePoints[0];
+        const pxStart = this.offsetX + startX * this.zoom;
+        const pyStart = this.offsetY + startY * this.zoom;
+        ctx.moveTo(pxStart, pyStart);
+
+        for (let i = 1; i < tool.ropePoints.length; i++) {
+            const [x, y] = tool.ropePoints[i];
+            const px = this.offsetX + x * this.zoom;
+            const py = this.offsetY + y * this.zoom;
+            ctx.lineTo(px, py);
+        }
+
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        const lastPoint = tool.ropePoints[tool.ropePoints.length - 1];
+        if (lastPoint) {
+            const tipX = this.offsetX + lastPoint[0] * this.zoom;
+            const tipY = this.offsetY + lastPoint[1] * this.zoom;
+
+            ctx.beginPath();
+            ctx.fillStyle = ropeColor;
+            ctx.arc(tipX, tipY, ropeWidth * 1.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.lineWidth = 2;
+            ctx.arc(tipX, tipY, ropeWidth * 1.5, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        ctx.restore();
+    }
+
+    // -------------------------------------------------------------------------
     // GRID UTILITIES
     // -------------------------------------------------------------------------
     screenToGrid(clientX, clientY) {
