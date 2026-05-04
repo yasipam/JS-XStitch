@@ -1,5 +1,8 @@
-<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2v-6zm0 8h2v2h-2v-2z" fill="currentColor"/>
-    <circle cx="12" cy="12" r="3" fill="currentColor"/>
-    <path d="M12 7l-2 2m6-2l2 2m-2-6v2m0 6v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+<?xml version="1.0" encoding="UTF-8"?>
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="195" height="198">
+<path d="M0 0 C36.3 0 72.6 0 110 0 C110 21.12 110 42.24 110 64 C105.38 64 100.76 64 96 64 C96 58.72 96 53.44 96 48 C68.94 48 41.88 48 14 48 C14 53.28 14 58.56 14 64 C9.38 64 4.76 64 0 64 C0 42.88 0 21.76 0 0 Z M14 16 C14 21.28 14 26.56 14 32 C41.06 32 68.12 32 96 32 C96 26.72 96 21.44 96 16 C68.94 16 41.88 16 14 16 Z " fill="#18181A" transform="translate(42,16)"/>
+<path d="M0 0 C4.62 0 9.24 0 14 0 C14 26.4 14 52.8 14 80 C9.38 80 4.76 80 0 80 C0 53.6 0 27.2 0 0 Z " fill="#18181A" transform="translate(122,80)"/>
+<path d="M0 0 C4.62 0 9.24 0 14 0 C14 26.4 14 52.8 14 80 C9.38 80 4.76 80 0 80 C0 53.6 0 27.2 0 0 Z " fill="#18181A" transform="translate(58,80)"/>
+<path d="M0 0 C15.18 0 30.36 0 46 0 C46 5.28 46 10.56 46 16 C30.82 16 15.64 16 0 16 C0 10.72 0 5.44 0 0 Z " fill="#18181A" transform="translate(74,160)"/>
+<path d="M0 0 C4.62 0 9.24 0 14 0 C14 10.56 14 21.12 14 32 C9.38 32 4.76 32 0 32 C0 21.44 0 10.88 0 0 Z " fill="#18181A" transform="translate(90,96)"/>
 </svg>
