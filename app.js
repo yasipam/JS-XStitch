@@ -481,7 +481,7 @@ function reapplyFiltering() {
 const mappingConfig = {
     maxSize: 80,
     maxColours: 30,
-    mergeNearest: 0,
+    mergeNearest: 1,
     brightnessInt: 0,
     saturationInt: 0,
     contrastInt: 0,
@@ -608,7 +608,7 @@ async function runMapping(isReset = false) {
 
             // NEW: Apply merge if enabled
             if (mappingConfig.mergeNearest > 0) {
-                const threshold = mappingConfig.mergeNearest * 8; // 8, 16, 24, 32, 40
+                const threshold = mappingConfig.mergeNearest * 2; // 2 to 40 for steps 1-20
                 const merged = mergeSimilarPaletteColors(
                     extractedColors,
                     threshold,
@@ -1938,7 +1938,7 @@ function applyMergeToOxsGrid() {
     const codes = Object.keys(loadedOxsPalette);
     const paletteRgb = codes.map(code => loadedOxsPalette[code].rgb);
 
-    const threshold = mappingConfig.mergeNearest * 8;
+    const threshold = mappingConfig.mergeNearest * 2;
     if (threshold <= 0) return;
 
     const paletteLab = paletteRgb.map(rgb => rgbToLab([rgb])[0]);
@@ -2819,9 +2819,7 @@ function setupMappingControls() {
             const prevVal = mappingConfig.mergeNearest;
             mappingConfig.mergeNearest = val;
 
-            // Update label
-            const labels = ["Off", "Light", "Mild", "Medium", "Strong", "Very Strong"];
-            mergeVal.textContent = labels[val];
+            mergeVal.textContent = val;
 
             if (isOxsLoaded) {
                 console.log(`OXS mergeNearest slider changed from ${prevVal} to ${val}`);
@@ -3462,7 +3460,7 @@ function resetUIElements(config = {}) {
     const {
         maxColours = 30,
         maxSize = 80,
-        mergeNearest = 0,
+        mergeNearest = 1,
         pixelArtMode = false,
         brightnessInt = 0,
         saturationInt = 0,
@@ -3534,7 +3532,7 @@ function resetUIElements(config = {}) {
     const mergeSlider = document.getElementById("mergeNearest");
     const mergeVal = document.getElementById("mergeNearestVal");
     if (mergeSlider) mergeSlider.value = mergeNearest;
-    if (mergeVal) mergeVal.textContent = mergeNearest === 0 ? "Off" : ["Light", "Mild", "Medium", "Strong", "Very Strong"][mergeNearest - 1] || "Off";
+    if (mergeVal) mergeVal.textContent = mergeNearest;
 
     // Mask Adjustment (optional reset)
     if (resetMask) {

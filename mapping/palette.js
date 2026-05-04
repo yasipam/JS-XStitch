@@ -515,53 +515,44 @@ export function mergeSimilarPaletteColors(palette, threshold, lockedCodes) {
     const paletteLab = palette.map(p => rgbToLab([p])[0]);
     const paletteRGB = palette.map(p => [...p]);
 
-    // Locked colours
     const lockedRGBs = DMC_RGB
         .filter(([code]) => lockedCodes.includes(code))
         .map(([, , rgb]) => rgb);
 
-    const merged = [];
     const used = new Array(palette.length).fill(false);
+    const merged = [];
 
     for (let i = 0; i < palette.length; i++) {
         if (used[i]) continue;
-
-        const baseLab = paletteLab[i];
-        const baseRGB = paletteRGB[i];
+        if (lockedRGBs.some(lr => lr[0] === paletteRGB[i][0] && lr[1] === paletteRGB[i][1] && lr[2] === paletteRGB[i][2])) continue;
 
         const group = [i];
         used[i] = true;
 
         for (let j = i + 1; j < palette.length; j++) {
             if (used[j]) continue;
+            if (lockedRGBs.some(lr => lr[0] === paletteRGB[j][0] && lr[1] === paletteRGB[j][1] && lr[2] === paletteRGB[j][2])) continue;
 
             const dist = Math.sqrt(
-                (baseLab[0] - paletteLab[j][0]) ** 2 +
-                (baseLab[1] - paletteLab[j][1]) ** 2 +
-                (baseLab[2] - paletteLab[j][2]) ** 2
+                (paletteLab[i][0] - paletteLab[j][0]) ** 2 +
+                (paletteLab[i][1] - paletteLab[j][1]) ** 2 +
+                (paletteLab[i][2] - paletteLab[j][2]) ** 2
             );
 
             if (dist < threshold) {
-                const isLocked = lockedRGBs.some(
-                    lr => lr[0] === paletteRGB[j][0] &&
-                          lr[1] === paletteRGB[j][1] &&
-                          lr[2] === paletteRGB[j][2]
-                );
-                if (isLocked) continue;
-
                 group.push(j);
                 used[j] = true;
             }
         }
 
         if (group.length === 1) {
-            merged.push(baseRGB);
+            merged.push(paletteRGB[i]);
         } else {
             const dists = group.map(idx => {
                 const d = Math.sqrt(
-                    (baseLab[0] - paletteLab[idx][0]) ** 2 +
-                    (baseLab[1] - paletteLab[idx][1]) ** 2 +
-                    (baseLab[2] - paletteLab[idx][2]) ** 2
+                    (paletteLab[i][0] - paletteLab[idx][0]) ** 2 +
+                    (paletteLab[i][1] - paletteLab[idx][1]) ** 2 +
+                    (paletteLab[i][2] - paletteLab[idx][2]) ** 2
                 );
                 return Math.max(1e-6, d);
             });
