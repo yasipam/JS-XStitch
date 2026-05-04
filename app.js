@@ -3811,23 +3811,52 @@ window.addEventListener("load", () => {
     let currentContextMenuPos = null;
 
     function showContextMenu(payload) {
-        const { gx, gy, rgb, clientX, clientY } = payload;
+        const { gx, gy, rgb, ix, iy, mode, bsColor, clientX, clientY } = payload;
         const menu = document.getElementById('contextMenu');
         if (!menu) return;
 
+        // Detect backstitch mode
+        const isBackstitchMode = mode === 'backstitch' && bsColor;
+
         // Store position for menu actions
-        currentContextMenuPos = { gx, gy, rgb };
+        currentContextMenuPos = {
+            gx: gx !== undefined ? gx : -1,
+            gy: gy !== undefined ? gy : -1,
+            rgb,
+            ix: ix !== undefined ? ix : -1,
+            iy: iy !== undefined ? iy : -1,
+            bsColor,
+            isBackstitchMode
+        };
+
+        // Determine which color to show in previews
+        const displayColor = isBackstitchMode ? bsColor : rgb;
 
         // Update color preview in "Pick Color" option
         const colorPreview = menu.querySelector('.ctx-color-preview');
-        if (colorPreview && rgb) {
-            colorPreview.style.backgroundColor = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+        if (colorPreview && displayColor) {
+            colorPreview.style.backgroundColor = `rgb(${displayColor[0]}, ${displayColor[1]}, ${displayColor[2]})`;
         }
 
         // Update color preview in "Replace Color" option too
         const replaceColorPreview = document.getElementById('ctxReplaceColor')?.querySelector('.ctx-color-preview');
-        if (replaceColorPreview && rgb) {
-            replaceColorPreview.style.backgroundColor = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+        if (replaceColorPreview && displayColor) {
+            replaceColorPreview.style.backgroundColor = `rgb(${displayColor[0]}, ${displayColor[1]}, ${displayColor[2]})`;
+        }
+
+        // Update menu labels based on mode
+        const pickLabel = document.querySelector('#ctxPickColor span:last-child');
+        const replaceLabel = document.querySelector('#ctxReplaceColor span:last-child');
+        const fillItem = document.getElementById('ctxFill');
+
+        if (isBackstitchMode) {
+            if (pickLabel) pickLabel.textContent = 'Pick Backstitch Colour';
+            if (replaceLabel) replaceLabel.textContent = 'Replace Backstitch Colour…';
+            if (fillItem) fillItem.style.display = 'none';
+        } else {
+            if (pickLabel) pickLabel.textContent = 'Pick Color';
+            if (replaceLabel) replaceLabel.textContent = 'Replace Color…';
+            if (fillItem) fillItem.style.display = 'flex';
         }
 
         // Position menu at cursor - convert from iframe coordinates to parent page coordinates
@@ -3838,11 +3867,13 @@ window.addEventListener("load", () => {
 
         // Adjust if menu would go off screen
         const menuRect = menu.getBoundingClientRect();
-        if (x + 180 > window.innerWidth) {
-            x = window.innerWidth - 190;
+        const menuWidth = 180;
+        const menuHeight = isBackstitchMode ? 120 : 90;
+        if (x + menuWidth > window.innerWidth) {
+            x = window.innerWidth - menuWidth - 10;
         }
-        if (y + 80 > window.innerHeight) {
-            y = window.innerHeight - 90;
+        if (y + menuHeight > window.innerHeight) {
+            y = window.innerHeight - menuHeight - 10;
         }
 
         menu.style.left = x + 'px';
@@ -3867,19 +3898,25 @@ window.addEventListener("load", () => {
     }
 
     function handlePickColor() {
-        if (!currentContextMenuPos || !currentContextMenuPos.rgb) return;
-        
-        // Set the active color to the clicked pixel's color
-        state.setColor(currentContextMenuPos.rgb);
-        
-        // Update UI to reflect new color (uses sidebar display now)
-        updateCurrentColorDisplay(currentContextMenuPos.rgb);
+        if (!currentContextMenuPos) return;
 
-        // Deselect all palette swatches
-        document.querySelectorAll('.palette-swatch').forEach(s => s.classList.remove('selected'));
-        
-        // Also sync to canvas
-        sendToCanvas('SET_COLOR', currentContextMenuPos.rgb);
+        // Check if backstitch mode
+        if (currentContextMenuPos.isBackstitchMode && currentContextMenuPos.bsColor) {
+            // Set the active color to the backstitch color
+            const color = currentContextMenuPos.bsColor;
+            state.setColor(color);
+            updateCurrentColorDisplay(color);
+            document.querySelectorAll('.palette-swatch').forEach(s => s.classList.remove('selected'));
+            sendToCanvas('SET_COLOR', color);
+        } else if (currentContextMenuPos.rgb) {
+            // Pixel mode - use pixel color
+            state.setColor(currentContextMenuPos.rgb);
+            updateCurrentColorDisplay(currentContextMenuPos.rgb);
+            document.querySelectorAll('.palette-swatch').forEach(s => s.classList.remove('selected'));
+            sendToCanvas('SET_COLOR', currentContextMenuPos.rgb);
+        } else {
+            return;
+        }
 
         // Close the menu
         closeContextMenu();
@@ -3899,6 +3936,85 @@ window.addEventListener("load", () => {
         closeContextMenu();
     }
 
+    // Delete backstitch line(s) - removes only lines that intersect the clicked point (per-segment delete)
+    function handleDeleteBackstitch() {
+        if (!currentContextMenuPos || !currentContextMenuPos.isBackstitchMode) {
+            return;
+        }
+
+        const ix = currentContextMenuPos.ix;
+        const iy = currentContextMenuPos.iy;
+
+        if (ix === undefined || ix < 0 || iy === undefined || iy < 0) {
+            return;
+        }
+
+        const lines = state.backstitchGrid.getLines();
+        const linesToRemove = new Set();
+        const radius = 0.5;
+
+        // Find lines that have a segment near the clicked point
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            for (let j = 0; j < line.points.length - 1; j++) {
+                const [x1, y1] = line.points[j];
+                const [x2, y2] = line.points[j + 1];
+                const dist = _pointToSegmentDistance(ix, iy, x1, y1, x2, y2);
+                if (dist <= radius) {
+                    linesToRemove.add(i);
+                    break;
+                }
+            }
+        }
+
+        if (linesToRemove.size === 0) {
+            closeContextMenu();
+            return;
+        }
+
+        // Remove lines in reverse order to maintain indices
+        state.backstitchGrid.pushUndo();
+        const indices = Array.from(linesToRemove).sort((a, b) => b - a);
+        for (const idx of indices) {
+            state.backstitchGrid.lines.splice(idx, 1);
+        }
+
+        // Update canvas
+        sendToCanvas('LOAD_BACKSTITCH', state.backstitchGrid.getLines());
+
+        // Close the menu
+        closeContextMenu();
+    }
+
+    // Helper: distance from point (px, py) to line segment (x1, y1)-(x2, y2)
+    function _pointToSegmentDistance(px, py, x1, y1, x2, y2) {
+        const A = px - x1;
+        const B = py - y1;
+        const C = x2 - x1;
+        const D = y2 - y1;
+
+        const dot = A * C + B * D;
+        const lenSq = C * C + D * D;
+        let param = -1;
+        if (lenSq !== 0) param = dot / lenSq;
+
+        let xx, yy;
+        if (param < 0) {
+            xx = x1;
+            yy = y1;
+        } else if (param > 1) {
+            xx = x2;
+            yy = y2;
+        } else {
+            xx = x1 + param * C;
+            yy = y1 + param * D;
+        }
+
+        const dx = px - xx;
+        const dy = py - yy;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
     // Bind context menu actions
     document.getElementById('ctxPickColor')?.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -3915,6 +4031,7 @@ window.addEventListener("load", () => {
     let replaceColorFromCode = null;
     let replaceColorToRgb = null;
     let replaceColorToCode = null;
+    let replaceDialogMode = 'pixel'; // 'pixel' or 'backstitch'
 
     function openReplaceColorDialog() {
         if (!currentContextMenuPos || !currentContextMenuPos.rgb) {
@@ -3922,6 +4039,7 @@ window.addEventListener("load", () => {
             return;
         }
 
+        replaceDialogMode = 'pixel';
         replaceColorFromRgb = currentContextMenuPos.rgb;
         replaceColorToRgb = null;
         replaceColorToCode = null;
@@ -3976,7 +4094,7 @@ window.addEventListener("load", () => {
         if (toInfo) toInfo.textContent = 'Select a DMC color';
 
         updateReplaceCount();
-        renderReplacePalette();
+        populatePaletteForReplace('pixel');
 
         closeContextMenu();
 
@@ -4060,6 +4178,12 @@ window.addEventListener("load", () => {
     }
 
     function selectReplaceColor(code, rgb) {
+        // Check if we're in backstitch mode - forward to backstitch handler
+        if (replaceDialogMode === 'backstitch') {
+            selectReplaceBackstitchColor(code, rgb);
+            return;
+        }
+
         replaceColorToCode = String(code);
         replaceColorToRgb = rgb;
 
@@ -4086,6 +4210,86 @@ window.addEventListener("load", () => {
         updateReplaceCount();
     }
 
+    // Populate palette for replace dialog - handles both pixel and backstitch mode
+    function populatePaletteForReplace(mode) {
+        const container = document.getElementById('replacePalette');
+        if (!container) return;
+
+        container.innerHTML = '';
+
+        const usedCodes = getUsedDmcCodes();
+        const usedSet = new Set(usedCodes);
+
+        // Add "None (Cloth)" option at the top for pixel mode
+        if (mode !== 'backstitch') {
+            const noneRow = document.createElement('div');
+            noneRow.className = 'palette-row none-option';
+            noneRow.dataset.code = '0';
+            noneRow.innerHTML = `
+                <div class="swatch" style="background: repeating-conic-gradient(#ccc 0% 25%, white 0% 50%) 50% / 16px 16px;"></div>
+                <div class="palette-info">
+                    <strong>None</strong> <span>Cloth (Transparent)</span>
+                </div>
+            `;
+            noneRow.onclick = () => selectReplaceColor('0', [255, 255, 255]);
+            container.appendChild(noneRow);
+        }
+
+        // Build list of colors to show - render full DMC palette for both modes
+        const usedColors = [];
+        const unusedColors = [];
+        DMC_RGB.forEach(([code, name, rgb]) => {
+            if (usedSet.has(String(code))) {
+                usedColors.push([code, name, rgb]);
+            } else {
+                unusedColors.push([code, name, rgb]);
+            }
+        });
+        usedColors.sort((a, b) => Number(a[0]) - Number(b[0]));
+        unusedColors.sort((a, b) => Number(a[0]) - Number(b[0]));
+
+        if (usedColors.length > 0) {
+            const header = document.createElement('div');
+            header.className = 'palette-section-header';
+            header.textContent = 'IN USE';
+            header.style.padding = '6px 10px';
+            header.style.fontSize = '0.7rem';
+            container.appendChild(header);
+            usedColors.forEach(([code, name, rgb]) => {
+                container.appendChild(createReplacePaletteRow(code, name, rgb, true));
+            });
+        }
+
+        if (unusedColors.length > 0) {
+            if (usedColors.length > 0) {
+                const header = document.createElement('div');
+                header.className = 'palette-section-header';
+                header.textContent = 'NOT IN USE';
+                header.style.padding = '6px 10px';
+                header.style.fontSize = '0.7rem';
+                container.appendChild(header);
+            }
+            unusedColors.forEach(([code, name, rgb]) => {
+                container.appendChild(createReplacePaletteRow(code, name, rgb, false));
+            });
+        }
+    }
+
+    function createReplacePaletteRow(code, name, rgb, isUsed) {
+        const row = document.createElement('div');
+        row.className = 'palette-row';
+        row.dataset.code = code;
+        const rgbStr = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+        row.innerHTML = `
+            <div class="swatch" style="background-color: ${rgbStr}"></div>
+            <div class="palette-info">
+                <strong>${code}</strong> <span>${name}</span>
+            </div>
+        `;
+        row.onclick = () => selectReplaceColor(code, rgb);
+        return row;
+    }
+
 function getUsedDmcCodes() {
     const dmcGrid = state.mappedDmcGrid;
     if (!dmcGrid || dmcGrid.length === 0) return [];
@@ -4104,6 +4308,41 @@ function countPixelsOfColor(dmcGrid, targetCode) {
         const confirmBtn = document.getElementById('replaceColorConfirm');
         if (!countEl || !confirmBtn) return;
 
+        // Check mode and handle backstitch separately
+        if (replaceDialogMode === 'backstitch') {
+            if (!replaceBsFromColor || !replaceBsToColor) {
+                countEl.textContent = 'Select a color to replace with';
+                confirmBtn.disabled = true;
+                return;
+            }
+
+            // Check if same color
+            if (replaceBsFromColor[0] === replaceBsToColor[0] &&
+                replaceBsFromColor[1] === replaceBsToColor[1] &&
+                replaceBsFromColor[2] === replaceBsToColor[2]) {
+                countEl.textContent = 'Same color selected - no changes';
+                confirmBtn.disabled = true;
+                return;
+            }
+
+            // Count backstitch lines with the "from" color
+            const lines = state.backstitchGrid.getLines();
+            let count = 0;
+            for (const line of lines) {
+                if (line.color &&
+                    line.color[0] === replaceBsFromColor[0] &&
+                    line.color[1] === replaceBsFromColor[1] &&
+                    line.color[2] === replaceBsFromColor[2]) {
+                    count++;
+                }
+            }
+
+            countEl.textContent = `${count} line${count !== 1 ? 's' : ''} will be changed`;
+            confirmBtn.disabled = count === 0;
+            return;
+        }
+
+        // Pixel mode logic (original)
         if (!replaceColorFromCode || !replaceColorToCode) {
             countEl.textContent = 'Select a color to replace with';
             confirmBtn.disabled = true;
@@ -4184,13 +4423,123 @@ function countPixelsOfColor(dmcGrid, targetCode) {
     // Bind Replace Color menu item
     document.getElementById('ctxReplaceColor')?.addEventListener('click', (e) => {
         e.stopPropagation();
+
+        // Check if backstitch mode
+        if (currentContextMenuPos && currentContextMenuPos.isBackstitchMode && currentContextMenuPos.bsColor) {
+            openReplaceBackstitchColorDialog();
+            return;
+        }
+
         openReplaceColorDialog();
     });
+
+    // Backstitch Replace Color state
+    let replaceBsFromColor = null;
+    let replaceBsToColor = null;
+
+    function openReplaceBackstitchColorDialog() {
+        if (!currentContextMenuPos || !currentContextMenuPos.bsColor) {
+            closeContextMenu();
+            return;
+        }
+
+        replaceDialogMode = 'backstitch';
+        replaceBsFromColor = currentContextMenuPos.bsColor;
+        replaceBsToColor = null;
+
+        const overlay = document.getElementById('replaceColorOverlay');
+        if (!overlay) return;
+
+        const title = overlay.querySelector('h3');
+        if (title) title.textContent = 'Replace Backstitch Colour';
+
+        const fromSwatch = document.getElementById('replaceFromSwatch');
+        if (fromSwatch && replaceBsFromColor) {
+            fromSwatch.style.backgroundColor = `rgb(${replaceBsFromColor[0]}, ${replaceBsFromColor[1]}, ${replaceBsFromColor[2]})`;
+        }
+
+        // Find nearest DMC for the backstitch color and display metadata
+        const fromInfo = document.getElementById('replaceFromInfo');
+        if (fromInfo) {
+            const dmcEntry = findNearestDmcCode(replaceBsFromColor, DMC_RGB);
+            if (dmcEntry) {
+                fromInfo.textContent = `DMC ${dmcEntry[0]} ${dmcEntry[1]}`;
+            } else {
+                fromInfo.textContent = 'Custom';
+            }
+        }
+
+        const toSwatch = document.getElementById('replaceToSwatch');
+        if (toSwatch) {
+            toSwatch.style.backgroundColor = '#fff';
+        }
+
+        const confirmBtn = document.getElementById('replaceColorConfirm');
+        if (confirmBtn) confirmBtn.disabled = true;
+
+        populatePaletteForReplace('backstitch');
+
+        overlay.style.display = 'flex';
+        closeContextMenu();
+    }
+
+    function selectReplaceBackstitchColor(code, rgb) {
+        replaceBsToColor = rgb;
+
+        const toSwatch = document.getElementById('replaceToSwatch');
+        const toInfo = document.getElementById('replaceToInfo');
+
+        if (toSwatch && rgb) {
+            toSwatch.style.background = 'none';
+            toSwatch.style.backgroundColor = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+        }
+        if (toInfo) {
+            toInfo.textContent = `DMC ${code}`;
+        }
+
+        const confirmBtn = document.getElementById('replaceColorConfirm');
+        if (confirmBtn) confirmBtn.disabled = false;
+
+        updateReplaceCount();
+    }
+
+    function executeReplaceBackstitchColor() {
+        if (!replaceBsFromColor || !replaceBsToColor) return;
+
+        const lines = state.backstitchGrid.getLines();
+        let changed = false;
+
+        state.backstitchGrid.pushUndo();
+
+        for (const line of lines) {
+            if (line.color &&
+                line.color[0] === replaceBsFromColor[0] &&
+                line.color[1] === replaceBsFromColor[1] &&
+                line.color[2] === replaceBsFromColor[2]) {
+                line.color = [...replaceBsToColor];
+                changed = true;
+            }
+        }
+
+        if (changed) {
+            sendToCanvas('LOAD_BACKSTITCH', state.backstitchGrid.getLines());
+        }
+
+        replaceBsFromColor = null;
+        replaceBsToColor = null;
+        closeReplaceColorDialog();
+    }
 
     // Bind Replace Color dialog buttons
     document.getElementById('replaceColorClose')?.addEventListener('click', closeReplaceColorDialog);
     document.getElementById('replaceColorCancel')?.addEventListener('click', closeReplaceColorDialog);
-    document.getElementById('replaceColorConfirm')?.addEventListener('click', executeReplaceColor);
+    document.getElementById('replaceColorConfirm')?.addEventListener('click', () => {
+        if (replaceDialogMode === 'backstitch') {
+            executeReplaceBackstitchColor();
+        } else {
+            executeReplaceColor();
+        }
+    });
 
     // Close context menu on Escape (unless crop overlay is open)
     window.addEventListener('keydown', (e) => {

@@ -20,6 +20,11 @@ export class EditorEvents {
         this.rightClickGy = -1;
         this.rightClickMoved = false;
         this.rightClickPixelRgb = null;
+
+        // Backstitch tracking for context menu (right-click)
+        this.rightClickBsColor = null;
+        this.rightClickIx = -1;
+        this.rightClickIy = -1;
         this.PAN_THRESHOLD = 5; // pixels of movement before panning starts
 
         // Long-press tracking for context menu
@@ -267,19 +272,35 @@ export class EditorEvents {
             this.rightClickStartX = e.clientX;
             this.rightClickStartY = e.clientY;
             this.rightClickMoved = false;
-            
-            // Get the grid coordinates under the cursor
+
+            // Reset backstitch tracking
+            this.rightClickBsColor = null;
+            this.rightClickIx = -1;
+            this.rightClickIy = -1;
+
+            // Check for backstitch first (regardless of mode)
+            const { ix, iy } = this.state.renderer.screenToIntersection(e.clientX, e.clientY);
+            if (ix >= 0 && iy >= 0 && ix <= this.state.backstitchGrid.width && iy <= this.state.backstitchGrid.height) {
+                const bsColor = this.state.backstitchGrid.getColorAt(ix, iy);
+                if (bsColor) {
+                    this.rightClickBsColor = bsColor;
+                    this.rightClickIx = ix;
+                    this.rightClickIy = iy;
+                }
+            }
+
+            // Get the grid coordinates under the cursor (for pixel fallback)
             const { gx, gy } = this.state.renderer.screenToGrid(e.clientX, e.clientY);
             this.rightClickGx = gx;
             this.rightClickGy = gy;
-            
+
             // Get the pixel color at this location
             if (gx >= 0 && gy >= 0 && gx < this.state.pixelGrid.width && gy < this.state.pixelGrid.height) {
                 this.rightClickPixelRgb = this.state.pixelGrid.grid[gy][gx];
             } else {
                 this.rightClickPixelRgb = null;
             }
-            
+
             // Track last position for pan detection
             this.lastPointerX = e.clientX;
             this.lastPointerY = e.clientY;
@@ -542,26 +563,49 @@ export class EditorEvents {
             // Check if valid grid position and state is ready
             if (this.rightClickGx >= 0 && this.rightClickGy >= 0 &&
                 this.state.pixelGrid &&
-                this.rightClickGx < this.state.pixelGrid.width && 
+                this.rightClickGx < this.state.pixelGrid.width &&
                 this.rightClickGy < this.state.pixelGrid.height) {
-                
-                // Send context menu request to parent
-                window.parent.postMessage({
-                    type: 'CONTEXT_MENU',
-                    payload: {
+
+                // Build payload - check backstitch first
+                let payload;
+                if (this.rightClickBsColor) {
+                    // Backstitch detected - send backstitch payload
+                    payload = {
+                        ix: this.rightClickIx,
+                        iy: this.rightClickIy,
+                        mode: 'backstitch',
+                        bsColor: this.rightClickBsColor,
                         gx: this.rightClickGx,
                         gy: this.rightClickGy,
                         rgb: this.rightClickPixelRgb,
                         clientX: e.clientX,
                         clientY: e.clientY
-                    }
+                    };
+                } else {
+                    // No backstitch - send pixel payload
+                    payload = {
+                        gx: this.rightClickGx,
+                        gy: this.rightClickGy,
+                        rgb: this.rightClickPixelRgb,
+                        clientX: e.clientX,
+                        clientY: e.clientY
+                    };
+                }
+
+                // Send context menu request to parent
+                window.parent.postMessage({
+                    type: 'CONTEXT_MENU',
+                    payload: payload
                 }, '*');
             }
-            
+
             // Reset tracking
             this.rightClickGx = -1;
             this.rightClickGy = -1;
             this.rightClickPixelRgb = null;
+            this.rightClickBsColor = null;
+            this.rightClickIx = -1;
+            this.rightClickIy = -1;
             return;
         }
 
@@ -572,6 +616,9 @@ export class EditorEvents {
             this.rightClickGy = -1;
             this.rightClickMoved = false;
             this.rightClickPixelRgb = null;
+            this.rightClickBsColor = null;
+            this.rightClickIx = -1;
+            this.rightClickIy = -1;
         }
 
         if (this.isPointerDown && this.evCache.length === 0) {
