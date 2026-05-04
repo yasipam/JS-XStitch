@@ -672,6 +672,8 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
     display: flex;
     flex-direction: column;
     padding: 10px;
+    overflow-y: auto;
+    max-height: calc(100vh - 150px);
 }
 
 #threadsTable { width: 100%; border-collapse: collapse; font-size: 1.2rem; }
@@ -681,7 +683,6 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
     overflow-y: auto;
     display: block;
     width: 100%;
-    max-height: calc(100vh - 250px);
 }
 .threadSectionTitle {
     margin: 12px 0 6px 0;

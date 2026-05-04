@@ -56,7 +56,7 @@ function switchTool(toolId) {
     state.setTool(toolId);
     sendToCanvas('SET_TOOL', toolId);
     // Clear active from all tool buttons, then activate the chosen one
-    document.querySelectorAll("#pixelTools button, #backstitchTools button, #toolPicker, #cropBtn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll("#pixelTools button, #backstitchTools button, #toolPicker, #cropBtn, #fillBtn").forEach(b => b.classList.remove("active"));
     const btnMap = {
         'pencil': 'pencilBtn',
         'eraser': 'eraserBtn',
@@ -3745,7 +3745,7 @@ window.addEventListener("load", () => {
                           payload === 'picker' ? 'toolPicker' : null;
             if (toolId) {
                 // Clear all tool buttons (pixel tools, backstitch tools, picker)
-                document.querySelectorAll("#pixelTools button, #backstitchTools button, #toolPicker").forEach(b => b.classList.remove("active"));
+document.querySelectorAll("#pixelTools button, #backstitchTools button, #toolPicker, #cropBtn, #fillBtn").forEach(b => b.classList.remove("active"));
                 const btn = document.getElementById(toolId);
                 if (btn) btn.classList.add("active");
             }
