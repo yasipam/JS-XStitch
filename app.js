@@ -3069,7 +3069,7 @@ function setupExportButtons() {
                 // For OXS or empty canvas with stamped mode: build stamped grid and lookup
                 let stampedLookup = {};
                 let exportVisualGrid = exportRgbGrid;
-                if ((isOxsLoaded || isEmptyCanvas) && mappingConfig.stampedMode && exportDmcGrid) {
+                if (mappingConfig.stampedMode && exportDmcGrid) {
                     const stampedResult = buildStampedGrid(exportDmcGrid, { hueShift: mappingConfig.stampedHue });
                     exportVisualGrid = stampedResult.grid;
                     stampedLookup = stampedResult.lookup;
