@@ -1,0 +1,22 @@
+App.js is just too damn big!! Search for ways to truncate/cleanup this code, remove redundancies, focus on efficient but keep the core architecture the same as the app is currently working. 
+
+UI updates: 
+
+The 'used colours' swatches in the 'Palette' tab (highlighted border showing what colours are in the image) should be ordered in highest number of stitches first to better match the 'Threads' tab.
+
+Stitch rendering - option to show pixels as crosses or tent stitch as well as current 'flat' pixels. 
+
+Automatically choose pencil tool when switching between backstitch and pixel modes. 
+
+Export updates: 
+
+Printable export needs to limit image to one page as larger sizes gets cut off - smart spacing should apply to ensure the image can fit on a standard A4 sheet. A dialog should be shown for images larger than one A4, informing that printable patterns are limited to one A4 sheet and if the pattern is bigger, then to download in 'Standard' Mode.
+
+Crop fix: 
+Color distances don't apply after crop but other colour adjustments do (bias, levels) - update.
+
+Original image aspect ratio should remain the same on the PDF export, not stretch to fit the boundaries. If needed then scale it down but the ratio should remain. 
+
+
+Add a right click/long press dialog box to 'lock' swatch colours in the palette tab. These colours should be ignored when merging colours or adjusting an colour controls, this color will always remain.
+
