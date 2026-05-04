@@ -493,7 +493,7 @@ const mappingConfig = {
     sharpenRadius: 2,
     minOccurrence: 1,
     stampedMode: false,
-    stampedHue: 0,
+    stampedHue: 1,
     distanceMethod: "euclidean",
     ditherMode: "None",
     ditherStrength: 0,

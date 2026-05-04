@@ -75,7 +75,7 @@ export function buildStampedGrid(dmcGrid, options = {}) {
     // 5. Apply the Hue Shift as a palette rotation
     // This allows the user to "cycle" through the 112 colors if they want different mappings
     const shift = options.hueShift || 0;
-    const rotation = Math.floor((shift / 360) * shuffledPalette.length);
+    const rotation = Math.floor((shift / 110) * shuffledPalette.length);
     const rotatedPalette = shuffledPalette.slice(rotation).concat(shuffledPalette.slice(0, rotation));
 
     // 6. Map DMC codes to the distinct palette colors
