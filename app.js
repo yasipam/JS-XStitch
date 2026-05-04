@@ -449,6 +449,7 @@ function applyFilteringToGrid(dmcGrid, userEdits = null) {
     }
 
     if (mappingConfig.minOccurrence > 1) {
+        console.log('[ApplyFiltering] minOccurrence:', mappingConfig.minOccurrence);
         filtered = cleanupMinOccurrence(filtered, mappingConfig.minOccurrence, codeToRgbMap, userEdits);
     }
 
@@ -3101,7 +3102,25 @@ function setupMappingControls() {
         minOccurrenceInput.oninput = () => {
             const val = parseInt(minOccurrenceInput.value, 10) || 1;
             mappingConfig.minOccurrence = val;
-            runMapping();
+        };
+    }
+
+    const applyMinOccurrenceBtn = document.getElementById("applyMinOccurrence");
+    if (applyMinOccurrenceBtn) {
+        applyMinOccurrenceBtn.onclick = async () => {
+            const minOcc = parseInt(minOccurrenceInput?.value || 1, 10);
+            mappingConfig.minOccurrence = minOcc;
+
+            // Force fresh palette rebuild to ensure clean baseline
+            cachedProjectPalette = null;
+            lastPaletteConfig = { maxSize: null, maxColours: null, image: null, distanceMethod: null, mergeNearest: null };
+
+            console.log('[Apply MinOccurrence] Value:', minOcc);
+            await runMapping();
+
+            // Reset input to 1 after applying
+            if (minOccurrenceInput) minOccurrenceInput.value = 1;
+            mappingConfig.minOccurrence = 1;
         };
     }
 } // <--- Properly closing setupMappingControls here
