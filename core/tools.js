@@ -537,6 +537,7 @@ export class BackstitchEraserTool extends BaseTool {
     cursor = "cell";
     erasing = false;
     lastErasedIds = [];
+    minSegmentLength = 1.0;
 
     onPointerDown(state, ix, iy) {
         if (ix < 0 || iy < 0 || ix > state.backstitchGrid.width || iy > state.backstitchGrid.height) return;
@@ -545,8 +546,8 @@ export class BackstitchEraserTool extends BaseTool {
         this.erasing = true;
         this.lastErasedIds = [];
 
-        // Remove lines near the click point
-        const removed = state.backstitchGrid.removeNearPoint(ix, iy, 0.5);
+        // Remove lines near the click point with segment size
+        const removed = state.backstitchGrid.removeNearPoint(ix, iy, 0.5, this.minSegmentLength);
         this.lastErasedIds.push(...removed);
 
         if (state.renderer) {
@@ -560,8 +561,8 @@ export class BackstitchEraserTool extends BaseTool {
 
         if (ix < 0 || iy < 0 || ix > state.backstitchGrid.width || iy > state.backstitchGrid.height) return;
 
-        // Continuously erase lines near the cursor
-        const removed = state.backstitchGrid.removeNearPoint(ix, iy, 0.5);
+        // Continuously erase lines near the cursor with segment size
+        const removed = state.backstitchGrid.removeNearPoint(ix, iy, 0.5, this.minSegmentLength);
         this.lastErasedIds.push(...removed);
 
         if (removed.length > 0 && state.renderer) {

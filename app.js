@@ -2292,7 +2292,26 @@ function setupBackstitchTools() {
     }
 
     if (backstitchEraserBtn) {
-        backstitchEraserBtn.onclick = () => {
+        // Long-press events for eraser
+        backstitchEraserBtn.addEventListener('mousedown', (e) => {
+            startBackstitchLongPress(backstitchEraserBtn, e);
+        });
+        backstitchEraserBtn.addEventListener('mouseup', () => {
+            cancelBackstitchLongPress();
+        });
+        backstitchEraserBtn.addEventListener('touchstart', (e) => {
+            startBackstitchLongPress(backstitchEraserBtn, e);
+        });
+        backstitchEraserBtn.addEventListener('touchend', () => {
+            cancelBackstitchLongPress();
+        });
+
+        backstitchEraserBtn.onclick = (e) => {
+            if (backstitchLongPress) {
+                backstitchLongPress = false;
+                return;
+            }
+
             state.setBackstitchTool('backstitchEraser');
             sendToCanvas('SET_BACKSTITCH_TOOL', 'backstitchEraser');
             
@@ -2316,6 +2335,22 @@ function setupBackstitchTools() {
               sendToCanvas('SET_BACKSTITCH_SIZE', size);
               backstitchPencilBtn.querySelector('.tool-dropdown').classList.remove('open');
           };
+    });
+
+    // Setup backstitch eraser size dropdown
+    const backstitchEraserDropdown = document.querySelector('#backstitchEraserBtn .tool-dropdown');
+    document.querySelectorAll('#backstitchEraserBtn .tool-radio input').forEach(radio => {
+        radio.onclick = (e) => {
+            e.stopPropagation();
+            const size = parseFloat(radio.value);
+            const sizeText = radio.value === '1' ? '1×' : radio.value === '0.5' ? '0.5×' : '0.25×';
+            
+            const sizeSpan = backstitchEraserBtn.querySelector('.tool-size');
+            if (sizeSpan) sizeSpan.textContent = sizeText;
+            
+            sendToCanvas('SET_BACKSTITCH_ERASER_SIZE', size);
+            backstitchEraserDropdown.classList.remove('open');
+        };
     });
 
     // Setup backstitch snap toggle

@@ -129,13 +129,16 @@ export class BackstitchGrid {
     }
 
     // Remove lines near a grid intersection point (for eraser)
+    // size: 1.0 = Full (remove entire line), 0.5 = Half (remove one segment), 0.25 = Quarter (remove quarter segment)
     // Returns array of removed line IDs
-    removeNearPoint(clickX, clickY, radius) {
+    removeNearPoint(clickX, clickY, radius, size = 1.0) {
         const removedIds = [];
         
         for (let i = this.lines.length - 1; i >= 0; i--) {
             const line = this.lines[i];
             let isNear = false;
+            let nearestSegmentIdx = -1;
+            let nearestSegmentDist = Infinity;
 
             // Check all segments in the line
             for (let j = 0; j < line.points.length - 1; j++) {
@@ -143,23 +146,155 @@ export class BackstitchGrid {
                 const [x2, y2] = line.points[j + 1];
                 const dist = this._pointToSegmentDistance(clickX, clickY, x1, y1, x2, y2);
                 
+                if (dist <= radius && dist < nearestSegmentDist) {
+                    nearestSegmentDist = dist;
+                    nearestSegmentIdx = j;
+                }
+                
                 if (dist <= radius) {
                     isNear = true;
-                    break;
                 }
             }
 
-            if (isNear || 
-                // Also check if click is near any endpoint
-                line.points.some(([px, py]) => 
-                    Math.abs(px - clickX) <= radius && Math.abs(py - clickY) <= radius
-                )) {
-                removedIds.push(line.id);
-                this.lines.splice(i, 1);
+            // Check endpoints as fallback
+            const nearEndpoint = line.points.some(([px, py]) => 
+                Math.abs(px - clickX) <= radius && Math.abs(py - clickY) <= radius
+            );
+
+            if (isNear || nearEndpoint) {
+                if (size < 1.0 && nearestSegmentIdx >= 0) {
+                    // Partial removal: remove only a segment of this line
+                    this._removePartialSegment(i, nearestSegmentIdx, clickX, clickY, size);
+                } else {
+                    // Full removal: remove entire line
+                    removedIds.push(line.id);
+                    this.lines.splice(i, 1);
+                }
             }
         }
 
         return removedIds;
+    }
+
+    // Remove only a portion of a line at a specific segment
+    // size: 1.0 = full segment, 0.5 = half segment, 0.25 = quarter segment
+    _removePartialSegment(lineIdx, segmentIdx, clickX, clickY, size) {
+        const line = this.lines[lineIdx];
+        if (!line || segmentIdx < 0 || segmentIdx >= line.points.length - 1) return;
+
+        const [x1, y1] = line.points[segmentIdx];
+        const [x2, y2] = line.points[segmentIdx + 1];
+
+        // Calculate parametric position on segment
+        const segDx = x2 - x1;
+        const segDy = y2 - y1;
+        const segLenSq = segDx * segDx + segDy * segDy;
+        
+        if (segLenSq === 0) return;
+        
+        const clickDx = clickX - x1;
+        const clickDy = clickY - y1;
+        const t = Math.max(0, Math.min(1, (clickDx * segDx + clickDy * segDy) / segLenSq));
+
+        // Determine removal range based on size
+        let tStart, tEnd;
+        if (size >= 1.0) {
+            // Full segment removal
+            tStart = 0;
+            tEnd = 1;
+        } else if (size >= 0.5) {
+            // Half segment - remove from center
+            const centerT = 0.5;
+            if (t <= centerT) {
+                tStart = 0;
+                tEnd = centerT;
+            } else {
+                tStart = centerT;
+                tEnd = 1;
+            }
+        } else {
+            // Quarter segment - remove quarter around click point
+            const quarter = 0.25;
+            const halfQ = quarter / 2;
+            tStart = Math.max(0, t - halfQ);
+            tEnd = Math.min(1, t + halfQ);
+        }
+
+        const startX = x1 + tStart * segDx;
+        const startY = y1 + tStart * segDy;
+        const endX = x1 + tEnd * segDx;
+        const endY = y1 + tEnd * segDy;
+
+        // Only remove if there's meaningful length
+        const removeLenSq = (endX - startX) ** 2 + (endY - startY) ** 2;
+        if (removeLenSq < 0.01) return;
+
+        // Need at least 3 points to have a middle segment to remove
+        if (line.points.length <= 2) {
+            // Single segment line - remove entire line
+            this.lines.splice(lineIdx, 1);
+            return;
+        }
+
+        // The line has multiple segments - we need to split it
+        const midX = x1 + t * segDx;
+        const midY = y1 + t * segDy;
+
+        // Build new points array by removing the portion
+        const newPoints = [];
+        
+        // Add all points before the segment
+        for (let j = 0; j <= segmentIdx; j++) {
+            newPoints.push([...line.points[j]]);
+        }
+
+        // Add start point if different from existing point
+        if (newPoints.length === 0 || 
+            Math.abs(newPoints[newPoints.length - 1][0] - startX) > 0.01 ||
+            Math.abs(newPoints[newPoints.length - 1][1] - startY) > 0.01) {
+            newPoints.push([startX, startY]);
+        }
+
+        // Now add a gap - we actually need to split into two separate lines
+        // Create two new lines: one before the removed portion, one after
+        const pointsBefore = [];
+        const pointsAfter = [];
+
+        for (let j = 0; j <= segmentIdx; j++) {
+            pointsBefore.push([...line.points[j]]);
+        }
+        // Add start of removed segment
+        pointsBefore.push([startX, startY]);
+
+        // Add end of removed segment
+        pointsAfter.push([endX, endY]);
+        // Add all points after the segment
+        for (let j = segmentIdx + 1; j < line.points.length; j++) {
+            pointsAfter.push([...line.points[j]]);
+        }
+
+        // Remove old line
+        this.lines.splice(lineIdx, 1);
+
+        // Add line before removal if it has 2+ points
+        if (pointsBefore.length >= 2) {
+            this.lines.push({
+                id: this.nextId++,
+                points: pointsBefore,
+                color: [...line.color]
+            });
+        }
+
+        // Add line after removal if it has 2+ points and segment was actually removed
+        // Quarter (size < 0.5): always create after portion for the other quarter
+        // Half (size >= 0.5): only create after if not at edge
+        if (pointsAfter.length >= 2 && (size < 0.5 || t <= 0.5)) {
+            this.lines.push({
+                id: this.nextId++,
+                points: pointsAfter,
+                color: [...line.color]
+            });
+        }
     }
 
     // Resize grid (preserves lines within new bounds, removes others)

@@ -142,6 +142,12 @@ window.addEventListener('message', (e) => {
                 if (tool) tool.minSegmentLength = payload;
             }
             break;
+        case 'SET_BACKSTITCH_ERASER_SIZE':
+            if (state && state.mode === 'backstitch') {
+                const tool = ToolRegistry.backstitchEraser;
+                if (tool) tool.minSegmentLength = payload;
+            }
+            break;
         case 'SET_BACKSTITCH_SNAP':
             if (state && state.mode === 'backstitch') {
                 const tool = ToolRegistry.backstitchPencil;
