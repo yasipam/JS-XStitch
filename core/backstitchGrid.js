@@ -318,6 +318,21 @@ export class BackstitchGrid {
         return this.lines;
     }
 
+    // Get colour counts for all backstitch lines
+    // Returns Map of RGB string "r,g,b" to count of segments
+    getColorCounts() {
+        const counts = new Map();
+        
+        for (const line of this.lines) {
+            const colorKey = line.color.join(',');
+            // Count segments (each segment is between consecutive points)
+            const segments = line.points.length - 1;
+            counts.set(colorKey, (counts.get(colorKey) || 0) + segments);
+        }
+        
+        return counts;
+    }
+
     // Find line color near a grid intersection point (for hover detection)
     getColorAt(ix, iy, radius = 0.5) {
         for (const line of this.lines) {

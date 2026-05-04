@@ -870,7 +870,7 @@ function renderThreadsTable(threadStats) {
     const tbody = document.getElementById("threadsTableBody");
     if (!tbody) return;
     if (!threadStats || threadStats.length === 0) {
-        tbody.innerHTML = "<tr><td colspan='4' style='text-align:center;padding:20px;'>No threads found</td></tr>";
+        tbody.innerHTML = "<tr><td colspan='3' style='text-align:center;padding:20px;'>No threads found</td></tr>";
         return;
     }
     tbody.innerHTML = "";
@@ -910,6 +910,38 @@ function renderThreadsTable(threadStats) {
             </td>
             <td title="${name}"><strong>${code}</strong></td>
             <td>${stat.count}</td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function renderBackstitchThreadsTable(backstitchStats) {
+    const tbody = document.getElementById("backstitchThreadsTableBody");
+    if (!tbody) return;
+    if (!backstitchStats || backstitchStats.length === 0) {
+        tbody.innerHTML = "<tr><td colspan='3' style='text-align:center;padding:20px;'>No backstitch threads found</td></tr>";
+        return;
+    }
+    tbody.innerHTML = "";
+
+    backstitchStats.sort((a, b) => b.count - a.count);
+    const distFn = getDistanceFn("euclidean", false);
+
+    backstitchStats.forEach(stat => {
+        const currentRgb = [stat.r, stat.g, stat.b];
+        const dmcEntry = nearestDmcColor(currentRgb, distFn, null, DMC_RGB);
+        if (!dmcEntry) return;
+
+        const code = String(dmcEntry[0]);
+        const name = dmcEntry.name || dmcEntry[1];
+        const originalRgb = dmcEntry.rgb || dmcEntry[2];
+
+        const row = document.createElement("tr");
+        row.innerHTML = `
+            <td>
+                <div class="table-swatch" style="background-color: rgb(${originalRgb[0]}, ${originalRgb[1]}, ${originalRgb[2]}); border: 1px solid #ccc;"></div>
+            </td>
+            <td title="${name}"><strong>${code}</strong></td>
             <td>${stat.count}</td>
         `;
         tbody.appendChild(row);
@@ -935,10 +967,23 @@ function updateSidebarFromState() {
         };
     }).filter(s => s !== null);
 
+    // Get backstitch thread counts
+    const backstitchCounts = state.backstitchGrid ? state.backstitchGrid.getColorCounts() : new Map();
+    const backstitchStats = Array.from(backstitchCounts.entries()).map(([colorKey, count]) => {
+        const [r, g, b] = colorKey.split(',').map(Number);
+        return {
+            r: r,
+            g: g,
+            b: b,
+            count: count
+        };
+    });
+
     if (countDisplay) {
         countDisplay.innerHTML = `Actual Colours: ${threadStats.length}`;
     }
     renderThreadsTable(threadStats);
+    renderBackstitchThreadsTable(backstitchStats);
     renderPalette(threadStats.map(s => s.code));
     updatePatternSizeDisplay();
 }
@@ -3808,27 +3853,24 @@ window.addEventListener("load", () => {
 
         if (type === 'SYNC_BACKSTITCH_TO_PARENT') {
             // Sync backstitch data from iframe to parent state
-            console.log('[Parent] Received backstitch sync, lines:', payload?.length || 0);
             if (payload && Array.isArray(payload)) {
                 // Resize parent's backstitchGrid to match DMC grid dimensions
                 if (state.mappedDmcGrid) {
                     const correctWidth = state.mappedDmcGrid[0].length;
                     const correctHeight = state.mappedDmcGrid.length;
                     state.backstitchGrid.resize(correctWidth, correctHeight, false);
-                    console.log('[Parent] Resized backstitchGrid to:', correctWidth, 'x', correctHeight);
                 }
 
                 // Clear parent's backstitchGrid and reload with iframe's data
                 state.backstitchGrid.clear(false); // false = don't record undo
                 payload.forEach(ln => {
                     if (ln.points && ln.points.length >= 2) {
-                        const result = state.backstitchGrid.addLine(ln.points, ln.color);
-                        if (result === null) {
-                            console.warn('[Parent] Failed to add backstitch line - out of bounds?', ln);
-                        }
+                        state.backstitchGrid.addLine(ln.points, ln.color);
                     }
                 });
-                console.log('[Parent] Backstitch data synced, total lines:', state.backstitchGrid.lines.length);
+
+                // Update sidebar to show backstitch thread counts
+                updateSidebarFromState();
 
                 // Disable crop tool after backstitch edits
                 hasBackstitchEdits = true;
