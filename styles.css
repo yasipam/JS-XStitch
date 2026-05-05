@@ -514,6 +514,32 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
     margin-bottom: 8px;
 }
 
+.dropdown-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--color-purple);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: background 0.2s;
+}
+
+.dropdown-btn:hover {
+    background: var(--color-purple-dark);
+}
+
+.dropdown-divider {
+    height: 1px;
+    background: var(--border-light);
+    margin: 8px 0;
+}
+
 .dropdown-check {
     display: flex;
     align-items: center;

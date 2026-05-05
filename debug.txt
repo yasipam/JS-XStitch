@@ -1,22 +1,28 @@
 App.js is just too damn big!! Search for ways to truncate/cleanup this code, remove redundancies, focus on efficient but keep the core architecture the same as the app is currently working. 
 
 UI updates: 
-
 The 'used colours' swatches in the 'Palette' tab (highlighted border showing what colours are in the image) should be ordered in highest number of stitches first to better match the 'Threads' tab.
 
 Stitch rendering - option to show pixels as crosses or tent stitch as well as current 'flat' pixels. 
 
 Automatically choose pencil tool when switching between backstitch and pixel modes. 
 
+Add a right click/long press dialog box to 'lock' swatch colours in the palette tab. These colours should be ignored when merging colours or adjusting an colour controls, this color will always remain.
+
 Export updates: 
-
-Printable export needs to limit image to one page as larger sizes gets cut off - smart spacing should apply to ensure the image can fit on a standard A4 sheet. A dialog should be shown for images larger than one A4, informing that printable patterns are limited to one A4 sheet and if the pattern is bigger, then to download in 'Standard' Mode.
-
-Crop fix: 
-Color distances don't apply after crop but other colour adjustments do (bias, levels) - update.
+Printable export needs to limit image to one page as larger sizes gets cut off - smart spacing should apply to ensure the image can fit on a standard A4 sheet and all space within the sheet is utilised e.g. ignore margins and move image up if it will fit better on the page. A dialog should be shown for images larger than one A4, informing the user that printable patterns are limited to one A4 sheet and if the pattern is bigger, then they should download it in 'Standard' Mode.
 
 Original image aspect ratio should remain the same on the PDF export, not stretch to fit the boundaries. If needed then scale it down but the ratio should remain. 
 
 
-Add a right click/long press dialog box to 'lock' swatch colours in the palette tab. These colours should be ignored when merging colours or adjusting an colour controls, this color will always remain.
+Crop fix: 
+Color distances don't apply after crop but other colour adjustments do (bias, levels) - update.
+
+
+Save states: 
+Way to keep reference image saved in the OXS export so that when you reupload into the editor the reference image is the original image and not the pixel image. 
+
+Add save slots like Floss Cross, saved locally in browser so that you can come back to it. Add a save and open button and dropdown with the save states and it will open the files when clicked. Then maybe right click/long press (or a context menu like arrow showing the option to delete the saved file in the dropdown, when clicked, then a dialog to confirm.)
+
+Background shows as white with OXS import should show as transparent. 
 

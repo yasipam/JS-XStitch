@@ -14,7 +14,7 @@ function rgbToHex(rgb) {
 /**
  * Valid OXS Export: Captures live edits and matches Streamlit schema.
  */
-export function exportOXS(liveGrid, palette, filename = "pattern.oxs", stampedRgbGrid = null, backstitchGrid = null) {
+export function exportOXS(liveGrid, palette, filename = "pattern.oxs", stampedRgbGrid = null, backstitchGrid = null, referenceImageData = null) {
     const h = liveGrid.length;
     const w = liveGrid[0].length;
     const title = filename.replace(/\.[^.]+$/, "");
@@ -152,7 +152,12 @@ export function exportOXS(liveGrid, palette, filename = "pattern.oxs", stampedRg
     }
     xml += `\n</backstitches>`;
 
-    // 6. Required empty sections for OXS schema compatibility
+    // 6. Reference Image Section (optional)
+    if (referenceImageData) {
+        xml += `\n<referenceImageData>${referenceImageData}</referenceImageData>`;
+    }
+
+    // 7. Required empty sections for OXS schema compatibility
     xml += `\n<partstitches>\n    <partstitch />\n</partstitches>`;
     xml += `\n<ornaments_inc_knots_and_beads>\n    <object />\n</ornaments_inc_knots_and_beads>`;
     xml += `\n<commentboxes />`;

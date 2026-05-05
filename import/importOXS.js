@@ -144,6 +144,10 @@ export function parseOxsFile(xmlString) {
     const backstitchLines = [];
     const backstitches = chart.querySelectorAll("backstitch");
 
+    // 6. Reference Image Data (optional - for backward compatibility)
+    const referenceImageEl = chart.querySelector("referenceImageData");
+    const referenceImageData = referenceImageEl ? referenceImageEl.textContent.trim() : null;
+
     if (backstitches.length > 0) {
         const segments = [];
 
@@ -182,7 +186,8 @@ export function parseOxsFile(xmlString) {
         dmcGrid,
         rgbGrid,
         dmcPalette,
-        backstitchLines
+        backstitchLines,
+        referenceImageData
     };
 }
 

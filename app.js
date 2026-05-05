@@ -27,6 +27,7 @@ let state;
 let events;
 let currentImage = null;
 let referenceImage = null;
+let overlayImage = null; // Manually uploaded reference image for overlay
 let bgRemoved = false; // Track if background was removed
 let pencilSize = 1;
 let eraserSize = 1;
@@ -1502,7 +1503,7 @@ function updateSidebarFromEmptyCanvas() {
 }
 
 function loadOxsPattern(parsed) {
-    const { width, height, dmcGrid, rgbGrid, dmcPalette, backstitchLines = [] } = parsed;
+    const { width, height, dmcGrid, rgbGrid, dmcPalette, backstitchLines = [], referenceImageData = null } = parsed;
 
     isOxsLoaded = true;
     loadedOxsPalette = dmcPalette;
@@ -1538,6 +1539,28 @@ function loadOxsPattern(parsed) {
     // Load backstitches if present
     if (backstitchLines.length > 0) {
         sendToCanvas('LOAD_BACKSTITCH', backstitchLines);
+    }
+
+    // Restore reference image (overlay) if present in OXS file
+    if (referenceImageData) {
+        const img = new Image();
+        img.onload = () => {
+            overlayImage = referenceImageData;
+
+            sendToCanvas('SET_REFERENCE_IMAGE', {
+                imageData: referenceImageData,
+                width: img.width,
+                height: img.height
+            });
+
+            const refOpacity = document.getElementById("referenceOpacity");
+            const refOpacityVal = document.getElementById("referenceOpacityVal");
+            if (refOpacity) refOpacity.value = 0;
+            if (refOpacityVal) refOpacityVal.textContent = "0%";
+            sendToCanvas('SET_REFERENCE_OPACITY', 0);
+            sendToCanvas('TOGGLE_REFERENCE', true);
+        };
+        img.src = referenceImageData;
     }
 
     setMappingControlsEnabled(false, true); // Disable mapping controls but enable post-processing
@@ -3264,7 +3287,8 @@ function setupExportButtons() {
                 DMC_RGB,
                 "kriss_kross_pattern.oxs",
                 stampedRgbGrid,
-                state.backstitchGrid
+                state.backstitchGrid,
+                overlayImage
             );
         };
     }
@@ -3288,6 +3312,8 @@ function setupReferenceButton() {
     const dropdown = document.getElementById("referenceDropdown");
     const opacitySlider = document.getElementById("referenceOpacity");
     const opacityVal = document.getElementById("referenceOpacityVal");
+    const uploadBtn = document.getElementById("uploadOriginalImage");
+    const overlayImageInput = document.getElementById("overlayImageInput");
 
     if (!btn || !dropdown) return;
 
@@ -3307,6 +3333,40 @@ function setupReferenceButton() {
         opacityVal.textContent = opacitySlider.value + "%";
         sendToCanvas('SET_REFERENCE_OPACITY', opacity);
     };
+
+    if (uploadBtn && overlayImageInput) {
+        uploadBtn.onclick = (e) => {
+            e.stopPropagation();
+            overlayImageInput.click();
+        };
+
+        overlayImageInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    overlayImage = event.target.result;
+
+                    sendToCanvas('SET_REFERENCE_IMAGE', {
+                        imageData: overlayImage,
+                        width: img.width,
+                        height: img.height
+                    });
+
+                    opacitySlider.value = 50;
+                    opacityVal.textContent = "50%";
+                    sendToCanvas('SET_REFERENCE_OPACITY', 0.5);
+                    sendToCanvas('TOGGLE_REFERENCE', true);
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+            overlayImageInput.value = "";
+        };
+    }
 
     sendToCanvas('SET_REFERENCE_POSITION', 'over');
 

@@ -146,6 +146,16 @@
                         <label>Opacity: <span id="referenceOpacityVal">0%</span></label>
                         <input type="range" id="referenceOpacity" min="0" max="100" value="0">
                     </div>
+                    <div class="dropdown-divider"></div>
+                    <button id="uploadOriginalImage" class="dropdown-btn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                        Upload Original Image
+                    </button>
+                    <input type="file" id="overlayImageInput" accept="image/*" style="display: none;">
                 </div>
             </div>
         </div>
