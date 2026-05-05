@@ -41,9 +41,24 @@
 
             <input type="file" id="upload" accept="image/*" style="display:none;">
             <input type="file" id="oxsUpload" accept=".oxs" style="display:none;">
-            <button id="newCanvasBtn" title="Create new empty canvas">
-                <img src="assets/tool-icons/new-canvas.svg" class="tool-icon" alt="New Canvas">
-            </button>
+            <div class="dropdown-container">
+                <button id="fileBtn" title="File">
+                    <span>File</span>
+                </button>
+                <div id="fileDropdown" class="dropdown-menu">
+                    <button id="newCanvasBtn" class="dropdown-btn" title="Create new empty canvas">New Canvas</button>
+                    <button id="localSaveBtn" class="dropdown-btn" title="Save to Browser">Save</button>
+                    <div class="dropdown-submenu-container">
+                        <button class="dropdown-btn dropdown-submenu-btn" title="Open Saved Project">Open ▸</button>
+                        <div id="saveSlotsDropdown" class="dropdown-menu" style="display: none; min-width: 220px; max-height: 280px; overflow-y: auto;">
+                            <div class="dropdown-header">Saved Projects</div>
+                            <div id="saveSlotsList"></div>
+                        </div>
+                    </div>
+                    <div class="dropdown-divider"></div>
+                    <button id="oxsImportBtn" class="dropdown-btn" title="Import OXS File">Import OXS</button>
+                </div>
+            </div>
             <button id="uploadBtn" title="Upload Image">
                 <img src="assets/tool-icons/upload.svg" class="tool-icon" alt="Upload">
             </button>
@@ -51,9 +66,6 @@
                 <img src="assets/tool-icons/cut.svg" class="tool-icon" alt="Remove Background">
             </button>
             <span id="bgRemoveStatus" class="tool-status" style="display:none;"></span>
-            <button id="oxsImportBtn" title="Import OXS File">
-                <img src="assets/tool-icons/download.svg" class="tool-icon" alt="Import">
-            </button>
             <button id="resetOriginalBtn" title="Reset to Original Upload">
                 <img src="assets/tool-icons/reset-original.svg" class="tool-icon" alt="Reset">
             </button>
@@ -505,6 +517,44 @@
             <div class="replace-footer">
                 <button id="replaceColorCancel" class="btn-secondary">Cancel</button>
                 <button id="replaceColorConfirm" class="btn-primary" disabled>Replace</button>
+            </div>
+        </div>
+    </div>
+<div id="saveSlotNameOverlay" class="replace-overlay" style="display: none;">
+        <div class="replace-panel">
+            <div class="replace-header">
+                <h3>Save Project</h3>
+                <button id="saveSlotNameClose" class="replace-close">&times;</button>
+            </div>
+            <div class="replace-content">
+                <div class="replace-colors">
+                    <div class="replace-from">
+                        <label>Project Name</label>
+                        <input type="text" id="saveSlotNameInput" placeholder="Enter name..." style="width: 100%; padding: 8px; margin-top: 8px;">
+                    </div>
+                </div>
+                <p id="saveSlotInfo" style="font-size: 0.9em; color: #666; margin-top: 12px;"></p>
+            </div>
+            <div class="replace-footer">
+                <button id="saveSlotCancel" class="btn-secondary">Cancel</button>
+                <button id="saveSlotConfirm" class="btn-primary">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="deleteSlotOverlay" class="replace-overlay" style="display: none;">
+        <div class="replace-panel" style="max-width: 400px;">
+            <div class="replace-header">
+                <h3>Delete Saved Project</h3>
+                <button id="deleteSlotClose" class="replace-close">&times;</button>
+            </div>
+            <div class="replace-content">
+                <p>Are you sure you want to delete "<span id="deleteSlotName"></span>"?</p>
+                <p style="font-size: 0.9em; color: #666;">This action cannot be undone.</p>
+            </div>
+            <div class="replace-footer">
+                <button id="deleteSlotCancel" class="btn-secondary">Cancel</button>
+                <button id="deleteSlotConfirm" class="btn-primary" style="background: #dc3545;">Delete</button>
             </div>
         </div>
     </div>

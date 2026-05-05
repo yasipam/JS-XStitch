@@ -13,8 +13,9 @@ function rgbToHex(rgb) {
 
 /**
  * Valid OXS Export: Captures live edits and matches Streamlit schema.
+ * If returnOnly is true, returns the XML string without triggering download.
  */
-export function exportOXS(liveGrid, palette, filename = "pattern.oxs", stampedRgbGrid = null, backstitchGrid = null, referenceImageData = null) {
+export function exportOXS(liveGrid, palette, filename = "pattern.oxs", stampedRgbGrid = null, backstitchGrid = null, referenceImageData = null, returnOnly = false) {
     const h = liveGrid.length;
     const w = liveGrid[0].length;
     const title = filename.replace(/\.[^.]+$/, "");
@@ -163,6 +164,10 @@ export function exportOXS(liveGrid, palette, filename = "pattern.oxs", stampedRg
     xml += `\n<commentboxes />`;
 
     xml += `\n</chart>`;
+
+    if (returnOnly) {
+        return xml;
+    }
 
     // Download
     const blob = new Blob([xml], { type: "application/octet-stream" });

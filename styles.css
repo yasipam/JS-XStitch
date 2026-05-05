@@ -540,6 +540,18 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
     margin: 8px 0;
 }
 
+.dropdown-submenu-container {
+    position: relative;
+}
+
+.dropdown-submenu-container .dropdown-menu {
+    position: absolute;
+    left: 100%;
+    top: 0;
+    margin-left: 4px;
+    margin-top: 0;
+}
+
 .dropdown-check {
     display: flex;
     align-items: center;
