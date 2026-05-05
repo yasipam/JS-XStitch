@@ -1104,6 +1104,7 @@ function setupUpload() {
             img.onload = () => {
                 currentImage = img;
                 referenceImage = img;
+                overlayImage = null;
                 isOxsLoaded = false;
                 isEmptyCanvas = false;
                 loadedOxsPalette = null;
@@ -1511,6 +1512,8 @@ function loadOxsPattern(parsed) {
     isOxsLoaded = true;
     loadedOxsPalette = dmcPalette;
     currentImage = null;
+    referenceImage = null;
+    overlayImage = null;
     hasBackstitchEdits = false; // Reset backstitch edits flag
 
     resetUIControls();
@@ -1543,6 +1546,9 @@ function loadOxsPattern(parsed) {
     if (backstitchLines.length > 0) {
         sendToCanvas('LOAD_BACKSTITCH', backstitchLines);
     }
+
+    // Clear any previous reference image
+    sendToCanvas('TOGGLE_REFERENCE', false);
 
     // Restore reference image (overlay) if present in OXS file
     if (referenceImageData) {
@@ -3875,9 +3881,9 @@ async function loadProjectFromSlot(slotId) {
         isOxsLoaded = true;
         loadedOxsPalette = dmcPalette;
         currentImage = null;
-        currentImage = null;
-        hasBackstitchEdits = false;
+        referenceImage = null;
         overlayImage = null;
+        hasBackstitchEdits = false;
 
         state.clear();
         userEditDiff.clear();
@@ -3896,6 +3902,9 @@ async function loadProjectFromSlot(slotId) {
         if (backstitchLines.length > 0) {
             sendToCanvas('LOAD_BACKSTITCH', backstitchLines);
         }
+
+        // Clear any previous reference image
+        sendToCanvas('TOGGLE_REFERENCE', false);
 
         if (referenceImageData) {
             const img = new Image();
