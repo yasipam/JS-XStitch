@@ -125,7 +125,7 @@ async function drawCoverPage(doc, data) {
  * Grid Lines Helper
  */
 function drawGrid(doc, x0, y0, w, h, size) {
-    doc.setDrawColor(0);
+    doc.setDrawColor(117, 117, 117);
     for (let i = 0; i <= w; i++) {
         doc.setLineWidth(i % 10 === 0 ? 0.5 : 0.1);
         doc.line(x0 + i * size, y0, x0 + i * size, y0 + h * size);
@@ -187,7 +187,7 @@ function drawPatternPages(doc, data, isPrintable, isPK) {
                             doc.setFillColor(displayRgb[0], displayRgb[1], displayRgb[2]);
                             doc.rect(cx, cy, cellSize, cellSize, 'F');
                             doc.setFillColor(255, 255, 255);
-                            doc.circle(cx, cy, cellSize * 0.2, 'F');
+                            doc.circle(cx, cy, cellSize * 0.3, 'F');
                             break;
 
                         case 'cross':
