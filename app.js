@@ -18,6 +18,7 @@ import { parseOxsFileFromFile } from "./import/importOXS.js";
 // Export Logic
 import { buildExportData } from "./export/buildExportData.js";
 import { exportPDF } from "./export/exportPDF.js";
+import { exportToSizeImage } from "./export/exportImage.js";
 
 // Local Save Slots
 import { getAllSaveSlots, saveSaveSlot, loadSaveSlot, deleteSaveSlot } from "./localSaveSlots.js";
@@ -3299,6 +3300,78 @@ function setupExportButtons() {
                 state.backstitchGrid,
                 overlayImage
             );
+        };
+    }
+
+    // --- TO-SIZE IMAGE EXPORT ---
+    const exportImageBtn = document.getElementById("exportImageBtn");
+    const imageFormatSelect = document.getElementById("imageFormatSelect");
+    const imageDpiSelect = document.getElementById("imageDpiSelect");
+
+    if (exportImageBtn) {
+        exportImageBtn.onclick = async () => {
+            try {
+                if (!state.mappedDmcGrid) {
+                    console.error("No grid data available to export.");
+                    return;
+                }
+
+                let exportDmcGrid = state.mappedDmcGrid;
+                let exportRgbGrid = state.mappedRgbGrid;
+
+                if (state.mappedRgbGrid) {
+                    const convertedGrid = getLiveDmcGridFromRgb(state.mappedRgbGrid);
+                    if (convertedGrid) {
+                        exportDmcGrid = convertedGrid;
+                        exportRgbGrid = state.mappedRgbGrid;
+                    }
+                }
+
+                let stampedLookup = {};
+                let exportVisualGrid = exportRgbGrid;
+                if (mappingConfig.stampedMode && exportDmcGrid) {
+                    const stampedResult = buildStampedGrid(exportDmcGrid, { hueShift: mappingConfig.stampedHue });
+                    exportVisualGrid = stampedResult.grid;
+                    stampedLookup = stampedResult.lookup;
+                }
+
+                const data = buildExportData(state, mappingConfig, {
+                    fabricCount: fabricSelect.value,
+                    mode: modeSelect.value
+                });
+
+                data.dmcGrid = exportDmcGrid;
+                data.rgbGrid = exportVisualGrid;
+
+                const usedCodes = new Set(exportDmcGrid.flat().map(String));
+                let dataPalette = [];
+                if (isOxsLoaded) {
+                    dataPalette = Object.entries(loadedOxsPalette)
+                        .filter(([code]) => usedCodes.has(code))
+                        .map(([code, entry]) => ({
+                            code: code,
+                            name: entry.name,
+                            rgb: entry.rgb,
+                            stampedRgb: mappingConfig.stampedMode ? (stampedLookup[code] || null) : null,
+                            count: exportDmcGrid.flat().filter(c => String(c) === code).length
+                        }));
+                } else {
+                    dataPalette = DMC_RGB.filter(d => usedCodes.has(String(d[0]))).map(d => ({
+                        code: String(d[0]),
+                        name: d[1],
+                        rgb: d[2],
+                        stampedRgb: mappingConfig.stampedMode ? (stampedLookup[String(d[0])] || null) : null,
+                        count: exportDmcGrid.flat().filter(c => String(c) === String(d[0])).length
+                    }));
+                }
+                data.palette = dataPalette.sort((a, b) => b.count - a.count);
+
+                const format = imageFormatSelect ? imageFormatSelect.value : 'png';
+                const dpi = imageDpiSelect ? parseInt(imageDpiSelect.value) : 96;
+                await exportToSizeImage(data, { format, dpi, includeBackstitches: true });
+            } catch (error) {
+                console.error("Image Export failed:", error);
+            }
         };
     }
 
