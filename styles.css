@@ -743,7 +743,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
     border-top: 1px solid var(--border-light);
     display: flex;
     align-items: center;
-    padding: 10px;
+    padding: 15px 10px;
 }
 
 #exportFooter {
@@ -811,7 +811,9 @@ select {
     padding: 2px 4px;
     /* optional: makes dropdowns visually tighter */
 }
-.footer-buttons { display: flex; gap: 5px; }
+.footer-buttons { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+.footer-buttons select { max-width: 110px; }
+.footer-buttons button { font-size: inherit; padding: 2px 6px; }
 
 /* Footer layout */
 .footer-group {
