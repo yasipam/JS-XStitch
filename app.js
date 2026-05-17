@@ -3168,6 +3168,17 @@ function setupExportButtons() {
     const pkCheckbox = document.getElementById("addPatternKeeper");
     const stampedToggle = document.getElementById("stampedMode");
 
+    // Enable/disable tent-symmetry based on grid dimensions
+    if (modeSelect && state.mappedDmcGrid) {
+        const w = state.mappedDmcGrid[0].length;
+        const h = state.mappedDmcGrid.length;
+        const isEven = (w % 2 === 0) && (h % 2 === 0);
+        const symmetryOption = modeSelect.querySelector('option[value="tent-symmetry"]');
+        const symmetryInvOption = modeSelect.querySelector('option[value="tent-symmetry-inverse"]');
+        if (symmetryOption) symmetryOption.disabled = !isEven;
+        if (symmetryInvOption) symmetryInvOption.disabled = !isEven;
+    }
+
     if (exportPdfBtn) {
         exportPdfBtn.onclick = async () => {
             try {

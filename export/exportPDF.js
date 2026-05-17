@@ -191,6 +191,45 @@ function drawPatternPages(doc, data, isPrintable, isPK) {
                             break;
 
                         case 'cross':
+                            doc.setDrawColor(displayRgb[0], displayRgb[1], displayRgb[2]);
+                            doc.setLineWidth(0.2);
+                            doc.line(cx + 0.3, cy + 0.3, cx + cellSize - 0.3, cy + cellSize - 0.3);
+                            doc.line(cx + cellSize - 0.3, cy + 0.3, cx + 0.3, cy + cellSize - 0.3);
+                            break;
+
+                        case 'tent':
+                            doc.setDrawColor(displayRgb[0], displayRgb[1], displayRgb[2]);
+                            doc.setLineWidth(0.2);
+                            doc.line(cx, cy, cx + cellSize, cy + cellSize);
+                            break;
+
+                        case 'tent-symmetry':
+                            doc.setDrawColor(displayRgb[0], displayRgb[1], displayRgb[2]);
+                            doc.setLineWidth(0.2);
+                            const centerX = dmcGrid[0].length / 2;
+                            const centerY = dmcGrid.length / 2;
+                            const isAscending = (gx >= centerX && gy < centerY) || (gx < centerX && gy >= centerY);
+                            if (isAscending) {
+                                doc.line(cx, cy + cellSize, cx + cellSize, cy);
+                            } else {
+                                doc.line(cx, cy, cx + cellSize, cy + cellSize);
+                            }
+                            break;
+
+                        case 'tent-symmetry-inverse':
+                            doc.setDrawColor(displayRgb[0], displayRgb[1], displayRgb[2]);
+                            doc.setLineWidth(0.2);
+                            const centerXInv = dmcGrid[0].length / 2;
+                            const centerYInv = dmcGrid.length / 2;
+                            const isAscendingInv = (gx >= centerXInv && gy < centerYInv) || (gx < centerXInv && gy >= centerYInv);
+                            const directionInv = !isAscendingInv;
+                            if (directionInv) {
+                                doc.line(cx, cy + cellSize, cx + cellSize, cy);
+                            } else {
+                                doc.line(cx, cy, cx + cellSize, cy + cellSize);
+                            }
+                            break;
+
                         default:
                             doc.setDrawColor(displayRgb[0], displayRgb[1], displayRgb[2]);
                             doc.setLineWidth(0.2);

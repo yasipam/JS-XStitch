@@ -38,7 +38,7 @@ export async function exportToSizeImage(data, options = {}) {
             const cy = y * cellPixelSize;
             const displayRgb = rgbGrid[y][x];
 
-            renderStitch(ctx, mode, displayRgb, cx, cy, cellPixelSize, code, symbolMap);
+            renderStitch(ctx, mode, displayRgb, cx, cy, cellPixelSize, code, symbolMap, width, height);
         }
     }
 
@@ -56,7 +56,7 @@ export async function exportToSizeImage(data, options = {}) {
     link.click();
 }
 
-function renderStitch(ctx, mode, rgb, x, y, cellSize, code, symbolMap) {
+function renderStitch(ctx, mode, rgb, x, y, cellSize, code, symbolMap, gridWidth, gridHeight) {
     switch (mode) {
         case 'filled':
             ctx.fillStyle = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
@@ -77,6 +77,55 @@ function renderStitch(ctx, mode, rgb, x, y, cellSize, code, symbolMap) {
             ctx.lineTo(x + cellSize - offset, y + cellSize - offset);
             ctx.moveTo(x + cellSize - offset, y + offset);
             ctx.lineTo(x + offset, y + cellSize - offset);
+            ctx.stroke();
+            break;
+
+        case 'tent':
+            ctx.strokeStyle = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+            ctx.lineWidth = Math.max(1, cellSize * 0.15);
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(x + cellSize, y + cellSize);
+            ctx.stroke();
+            break;
+
+        case 'tent-symmetry':
+            ctx.strokeStyle = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+            ctx.lineWidth = Math.max(1, cellSize * 0.15);
+            ctx.lineCap = 'round';
+            const centerX = gridWidth / 2;
+            const centerY = gridHeight / 2;
+            const isAscending = (x / cellSize >= centerX && y / cellSize < centerY) ||
+                                (x / cellSize < centerX && y / cellSize >= centerY);
+            ctx.beginPath();
+            if (isAscending) {
+                ctx.moveTo(x, y + cellSize);
+                ctx.lineTo(x + cellSize, y);
+            } else {
+                ctx.moveTo(x, y);
+                ctx.lineTo(x + cellSize, y + cellSize);
+            }
+            ctx.stroke();
+            break;
+
+        case 'tent-symmetry-inverse':
+            ctx.strokeStyle = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+            ctx.lineWidth = Math.max(1, cellSize * 0.15);
+            ctx.lineCap = 'round';
+            const centerXInv = gridWidth / 2;
+            const centerYInv = gridHeight / 2;
+            const isAscendingInv = (x / cellSize >= centerXInv && y / cellSize < centerYInv) ||
+                                    (x / cellSize < centerXInv && y / cellSize >= centerYInv);
+            const directionInv = !isAscendingInv;
+            ctx.beginPath();
+            if (directionInv) {
+                ctx.moveTo(x, y + cellSize);
+                ctx.lineTo(x + cellSize, y);
+            } else {
+                ctx.moveTo(x, y);
+                ctx.lineTo(x + cellSize, y + cellSize);
+            }
             ctx.stroke();
             break;
 
