@@ -69,9 +69,9 @@ function renderStitch(ctx, mode, rgb, x, y, cellSize, code, symbolMap) {
 
         case 'cross':
             ctx.strokeStyle = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
-            ctx.lineWidth = Math.max(1, cellSize * 0.08);
+            ctx.lineWidth = Math.max(1, cellSize * 0.15);
             ctx.lineCap = 'round';
-            const offset = cellSize * 0.3;
+            const offset = cellSize * 0.05;
             ctx.beginPath();
             ctx.moveTo(x + offset, y + offset);
             ctx.lineTo(x + cellSize - offset, y + cellSize - offset);
