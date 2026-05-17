@@ -200,7 +200,8 @@ function drawPatternPages(doc, data, isPrintable, isPK) {
                         case 'tent':
                             doc.setDrawColor(displayRgb[0], displayRgb[1], displayRgb[2]);
                             doc.setLineWidth(0.2);
-                            doc.line(cx, cy, cx + cellSize, cy + cellSize);
+                            const tentOffset = 0.3;
+                            doc.line(cx + tentOffset, cy + tentOffset, cx + cellSize - tentOffset, cy + cellSize - tentOffset);
                             break;
 
                         case 'tent-symmetry':
@@ -209,10 +210,11 @@ function drawPatternPages(doc, data, isPrintable, isPK) {
                             const centerX = dmcGrid[0].length / 2;
                             const centerY = dmcGrid.length / 2;
                             const isAscending = (gx >= centerX && gy < centerY) || (gx < centerX && gy >= centerY);
+                            const symOffset = 0.3;
                             if (isAscending) {
-                                doc.line(cx, cy + cellSize, cx + cellSize, cy);
+                                doc.line(cx + symOffset, cy + cellSize - symOffset, cx + cellSize - symOffset, cy + symOffset);
                             } else {
-                                doc.line(cx, cy, cx + cellSize, cy + cellSize);
+                                doc.line(cx + symOffset, cy + symOffset, cx + cellSize - symOffset, cy + cellSize - symOffset);
                             }
                             break;
 
@@ -223,10 +225,11 @@ function drawPatternPages(doc, data, isPrintable, isPK) {
                             const centerYInv = dmcGrid.length / 2;
                             const isAscendingInv = (gx >= centerXInv && gy < centerYInv) || (gx < centerXInv && gy >= centerYInv);
                             const directionInv = !isAscendingInv;
+                            const symInvOffset = 0.3;
                             if (directionInv) {
-                                doc.line(cx, cy + cellSize, cx + cellSize, cy);
+                                doc.line(cx + symInvOffset, cy + cellSize - symInvOffset, cx + cellSize - symInvOffset, cy + symInvOffset);
                             } else {
-                                doc.line(cx, cy, cx + cellSize, cy + cellSize);
+                                doc.line(cx + symInvOffset, cy + symInvOffset, cx + cellSize - symInvOffset, cy + cellSize - symInvOffset);
                             }
                             break;
 

@@ -80,54 +80,60 @@ function renderStitch(ctx, mode, rgb, x, y, cellSize, code, symbolMap, gridWidth
             ctx.stroke();
             break;
 
-        case 'tent':
+        case 'tent': {
             ctx.strokeStyle = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
-            ctx.lineWidth = Math.max(1, cellSize * 0.15);
+            ctx.lineWidth = Math.max(1, cellSize * 0.50);
             ctx.lineCap = 'round';
+            const offset = cellSize * 0.20;
             ctx.beginPath();
-            ctx.moveTo(x, y);
-            ctx.lineTo(x + cellSize, y + cellSize);
+            ctx.moveTo(x + offset, y + offset);
+            ctx.lineTo(x + cellSize - offset, y + cellSize - offset);
             ctx.stroke();
             break;
+        }
 
-        case 'tent-symmetry':
+        case 'tent-symmetry': {
             ctx.strokeStyle = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
-            ctx.lineWidth = Math.max(1, cellSize * 0.15);
+            ctx.lineWidth = Math.max(1, cellSize * 0.50);
             ctx.lineCap = 'round';
             const centerX = gridWidth / 2;
             const centerY = gridHeight / 2;
             const isAscending = (x / cellSize >= centerX && y / cellSize < centerY) ||
                                 (x / cellSize < centerX && y / cellSize >= centerY);
+            const offsetSym = cellSize * 0.20;
             ctx.beginPath();
             if (isAscending) {
-                ctx.moveTo(x, y + cellSize);
-                ctx.lineTo(x + cellSize, y);
+                ctx.moveTo(x + offsetSym, y + cellSize - offsetSym);
+                ctx.lineTo(x + cellSize - offsetSym, y + offsetSym);
             } else {
-                ctx.moveTo(x, y);
-                ctx.lineTo(x + cellSize, y + cellSize);
+                ctx.moveTo(x + offsetSym, y + offsetSym);
+                ctx.lineTo(x + cellSize - offsetSym, y + cellSize - offsetSym);
             }
             ctx.stroke();
             break;
+        }
 
-        case 'tent-symmetry-inverse':
+        case 'tent-symmetry-inverse': {
             ctx.strokeStyle = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
-            ctx.lineWidth = Math.max(1, cellSize * 0.15);
+            ctx.lineWidth = Math.max(1, cellSize * 0.50);
             ctx.lineCap = 'round';
             const centerXInv = gridWidth / 2;
             const centerYInv = gridHeight / 2;
             const isAscendingInv = (x / cellSize >= centerXInv && y / cellSize < centerYInv) ||
                                     (x / cellSize < centerXInv && y / cellSize >= centerYInv);
             const directionInv = !isAscendingInv;
+            const offsetSymInv = cellSize * 0.20;
             ctx.beginPath();
             if (directionInv) {
-                ctx.moveTo(x, y + cellSize);
-                ctx.lineTo(x + cellSize, y);
+                ctx.moveTo(x + offsetSymInv, y + cellSize - offsetSymInv);
+                ctx.lineTo(x + cellSize - offsetSymInv, y + offsetSymInv);
             } else {
-                ctx.moveTo(x, y);
-                ctx.lineTo(x + cellSize, y + cellSize);
+                ctx.moveTo(x + offsetSymInv, y + offsetSymInv);
+                ctx.lineTo(x + cellSize - offsetSymInv, y + cellSize - offsetSymInv);
             }
             ctx.stroke();
             break;
+        }
 
         case 'symbol':
             ctx.fillStyle = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
