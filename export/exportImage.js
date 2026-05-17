@@ -63,7 +63,7 @@ function renderStitch(ctx, mode, rgb, x, y, cellSize, code, symbolMap) {
             ctx.fillRect(x, y, cellSize, cellSize);
             ctx.fillStyle = 'white';
             ctx.beginPath();
-            ctx.arc(x + cellSize / 2, y + cellSize / 2, cellSize * 0.3, 0, Math.PI * 2);
+            ctx.arc(x, y, cellSize * 0.3, 0, Math.PI * 2);
             ctx.fill();
             break;
 
