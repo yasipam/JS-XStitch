@@ -192,21 +192,21 @@ function drawPatternPages(doc, data, isPrintable, isPK) {
 
                         case 'cross':
                             doc.setDrawColor(displayRgb[0], displayRgb[1], displayRgb[2]);
-                            doc.setLineWidth(0.2);
+                            doc.setLineWidth(0.5);
                             doc.line(cx + 0.3, cy + 0.3, cx + cellSize - 0.3, cy + cellSize - 0.3);
                             doc.line(cx + cellSize - 0.3, cy + 0.3, cx + 0.3, cy + cellSize - 0.3);
                             break;
 
                         case 'tent':
                             doc.setDrawColor(displayRgb[0], displayRgb[1], displayRgb[2]);
-                            doc.setLineWidth(0.2);
+                            doc.setLineWidth(0.5);
                             const tentOffset = 0.3;
                             doc.line(cx + tentOffset, cy + tentOffset, cx + cellSize - tentOffset, cy + cellSize - tentOffset);
                             break;
 
                         case 'tent-symmetry':
                             doc.setDrawColor(displayRgb[0], displayRgb[1], displayRgb[2]);
-                            doc.setLineWidth(0.2);
+                            doc.setLineWidth(0.5);
                             const centerX = dmcGrid[0].length / 2;
                             const centerY = dmcGrid.length / 2;
                             const isAscending = (gx >= centerX && gy < centerY) || (gx < centerX && gy >= centerY);
@@ -220,7 +220,7 @@ function drawPatternPages(doc, data, isPrintable, isPK) {
 
                         case 'tent-symmetry-inverse':
                             doc.setDrawColor(displayRgb[0], displayRgb[1], displayRgb[2]);
-                            doc.setLineWidth(0.2);
+                            doc.setLineWidth(0.5);
                             const centerXInv = dmcGrid[0].length / 2;
                             const centerYInv = dmcGrid.length / 2;
                             const isAscendingInv = (gx >= centerXInv && gy < centerYInv) || (gx < centerXInv && gy >= centerYInv);
