@@ -190,7 +190,7 @@ function renderBackstitches(ctx, lines, cellPixelSize) {
 }
 
 function drawCanvasGrid(ctx, cols, rows, cellSize) {
-    ctx.strokeStyle = 'rgba(31, 31, 31, 0.5)';
+    ctx.strokeStyle = 'rgba(10, 10, 10, 0.5)';
     ctx.beginPath();
 
     for (let i = 0; i <= cols; i++) {
