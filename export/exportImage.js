@@ -8,7 +8,8 @@ export async function exportToSizeImage(data, options = {}) {
     const {
         format = 'png',
         dpi = 96,
-        includeBackstitches = true
+        includeBackstitches = true,
+        showGrid = false
     } = options;
 
     const { dmcGrid, rgbGrid, fabricCount, symbolMap, backstitchLines } = data;
@@ -44,6 +45,10 @@ export async function exportToSizeImage(data, options = {}) {
 
     if (includeBackstitches && backstitchLines && backstitchLines.length > 0) {
         renderBackstitches(ctx, backstitchLines, cellPixelSize);
+    }
+
+    if (showGrid) {
+        drawCanvasGrid(ctx, width, height, cellPixelSize);
     }
 
     const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png';
@@ -182,4 +187,25 @@ function renderBackstitches(ctx, lines, cellPixelSize) {
 
         ctx.stroke();
     });
+}
+
+function drawCanvasGrid(ctx, cols, rows, cellSize) {
+    ctx.strokeStyle = 'rgba(117, 117, 117, 0.5)';
+    ctx.beginPath();
+
+    for (let i = 0; i <= cols; i++) {
+        const x = i * cellSize;
+        ctx.lineWidth = i % 10 === 0 ? 1.5 : 0.5;
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, rows * cellSize);
+    }
+
+    for (let j = 0; j <= rows; j++) {
+        const y = j * cellSize;
+        ctx.lineWidth = j % 10 === 0 ? 1.5 : 0.5;
+        ctx.moveTo(0, y);
+        ctx.lineTo(cols * cellSize, y);
+    }
+
+    ctx.stroke();
 }

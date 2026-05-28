@@ -3318,6 +3318,7 @@ function setupExportButtons() {
     const exportImageBtn = document.getElementById("exportImageBtn");
     const imageFormatSelect = document.getElementById("imageFormatSelect");
     const imageDpiSelect = document.getElementById("imageDpiSelect");
+    const showGridCheckbox = document.getElementById("showGridCheckbox");
 
     if (exportImageBtn) {
         exportImageBtn.onclick = async () => {
@@ -3379,7 +3380,7 @@ function setupExportButtons() {
 
                 const format = imageFormatSelect ? imageFormatSelect.value : 'png';
                 const dpi = imageDpiSelect ? parseInt(imageDpiSelect.value) : 96;
-                await exportToSizeImage(data, { format, dpi, includeBackstitches: true });
+                await exportToSizeImage(data, { format, dpi, includeBackstitches: true, showGrid: showGridCheckbox.checked });
             } catch (error) {
                 console.error("Image Export failed:", error);
             }
