@@ -91,8 +91,8 @@ function renderStitch(ctx, mode, rgb, x, y, cellSize, code, symbolMap, gridWidth
             ctx.lineCap = 'round';
             const offset = cellSize * 0.20;
             ctx.beginPath();
-            ctx.moveTo(x + offset, y + offset);
-            ctx.lineTo(x + cellSize - offset, y + cellSize - offset);
+            ctx.moveTo(x + cellSize - offset, y + offset); // Changed start point
+            ctx.lineTo(x + offset, y + cellSize - offset);   // Changed end point
             ctx.stroke();
             break;
         }
@@ -195,14 +195,14 @@ function drawCanvasGrid(ctx, cols, rows, cellSize) {
 
     for (let i = 0; i <= cols; i++) {
         const x = i * cellSize;
-        ctx.lineWidth = i % 10 === 0 ? 1.5 : 0.5;
+        ctx.lineWidth = i % 10 === 0 ? 3 : 1;
         ctx.moveTo(x, 0);
         ctx.lineTo(x, rows * cellSize);
     }
 
     for (let j = 0; j <= rows; j++) {
         const y = j * cellSize;
-        ctx.lineWidth = j % 10 === 0 ? 1.5 : 0.5;
+        ctx.lineWidth = j % 10 === 0 ? 3 : 1;
         ctx.moveTo(0, y);
         ctx.lineTo(cols * cellSize, y);
     }
