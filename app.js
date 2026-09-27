@@ -10,7 +10,7 @@ import { mapFullWithPalette, nearestDmcColor, cleanupMinOccurrence, removeIsolat
 import { applyDitherRGB } from "./mapping/dithering.js";
 import { buildStampedGrid } from "./mapping/stamped.js";
 import { cropWithBox } from "./mapping/crop.js";
-import { DMC_RGB } from "./mapping/constants.js";
+import { DMC_RGB, ALL_SYMBOLS, SYMBOLS } from "./mapping/constants.js";
 import { findNearestDmcCode } from "./mapping/utils.js";
 import { exportOXS } from "./export/exportOXS.js";
 import { parseOxsFileFromFile } from "./import/importOXS.js";
@@ -19,6 +19,8 @@ import { parseOxsFileFromFile } from "./import/importOXS.js";
 import { buildExportData } from "./export/buildExportData.js";
 import { exportPDF } from "./export/exportPDF.js";
 import { exportToSizeImage } from "./export/exportImage.js";
+import { buildSymbolMap } from "./mapping/symbols.js";
+import { DEJAVU_FONT_BASE64 } from "./export/fontData.js";
 
 // Local Save Slots
 import { getAllSaveSlots, saveSaveSlot, loadSaveSlot, deleteSaveSlot } from "./localSaveSlots.js";
@@ -504,7 +506,11 @@ const mappingConfig = {
     ditherMode: "None",
     ditherStrength: 0,
     exportFabricCount: 14,
-    exportMode: "filled"
+    exportMode: "filled",
+    // Hand-picked symbols, mirrored from app.js symbolOverrides so any export
+    // path that builds its own map still honours the user's picks. Kept in sync
+    // by rerandomizeSymbols()/resetSymbolAssignments().
+    symbolOverrides: null
 };
 
 // -----------------------------------------------------------------------------
@@ -523,6 +529,18 @@ function sendToCanvas(type, payload) {
 let cachedProjectPalette = null;
 let lastPaletteConfig = { maxSize: 0, maxColours: 0, image: null, distanceMethod: "" };
 let sidebarUpdateTimer = null;
+
+// -----------------------------------------------------------------------------
+// SYMBOL ASSIGNMENT
+// -----------------------------------------------------------------------------
+// currentSymbolMap is the stable map: it is what the Threads panel displays and
+// exactly what the next export will draw, so the swatch never lies about the
+// chart. symbolOverrides holds only the symbols the user picked by hand, so those
+// survive both re-randomization and a change to the rest of the palette.
+// Session-only: nothing here is persisted.
+let currentSymbolMap = {};
+let symbolOverrides = {};
+let symbolPickerCode = null;
 
 // -----------------------------------------------------------------------------
 // USER-EDIT DIFF LAYER
@@ -872,9 +890,218 @@ function setupPaletteUI() {
     }
 }
 
+// -----------------------------------------------------------------------------
+// SYMBOL DISPLAY + PICKER
+// -----------------------------------------------------------------------------
+
+/**
+ * Register the exact font the PDF embeds as a webfont, so a symbol shown on a
+ * thread swatch is drawn from the same glyph data the export uses. Reusing
+ * DEJAVU_FONT_BASE64 means there is no second copy of the font to keep in sync
+ * and no way for the preview to show a glyph the export cannot render.
+ * The picker refuses to offer anything outside this font, so a failure here is
+ * the only case where the two could disagree - and it would break the PDF too.
+ */
+function loadSymbolFont() {
+    if (typeof FontFace === "undefined" || typeof atob === "undefined") return;
+    try {
+        const binary = atob(DEJAVU_FONT_BASE64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        const face = new FontFace("XStitchSymbols", bytes.buffer);
+        face.load()
+            .then(loaded => {
+                document.fonts.add(loaded);
+                // Re-render so symbols drawn before the font arrived pick it up.
+                updateThreadsTableFromGrid();
+            })
+            .catch(() => { console.warn("Symbol font failed to load; swatch symbols may not render."); });
+    } catch (err) {
+        console.warn("Symbol font could not be registered.", err);
+    }
+}
+
+/**
+ * Pick black or white for the symbol drawn on a thread swatch, using the same
+ * weighted-luminance rule and 128 threshold as getLuminance() in exportPDF.js so
+ * the sidebar reads the same way the chart does.
+ */
+function symbolTextColour(rgb) {
+    return (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) < 128 ? "#fff" : "#000";
+}
+
+/**
+ * The stable symbol map for a grid.
+ *
+ * Assignments are kept as long as every colour in the grid has one, so a
+ * re-render, a colour replace or an export can never silently re-roll the
+ * symbols the user is currently looking at. Only a grid that introduces
+ * colours with no assignment yet forces a rebuild, and even then the
+ * hand-picked symbols in symbolOverrides are preserved.
+ */
+function symbolMapForGrid(dmcGrid) {
+    if (!dmcGrid || !dmcGrid.length || !dmcGrid[0]) return currentSymbolMap;
+    const needed = new Set(dmcGrid.flat().map(String).filter(c => c !== "0"));
+
+    // Drop assignments for colours this grid no longer contains. Without this a
+    // symbol held by an erased or replaced colour would stay reserved and the
+    // picker would grey out a choice for a thread that is not in the chart.
+    // Pruning only ever removes codes absent from the grid, so it cannot discard
+    // an assignment the grid still needs.
+    Object.keys(currentSymbolMap).forEach(code => {
+        if (!needed.has(code)) delete currentSymbolMap[code];
+    });
+
+    const complete = [...needed].every(c => currentSymbolMap[c]);
+    if (!complete) {
+        currentSymbolMap = buildSymbolMap(dmcGrid, DMC_RGB, false, symbolOverrides);
+    }
+    return currentSymbolMap;
+}
+
+/**
+ * Drop every symbol assignment. Called when a different project is loaded: a
+ * hand-picked symbol belongs to the chart the user was looking at, and DMC codes
+ * would otherwise carry that meaning into an unrelated pattern.
+ */
+function resetSymbolAssignments() {
+    currentSymbolMap = {};
+    symbolOverrides = {};
+    mappingConfig.symbolOverrides = symbolOverrides;
+    closeSymbolPicker();
+}
+
+/** Full re-randomize. Hand-picked symbols in symbolOverrides are kept. */
+function rerandomizeSymbols(clearPicks) {
+    if (clearPicks) symbolOverrides = {};
+    mappingConfig.symbolOverrides = symbolOverrides;
+    const grid = state && state.mappedDmcGrid;
+    currentSymbolMap = (grid && grid.length)
+        ? buildSymbolMap(grid, DMC_RGB, false, symbolOverrides)
+        : {};
+    updateThreadsTableFromGrid();
+    if (symbolPickerCode) renderSymbolPickerGrid();
+}
+
+/** Map of symbol -> the DMC code holding it, for greying out taken choices. */
+function symbolOwners() {
+    const owners = {};
+    Object.entries(currentSymbolMap).forEach(([code, sym]) => {
+        if (sym && code !== symbolPickerCode) owners[sym] = code;
+    });
+    return owners;
+}
+
+/** Display name for a DMC code. Entries are {name, rgb}, but tolerate the
+ *  [code, name, rgb] array shape that renderThreadsTable also accepts. */
+function dmcNameFor(code) {
+    const entry = dmcCodeToEntry.get(code);
+    if (!entry) return "";
+    return entry.name || entry[1] || "";
+}
+
+function openSymbolPicker(code) {
+    symbolPickerCode = String(code);
+    symbolMapForGrid(state && state.mappedDmcGrid);
+
+    const codeEl = document.getElementById("symbolPickerCode");
+    const nameEl = document.getElementById("symbolPickerName");
+    if (codeEl) codeEl.textContent = symbolPickerCode;
+    if (nameEl) nameEl.textContent = dmcNameFor(symbolPickerCode);
+
+    renderSymbolPickerGrid();
+    const overlay = document.getElementById("symbolPickerOverlay");
+    if (overlay) overlay.style.display = "flex";
+}
+
+function closeSymbolPicker() {
+    symbolPickerCode = null;
+    const overlay = document.getElementById("symbolPickerOverlay");
+    if (overlay) overlay.style.display = "none";
+}
+
+/**
+ * Build the picker grid. Shows the curated set by default; the "show all" toggle
+ * reveals the overflow pool in the same preference order the exporter uses, so
+ * what is offered here is exactly what an export is able to draw.
+ */
+function renderSymbolPickerGrid() {
+    const gridEl = document.getElementById("symbolPickerGrid");
+    if (!gridEl || !symbolPickerCode) return;
+
+    const showAll = document.getElementById("symbolPickerShowAll");
+    const pool = showAll && showAll.checked ? ALL_SYMBOLS : SYMBOLS;
+    const owners = symbolOwners();
+    const current = currentSymbolMap[symbolPickerCode] || "";
+
+    const currentEl = document.getElementById("symbolPickerCurrent");
+    if (currentEl) currentEl.textContent = current;
+
+    gridEl.innerHTML = "";
+    pool.forEach(sym => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "symbol-choice";
+        btn.textContent = sym;
+        if (sym === current) btn.classList.add("selected");
+        const owner = owners[sym];
+        if (owner) {
+            btn.disabled = true;
+            const ownerName = dmcNameFor(owner);
+            btn.title = "Already used by DMC " + owner + (ownerName ? " " + ownerName : "");
+        } else {
+            btn.title = "Use " + sym + " for DMC " + symbolPickerCode;
+        }
+        btn.addEventListener("click", () => {
+            symbolOverrides[symbolPickerCode] = sym;
+            rerandomizeSymbols(false);
+        });
+        gridEl.appendChild(btn);
+    });
+}
+
+/** Wire the swatch overlays, toolbar buttons and picker controls. */
+function setupSymbolPicker() {
+    loadSymbolFont();
+
+    const tbody = document.getElementById("threadsTableBody");
+    if (tbody) {
+        tbody.addEventListener("click", e => {
+            const overlay = e.target.closest(".threadSwatchSymbol");
+            if (!overlay) return;
+            const code = overlay.dataset.code;
+            if (code) openSymbolPicker(code);
+        });
+    }
+
+    const showAll = document.getElementById("symbolPickerShowAll");
+    if (showAll) showAll.addEventListener("change", renderSymbolPickerGrid);
+
+    const randomBtn = document.getElementById("symbolPickerRandom");
+    if (randomBtn) {
+        randomBtn.addEventListener("click", () => {
+            if (!symbolPickerCode) return;
+            delete symbolOverrides[symbolPickerCode];
+            rerandomizeSymbols(false);
+        });
+    }
+
+    const closeBtn = document.getElementById("symbolPickerClose");
+    if (closeBtn) closeBtn.addEventListener("click", closeSymbolPicker);
+    const doneBtn = document.getElementById("symbolPickerDone");
+    if (doneBtn) doneBtn.addEventListener("click", closeSymbolPicker);
+
+    const rerollBtn = document.getElementById("rerollSymbolsBtn");
+    if (rerollBtn) rerollBtn.addEventListener("click", () => rerandomizeSymbols(false));
+
+    const clearBtn = document.getElementById("clearPicksBtn");
+    if (clearBtn) clearBtn.addEventListener("click", () => rerandomizeSymbols(true));
+}
+
 function renderThreadsTable(threadStats) {
     const tbody = document.getElementById("threadsTableBody");
     if (!tbody) return;
+    symbolMapForGrid(state && state.mappedDmcGrid);
     if (!threadStats || threadStats.length === 0) {
         tbody.innerHTML = "<tr><td colspan='3' style='text-align:center;padding:20px;'>No threads found</td></tr>";
         return;
@@ -909,10 +1136,18 @@ function renderThreadsTable(threadStats) {
         const name = dmcEntry.name || dmcEntry[1];
         const originalRgb = dmcEntry.rgb || dmcEntry[2];
 
+        const symbol = currentSymbolMap[code] || "";
+        const isPinned = Object.prototype.hasOwnProperty.call(symbolOverrides, code);
+
         const row = document.createElement("tr");
         row.innerHTML = `
             <td>
-                <div class="table-swatch" style="background-color: rgb(${originalRgb[0]}, ${originalRgb[1]}, ${originalRgb[2]}); border: 1px solid #ccc;"></div>
+                <div class="threadSwatchWrap">
+                    <div class="table-swatch" style="background-color: rgb(${originalRgb[0]}, ${originalRgb[1]}, ${originalRgb[2]}); border: 1px solid #ccc;"></div>
+                    <span class="threadSwatchSymbol${isPinned ? " pinned" : ""}" data-code="${code}"
+                        style="color: ${symbolTextColour(originalRgb)};"
+                        title="Click to choose the symbol for DMC ${code}">${symbol}</span>
+                </div>
             </td>
             <td title="${name}"><strong>${code}</strong></td>
             <td>${stat.count}</td>
@@ -1148,6 +1383,7 @@ function setupUpload() {
 
                 state.clear();
                 userEditDiff.clear();
+                resetSymbolAssignments();
                 lastBaselineGrid = null;
                 hasBackstitchEdits = false; // Reset backstitch edits flag
                 updateCropToolState(); // Re-enable crop tool after reset
@@ -1359,6 +1595,7 @@ function createEmptyCanvas(width, height) {
     // Specific resets for empty canvas mode
     state.clear();
     userEditDiff.clear();
+    resetSymbolAssignments();
     lastBaselineGrid = null;
     lastBaselineDmcGrid = null;
     state.originalImageURL = null;
@@ -1522,6 +1759,7 @@ function loadOxsPattern(parsed) {
 
     state.clear();
     userEditDiff.clear();
+    resetSymbolAssignments();
     lastBaselineGrid = null;
     lastBaselineDmcGrid = null;
 
@@ -3226,6 +3464,12 @@ function setupExportButtons() {
                 data.dmcGrid = exportDmcGrid;
                 data.rgbGrid = exportVisualGrid;
 
+                // Symbols must cover the grid actually being drawn, not the mapped
+                // baseline buildExportData saw. Reuse the live map so the chart shows
+                // the same symbols as the Threads panel; it only rebuilds if the
+                // edits introduced a colour that has none yet.
+                data.symbolMap = symbolMapForGrid(exportDmcGrid);
+
                 // Rebuild palette with live data
                 const usedCodes = new Set(exportDmcGrid.flat().map(String));
 
@@ -3356,6 +3600,7 @@ function setupExportButtons() {
 
                 data.dmcGrid = exportDmcGrid;
                 data.rgbGrid = exportVisualGrid;
+                data.symbolMap = symbolMapForGrid(exportDmcGrid);
 
                 const usedCodes = new Set(exportDmcGrid.flat().map(String));
                 let dataPalette = [];
@@ -3974,6 +4219,7 @@ async function loadProjectFromSlot(slotId) {
 
         state.clear();
         userEditDiff.clear();
+        resetSymbolAssignments();
         lastBaselineGrid = null;
         lastBaselineDmcGrid = null;
 
@@ -4336,6 +4582,7 @@ window.addEventListener("load", () => {
     setupReferenceButton();
     setupPaletteUI();
     setupFileDropdown();
+    setupSymbolPicker();
 
     // GLOBAL KEYBOARD BRIDGE
     window.addEventListener("keydown", (e) => {
@@ -5280,6 +5527,11 @@ function countPixelsOfColor(dmcGrid, targetCode) {
             const replaceOverlay = document.getElementById('replaceColorOverlay');
             if (replaceOverlay && replaceOverlay.style.display !== 'none') {
                 closeReplaceColorDialog();
+                return;
+            }
+            const symbolOverlay = document.getElementById('symbolPickerOverlay');
+            if (symbolOverlay && symbolOverlay.style.display !== 'none') {
+                closeSymbolPicker();
                 return;
             }
             closeContextMenu();

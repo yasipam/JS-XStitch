@@ -734,6 +734,92 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 #backstitchThreadsTable th { text-transform: uppercase; font-size: 0.8rem; color:var(--color-label); }
 .table-swatch { width: 24px; height: 16px; border: 1px solid #000; border-radius: 6px; }
 
+/* --- Symbol overlay on thread swatches -------------------------------------
+   The wrapper is positioned so the symbol can sit centred on top of the colour
+   chip. Font-family falls back to sans-serif; app.js registers the same DejaVu
+   build the PDF embeds (from export/fontData.js) as "XStitchSymbols" so the
+   swatch previews the exact glyph the export will draw. */
+.threadSwatchWrap { position: relative; width: 26px; height: 18px; margin: 0 auto; }
+.threadSwatchWrap .table-swatch { width: 26px; height: 18px; }
+.threadSwatchSymbol {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: "XStitchSymbols", sans-serif;
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    user-select: none;
+    pointer-events: auto;
+}
+.threadSwatchSymbol.pinned::after {
+    content: "";
+    position: absolute;
+    right: -1px;
+    bottom: -1px;
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-bottom: 4px solid var(--color-highlight);
+}
+.threadSwatchSymbol:hover { outline: 1px solid var(--color-highlight); border-radius: 6px; }
+.threadsToolbar { display: flex; gap: 6px; margin: 0 0 8px 0; flex-wrap: wrap; }
+.panelHint { margin: -4px 0 8px 0; font-size: 0.85rem; color: var(--color-label); }
+.miniBtn {
+    font-size: 0.8rem;
+    padding: 4px 8px;
+    border: 1px solid var(--color-highlight);
+    background: transparent;
+    color: var(--color-highlight);
+    border-radius: 4px;
+    cursor: pointer;
+}
+.miniBtn:hover { background: var(--color-highlight); color: #fff; }
+
+/* --- Symbol picker modal --------------------------------------------------- */
+.symbol-picker-code { color: var(--color-highlight); }
+.symbol-picker-name { font-weight: normal; font-size: 0.85rem; color: var(--color-label); }
+.symbol-picker-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 0.85rem;
+}
+.symbol-picker-current {
+    font-family: "XStitchSymbols", sans-serif;
+    font-size: 16px;
+    min-width: 24px;
+    text-align: center;
+}
+.symbol-picker-showall { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.symbol-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(34px, 1fr));
+    gap: 4px;
+    max-height: 46vh;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    padding: 6px;
+    border-radius: 4px;
+}
+.symbol-choice {
+    font-family: "XStitchSymbols", sans-serif;
+    font-size: 17px;
+    line-height: 1;
+    height: 32px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fff;
+    cursor: pointer;
+    padding: 0;
+}
+.symbol-choice:hover:not(:disabled) { border-color: var(--color-highlight); background: #f2f2f2; }
+.symbol-choice.selected { border-color: var(--color-highlight); background: var(--color-highlight); color: #fff; }
+.symbol-choice:disabled { opacity: 0.28; cursor: not-allowed; }
+
 /* ==========================================================================
    10. FOOTER (EXPORT BAR)
    ========================================================================== */

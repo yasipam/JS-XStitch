@@ -388,6 +388,17 @@
 
                     <div id="ThreadsTab" class="tab-content" style="display: none;">
                         <h3 class="panelTitle">Project Threads</h3>
+                        <p class="panelHint">Click a colour swatch to choose its symbol.</p>
+                        <div class="threadsToolbar">
+                            <button type="button" class="miniBtn" id="rerollSymbolsBtn"
+                                title="Give every colour a new random symbol. Symbols you picked by hand are kept.">
+                                Re-randomize Symbols
+                            </button>
+                            <button type="button" class="miniBtn" id="clearPicksBtn"
+                                title="Forget all hand-picked symbols and re-randomize everything.">
+                                Clear Picks
+                            </button>
+                        </div>
                         <div id="threadsTableContainer">
                             <h4 class="threadSectionTitle">Pixel Threads</h4>
                             <table id="threadsTable">
@@ -510,6 +521,32 @@
         <div class="context-menu-item" id="ctxReplaceColor">
             <span class="ctx-color-preview"></span>
             <span>Replace Color…</span>
+        </div>
+    </div>
+
+    <div id="symbolPickerOverlay" class="replace-overlay" style="display: none;">
+        <div class="replace-panel">
+            <div class="replace-header">
+                <h3>Symbol for <span id="symbolPickerCode" class="symbol-picker-code">—</span>
+                    <span id="symbolPickerName" class="symbol-picker-name"></span>
+                </h3>
+                <button id="symbolPickerClose" class="replace-close">&times;</button>
+            </div>
+            <div class="replace-content">
+                <div class="symbol-picker-toolbar">
+                    <span class="symbol-picker-current" id="symbolPickerCurrent"></span>
+                    <button type="button" class="miniBtn" id="symbolPickerRandom"
+                        title="Release this colour so it gets a random symbol again">Random</button>
+                    <label class="symbol-picker-showall">
+                        <input type="checkbox" id="symbolPickerShowAll">
+                        Show all
+                    </label>
+                </div>
+                <div class="symbol-grid" id="symbolPickerGrid"></div>
+            </div>
+            <div class="replace-footer">
+                <button id="symbolPickerDone" class="btn-primary">Done</button>
+            </div>
         </div>
     </div>
 

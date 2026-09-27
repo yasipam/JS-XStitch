@@ -100,12 +100,19 @@ function isSafeSymbol(symbol, families) {
  * The main mapping engine. Assigns unique symbols to each DMC color in the project.
  * Supports a specialized mode for Pattern Keeper (PK). [cite: 1, 5]
  *
- * Every color is guaranteed its own symbol: the pool is re-randomised on each
- * call and is large enough (curated set + overflow pool) to exceed the total
- * number of DMC colors, so uniqueness is never traded away. Adjacency and
- * color-family rules are readability preferences and are relaxed first.
+ * Every color is guaranteed its own symbol: the pool is large enough (curated
+ * set + overflow pool) to exceed the total number of DMC colors, so uniqueness
+ * is never traded away. Adjacency and color-family rules are readability
+ * preferences and are relaxed first.
+ *
+ * `overrides` is an optional { dmcCode: symbol } map of user pins from the
+ * symbol picker. Pinned colors are assigned first and their symbols are reserved
+ * before the random passes run, so a pin can never be handed to another color.
+ * A pin is ignored - and that color falls back to automatic assignment - if it is
+ * not a single character, is not in the pool, or is already held by another
+ * color. When two colors pin the same symbol the first one in grid order wins.
  */
-export function buildSymbolMap(dmcGrid, dmcPalette, isPK = false) {
+export function buildSymbolMap(dmcGrid, dmcPalette, isPK = false, overrides = null) {
     const uniqueCodes = [...new Set(dmcGrid.flat())].map(String).filter(c => c !== "0");
     const adjacency = buildAdjacencyMap(dmcGrid);
 
@@ -114,16 +121,32 @@ export function buildSymbolMap(dmcGrid, dmcPalette, isPK = false) {
         codeToRgb[String(code)] = rgb;
     });
 
-    // Curated symbols are re-randomised on every export. The overflow pool is
-    // appended in codepoint order (not shuffled) so the most readable glyphs are
-    // spent first if a pattern ever exceeds the curated set. [cite: 1, 5]
-    const symbolSet = shuffle(isPK ? PK_SYMBOLS : SYMBOLS);
-    symbolSet.push(...SYMBOLS_FALLBACK);
+    // Curated symbols are shuffled so the assignment differs each time this is
+    // called. The overflow pool is appended in order (not shuffled) so the most
+    // readable glyphs are spent first if a pattern exceeds the curated set. [cite: 1, 5]
+    const curatedPool = shuffle(isPK ? PK_SYMBOLS : SYMBOLS);
+    const symbolSet = [...curatedPool, ...SYMBOLS_FALLBACK];
 
     const assigned = {};
     const usedSymbols = new Set();
 
+    // Pinned colors first. Assigning these before the random passes - and seeding
+    // usedSymbols with them - is what guarantees a pin cannot be stolen.
+    if (overrides) {
+        const pool = new Set(symbolSet);
+        for (const code of uniqueCodes) {
+            const wanted = overrides[code];
+            if (!wanted) continue;
+            if (typeof wanted !== "string" || [...wanted].length !== 1) continue;
+            if (!pool.has(wanted)) continue;
+            if (usedSymbols.has(wanted)) continue;
+            assigned[code] = wanted;
+            usedSymbols.add(wanted);
+        }
+    }
+
     for (const code of uniqueCodes) {
+        if (Object.prototype.hasOwnProperty.call(assigned, code)) continue;
         const forbidden = new Set();
         if (adjacency[code]) {
             for (const n of adjacency[code]) {

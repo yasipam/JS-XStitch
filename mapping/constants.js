@@ -592,9 +592,13 @@ export const SYMBOLS_FALLBACK = (
     "╢╣╤╥╦╧╨╩╪╫╬╭╮╯╰╱╲╳╴╵╶╷╸╹╺╻╼╽╾╿"
 ).split("");
 
-// Symbol pool for Pattern Keeper exports, used instead of SYMBOLS when the PK
-// option is on. Deliberately narrower: PK charts are small, so the plain
-// geometric tier from SYMBOLS is omitted here.
+// Every symbol the exporter can reach, in preference order. Used by the symbol
+// picker so its "show all" list matches what an export is actually able to draw.
+export const ALL_SYMBOLS = [...SYMBOLS, ...SYMBOLS_FALLBACK];
+
+// Symbol pool for Pattern Keeper exports. NOTE: currently unused - buildExportData
+// gates the PK pool on options.type, which no call site passes, so PK exports
+// draw from SYMBOLS above. Kept in case that flag is ever wired up.
 export const PK_SYMBOLS = [
     "♡", "♥", "❣", "❥", "❦", "★", "☆", "✦", "✧", "✩", "✪", "✱", "✿", "❀",
     "❄", "❅", "☀", "☁", "☂", "☃", "☄", "☽", "☾", "♈", "♉", "♊", "♋", "♌",

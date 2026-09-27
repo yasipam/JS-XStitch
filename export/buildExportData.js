@@ -68,7 +68,15 @@ export function buildExportData(state, mappingConfig, options = {}) {
     return {
         dmcGrid,
         rgbGrid: exportVisualGrid,
-        symbolMap: buildSymbolMap(dmcGrid, DMC_RGB, options.type === 'PK'),
+        // Callers normally pass the live symbol map via options.symbolMap so the
+        // chart matches the symbols shown in the Threads panel, including any the
+        // user pinned. The build below is the fallback for standalone callers.
+        symbolMap: options.symbolMap || buildSymbolMap(
+            dmcGrid,
+            DMC_RGB,
+            options.type === 'PK',
+            mappingConfig.symbolOverrides
+        ),
         palette,
         totalStitches,
         totalBackstitches,
