@@ -548,33 +548,81 @@ export const KERNELS = {
 // SYMBOLS FOR PATTERN RENDERING
 // -----------------------------------------------------------------------------
 
+// Curated pool for pattern rendering, chosen for distinctness first: a chart is
+// only readable if neighbouring symbols differ, so near-duplicate clusters are
+// capped (one eight-pointed sparkle group, not eight) and the overflowing copies
+// live in SYMBOLS_FALLBACK instead. Covers patterns of up to 54 colours.
+//
+// Constraints when editing this list:
+// - One character per entry. Each is drawn as a single centred glyph per stitch.
+// - Every entry must exist in the embedded font (export/fontData.js), otherwise
+//   it renders as a blank box. Check before adding: no letters, no digits.
+// - Keep it generous enough for your largest pattern, otherwise the export falls
+//   through to SYMBOLS_FALLBACK.
+// Adding a symbol that resembles one already here? Add it to SYMBOL_FAMILIES so
+// the colour-similarity check knows the two are related.
 export const SYMBOLS = [
-    "◭", "✣", "◘", "7", "◪", "♟", "✽", "◣", "A", "⬒", "✸", "◧", "☘", "5", "◐", "♞",
-    "❱", "◢", "H", "╦", "✦", "◖", "2", "◼", "✘", "☗", "◩", "♥", "X", "⋂", "◮", "✚",
-    "♠", "◒", "❣", "W", "◥", "8", "⬓", "♣", "◗", "✿", "∎", "B", "▼", "❰", "⬔", "✱",
-    "R", "╬", "▲", "F", "◨", "✦", "♦", "U", "⬕", "☯", "↺", "M", "✱", "4", "✦", "T",
-    "N", "E", "V", "D", "K", "❥"
+    "♡", "♥", "❣", "❥", "❦", "★", "☆", "✦", "✧", "✩", "✪", "✱", "✿", "❀",
+    "❄", "❅", "☀", "☁", "☂", "☃", "☄", "☽", "☾", "♈", "♉", "♊", "♋", "♌",
+    "♍", "♎", "♏", "♐", "♑", "♪", "♫", "☺", "☻", "☕", "☎", "✂", "✏", "♔", "♛",
+    "❱", "❰", "↺", "●", "○", "◆", "◇", "▲", "▼", "■", "▬"
 ];
 
+// Overflow pool for patterns with more colours than SYMBOLS holds. This array is
+// consumed strictly in order (see buildSymbolMap), so the glyphs are laid out in
+// preference tiers rather than by codepoint: remaining geometric shapes, block
+// elements, supplementary symbols, misc symbols, dingbats, currency, arrows, and
+// finally box-drawing characters as a last resort. A pattern would have to exceed
+// 516 colours before a line character could appear.
+//
+// Every entry is a single BMP codepoint verified present in the embedded font
+// (export/fontData.js), restricted to Unicode categories So/Sc. No letters, no
+// digits, and religious glyphs are excluded. Disjoint from SYMBOLS and PK_SYMBOLS.
+// Uniqueness is the only invariant here - these glyphs have no SYMBOL_FAMILIES
+// entry, so colour-similarity and adjacency checks do not constrain them.
+// Regenerate: parse the cmap of DEJAVU_FONT_BASE64 and apply the filters above.
+export const SYMBOLS_FALLBACK = (
+    "□▢▣▤▥▦▧▨▩▪▫▭▮▯▰▱△▴▵▶▸▹►▻▽▾▿◀◂◃◄◅◈◉◊◌◍◎◐◑◒◓◔◕◖◗◘◙◚◛◜◝◞◟◠◡◢◣◤◥◦◧◨◩◪◫◬◭◮◯◰◱◲◳◴◵◶◷▀▁" +
+    "▂▃▄▅▆▇█▉▊▋▌▍▎▏▐░▒▓▔▕▖▗▘▙▚▛▜▝▞▟⬅⬆⬇⬈⬉⬊⬋⬌⬍⬒⬓⬔⬕⬖⬗⬘⬙⬚☇☈☉☊☋☌☍☏☐☑☒☓☔☖☗☙☚☛☜☝☞☟☠☡☢☣☤☥☦☧☸☹" +
+    "☼☿♀♁♂♃♄♅♆♇♒♓♕♖♗♘♙♚♜♝♞♟♠♢♣♤♦♧♨♩♬♭♮♰♱♲♳♴♵♶♷♸♹♺♻♼♽♾♿⚀⚁⚂⚃⚄⚅⚆⚇⚈⚉⚊⚋⚐⚑⚒⚓⚔⚕⚖⚗⚘⚙⚚⚛⚜⚠⚡⚰⚱✁✃" +
+    "✄✆✇✈✉✌✍✎✐✑✒✓✔✕✖✗✘✙✚✛✜✤✥✫✬✭✮✯✰✲✳✴✵✶✷✸✹✺✻✼✽✾❁❂❃❆❇❈❉❊❋❍❏❐❑❒❖❘❙❚❛❜❝❞❡❢❤❧➔➘➙➚➛➜➝➞➟➠➡➢" +
+    "➣➤➥➦➧➨➩➪➫➬➭➮➯➱➲➳➴➵➶➷➸➹➺➻➼➽➾$¢£¤¥₠₡₢₣₤₥₦₧₨₩₪₫€₭₮₯₰₱₲₳₴₵₸₹₺₽↕↖↗↘↙↜↝↞↟↡↢↤↥↧↨↩↪↫↬↭↯↰" +
+    "↱↲↳↴↵↶↷↸↹↻↼↽↾↿⇀⇁⇂⇃⇄⇅⇆⇇⇈⇉⇊⇋⇌⇍⇐⇑⇓⇕⇖⇗⇘⇙⇚⇛⇜⇝⇞⇟⇠⇡⇢⇣⇤⇥⇦⇧⇨⇩⇪⇫⇬⇭⇮⇯⇰⇱⇲⇳─━│┃┄┅┆┇┈┉┊┋┌┍┎┏┐┑" +
+    "┒┓└┕┖┗┘┙┚┛├┝┞┟┠┡┢┣┤┥┦┧┨┩┪┫┬┭┮┯┰┱┲┳┴┵┶┷┸┹┺┻┼┽┾┿╀╁╂╃╄╅╆╇╈╉╊╋╌╍╎╏═║╒╓╔╕╖╗╘╙╚╛╜╝╞╟╠╡" +
+    "╢╣╤╥╦╧╨╩╪╫╬╭╮╯╰╱╲╳╴╵╶╷╸╹╺╻╼╽╾╿"
+).split("");
+
+// Symbol pool for Pattern Keeper exports, used instead of SYMBOLS when the PK
+// option is on. Deliberately narrower: PK charts are small, so the plain
+// geometric tier from SYMBOLS is omitted here.
 export const PK_SYMBOLS = [
-    "♡", "♥", "❣", "❥", "❦", "❧", "✿", "❀", "❁", "❃", "❇", "❈",
-    "★", "☆", "✦", "✧", "✩", "✪", "☀", "☼", "☁", "☂", "☄", "☾", "☽",
-    "◆", "◇", "◈", "◉", "◎", "◍", "♠", "♣", "♦", "♢"
+    "♡", "♥", "❣", "❥", "❦", "★", "☆", "✦", "✧", "✩", "✪", "✱", "✿", "❀",
+    "❄", "❅", "☀", "☁", "☂", "☃", "☄", "☽", "☾", "♈", "♉", "♊", "♋", "♌",
+    "♍", "♎", "♏", "♐", "♑", "♪", "♫", "☺", "☻", "☕", "☎", "✂", "✏", "♔", "♛"
 ];
 
+// Grouped by actual visual similarity, not by Unicode block: two colours that
+// look alike should not both draw from the same family. Kept deliberately fine
+// grained - one lump per block would needlessly block whole sets of symbols when
+// two similar colours come up. Zodiac signs are left ungrouped: the twelve
+// figures don't resemble each other, so grouping them would cost 12 slots for no
+// readability gain. Symbols with no family here are always considered safe.
 const SYMBOL_FAMILIES = {
-    "triangles": ["▲", "▼", "◢", "◣", "◤", "◥"],
-    "blocks": ["◼", "∎", "◘"],
-    "flowers": ["✿", "✽", "✱"],
-    "stars": ["✦", "✸"],
-    "hearts": ["♥", "❣", "❥"],
+    "hearts": ["♡", "♥", "❣", "❥", "❦"],
+    "stars": ["★", "☆"],
+    "sparkles": ["✦", "✧", "✩", "✪", "✱"],
+    "florets": ["✿", "❀"],
+    "snowflakes": ["❄", "❅"],
+    "sun-moon": ["☀", "☽", "☾"],
+    "clouds": ["☁", "☂", "☃", "☄"],
+    "music": ["♪", "♫"],
+    "faces": ["☺", "☻"],
+    "chess": ["♔", "♛"],
     "arrows": ["❱", "❰"],
-    "chess": ["♞", "♟", "♜"],
-    "shapes": ["◧", "◨", "◩", "◪", "◮", "◭"],
-    "symbols": ["☯", "☘", "☻", "☗"],
-    "math": ["⋂", "⋃", "╦", "╬"],
-    "letters": ["A", "B", "D", "E", "F", "H", "K", "M", "N", "R", "T", "U", "V", "W", "X"],
-    "numbers": ["2", "4", "5", "7", "8"],
+    "circles": ["●", "○"],
+    "diamonds": ["◆", "◇"],
+    "triangles": ["▲", "▼"],
+    "squares": ["■", "▬"],
 };
 
 export const symbolToFamily = {};

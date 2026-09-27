@@ -3,7 +3,6 @@
 // JS conversion of symbols.py
 // Provides:
 // - buildAdjacencyMap: Maps which DMC colors touch each other
-// - symbolsTooSimilar: Checks if symbols belong to the same visual family
 // - buildSymbolMap: The primary engine for assigning safe, cute symbols
 // - assignSymbolsToPalette: Specific assignment for Pattern Keeper compatibility
 // -----------------------------------------------------------------------------
@@ -11,10 +10,25 @@
 import {
     SYMBOLS,
     PK_SYMBOLS,
+    SYMBOLS_FALLBACK,
     symbolToFamily,
     SIMILAR_COLOUR_THRESHOLD,
     colourDistance
 } from "./constants.js";
+
+/**
+ * Randomises the order of the symbol pool. Called on every export so the same
+ * pattern never renders the same chart twice. Always works on a copy - the
+ * pool constants are module-level and shared.
+ */
+function shuffle(items) {
+    const out = [...items];
+    for (let i = out.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [out[i], out[j]] = [out[j], out[i]];
+    }
+    return out;
+}
 
 /**
  * Creates a map of which DMC codes are adjacent in the grid.
@@ -47,21 +61,16 @@ export function buildAdjacencyMap(dmcGrid) {
 }
 
 /**
- * Returns true if two symbols are in the same visual family (e.g., both are stars). [cite: 3]
+ * Collects the symbol families that `code` must avoid: for every already-assigned
+ * color that is visually close to `code`, the family of that color's symbol.
+ * Returned as a Set so the pool scan below is O(1) per candidate rather than
+ * re-walking every assigned color for each symbol tried. [cite: 3]
  */
-export function symbolsTooSimilar(sym1, sym2) {
-    if (!sym1 || !sym2) return false;
-    return symbolToFamily[sym1] && symbolToFamily[sym1] === symbolToFamily[sym2];
-}
-
-/**
- * Checks if a symbol is safe to use for a specific color code based on 
- * already assigned neighboring or similar colors. [cite: 1, 3]
- */
-export function isSafeSymbol(symbol, code, assigned, codeToRgb) {
+function forbiddenFamilies(code, assigned, codeToRgb) {
+    const families = new Set();
     const thisRgb = codeToRgb[code];
     // If the current code has no RGB data, we can't do distance checks; assume safe.
-    if (!thisRgb) return true;
+    if (!thisRgb) return families;
 
     for (const [otherCode, otherSymbol] of Object.entries(assigned)) {
         const otherRgb = codeToRgb[otherCode];
@@ -69,17 +78,32 @@ export function isSafeSymbol(symbol, code, assigned, codeToRgb) {
         // CRITICAL FIX: Skip comparison if the other color data is missing
         if (!otherRgb) continue;
 
-        // If colors are visually similar, ensure symbols are NOT in the same family
+        // If colors are visually similar, the symbol must not be in the same family
         if (colourDistance(thisRgb, otherRgb) < SIMILAR_COLOUR_THRESHOLD) {
-            if (symbolsTooSimilar(symbol, otherSymbol)) return false;
+            const family = symbolToFamily[otherSymbol];
+            if (family) families.add(family);
         }
     }
-    return true;
+    return families;
+}
+
+/**
+ * True if `symbol` is outside every family in `families`. Symbols with no
+ * family (e.g. anything from the overflow pool) can never collide here.
+ */
+function isSafeSymbol(symbol, families) {
+    const family = symbolToFamily[symbol];
+    return !family || !families.has(family);
 }
 
 /**
  * The main mapping engine. Assigns unique symbols to each DMC color in the project.
  * Supports a specialized mode for Pattern Keeper (PK). [cite: 1, 5]
+ *
+ * Every color is guaranteed its own symbol: the pool is re-randomised on each
+ * call and is large enough (curated set + overflow pool) to exceed the total
+ * number of DMC colors, so uniqueness is never traded away. Adjacency and
+ * color-family rules are readability preferences and are relaxed first.
  */
 export function buildSymbolMap(dmcGrid, dmcPalette, isPK = false) {
     const uniqueCodes = [...new Set(dmcGrid.flat())].map(String).filter(c => c !== "0");
@@ -90,7 +114,12 @@ export function buildSymbolMap(dmcGrid, dmcPalette, isPK = false) {
         codeToRgb[String(code)] = rgb;
     });
 
-    const symbolSet = isPK ? PK_SYMBOLS : SYMBOLS; // Use specific PK set if requested [cite: 5]
+    // Curated symbols are re-randomised on every export. The overflow pool is
+    // appended in codepoint order (not shuffled) so the most readable glyphs are
+    // spent first if a pattern ever exceeds the curated set. [cite: 1, 5]
+    const symbolSet = shuffle(isPK ? PK_SYMBOLS : SYMBOLS);
+    symbolSet.push(...SYMBOLS_FALLBACK);
+
     const assigned = {};
     const usedSymbols = new Set();
 
@@ -102,31 +131,39 @@ export function buildSymbolMap(dmcGrid, dmcPalette, isPK = false) {
             }
         }
 
+        const families = forbiddenFamilies(code, assigned, codeToRgb);
+
         let assignedSymbol = null;
 
-        // Pass 1: Try to find a symbol that is unused and visually distinct from similar colors [cite: 3]
+        // Pass 1: Try to find a symbol that is unused, not already used by a
+        // neighbour, and visually distinct from similar colors [cite: 3]
         for (const symbol of symbolSet) {
             if (forbidden.has(symbol)) continue;
             if (usedSymbols.has(symbol)) continue;
-            if (!isSafeSymbol(symbol, code, assigned, codeToRgb)) continue;
+            if (!isSafeSymbol(symbol, families)) continue;
 
             assignedSymbol = symbol;
-            usedSymbols.add(symbol);
             break;
         }
 
-        // Pass 2: Fallback to any symbol that is at least safe color-wise if all unique ones are gone
+        // Pass 2: Drop the adjacency rule, never the uniqueness rule. Two
+        // distant colors sharing a similar family is merely suboptimal; one
+        // glyph meaning two colors makes the chart unreadable.
         if (!assignedSymbol) {
             for (const symbol of symbolSet) {
-                if (forbidden.has(symbol)) continue;
-                if (!isSafeSymbol(symbol, code, assigned, codeToRgb)) continue;
+                if (usedSymbols.has(symbol)) continue;
+                if (!isSafeSymbol(symbol, families)) continue;
                 assignedSymbol = symbol;
                 break;
             }
         }
 
-        // Pass 3: Ultimate fallback (circular assignment)
-        assigned[code] = assignedSymbol || symbolSet[Object.keys(assigned).length % symbolSet.length];
+        if (assignedSymbol) usedSymbols.add(assignedSymbol);
+
+        // Unreachable in practice: the pool is larger than the DMC color table.
+        // Leave the empty string so renderers fall back to '?' rather than
+        // silently handing this color a glyph another color already owns.
+        assigned[code] = assignedSymbol || "";
     }
     return assigned;
 }
