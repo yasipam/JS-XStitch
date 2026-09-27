@@ -2,7 +2,7 @@ import "jspdf";
 import { DEJAVU_FONT_BASE64 } from "./fontData.js";
 import { DMC_RGB } from "../mapping/constants.js";
 
-export async function exportPDF(data, exportType = 'PRINTABLE') {
+export async function exportPDF(data, exportType = 'PRINTABLE', options = {}) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
 
@@ -19,11 +19,11 @@ export async function exportPDF(data, exportType = 'PRINTABLE') {
     }
 
     if (exportType === 'PRINTABLE') {
-        drawPatternPages(doc, data, true, false);
+        drawPatternPages(doc, data, true, false, options);
     } else if (exportType === 'STANDARD') {
-        drawPatternPages(doc, data, false, false);
+        drawPatternPages(doc, data, false, false, options);
     } else if (exportType === 'PK') {
-        drawPatternPages(doc, data, false, true);
+        drawPatternPages(doc, data, false, true, options);
     }
 
     drawLegendPage(doc, data, exportType === 'PK');
@@ -124,21 +124,24 @@ async function drawCoverPage(doc, data) {
 /**
  * Grid Lines Helper
  */
-function drawGrid(doc, x0, y0, w, h, size) {
+function drawGrid(doc, x0, y0, w, h, size, boldGridlines = true) {
     doc.setDrawColor(117, 117, 117);
+    const majorWidth = 0.5;
+    const minorWidth = 0.1;
     for (let i = 0; i <= w; i++) {
-        doc.setLineWidth(i % 10 === 0 ? 0.5 : 0.1);
+        doc.setLineWidth(boldGridlines && i % 10 === 0 ? majorWidth : minorWidth);
         doc.line(x0 + i * size, y0, x0 + i * size, y0 + h * size);
     }
     for (let j = 0; j <= h; j++) {
-        doc.setLineWidth(j % 10 === 0 ? 0.5 : 0.1);
+        doc.setLineWidth(boldGridlines && j % 10 === 0 ? majorWidth : minorWidth);
         doc.line(x0, y0 + j * size, x0 + w * size, y0 + j * size);
     }
 }
 
-function drawPatternPages(doc, data, isPrintable, isPK) {
+function drawPatternPages(doc, data, isPrintable, isPK, options = {}) {
     const { dmcGrid, rgbGrid, fabricCount, symbolMap, palette, backstitchLines } = data;
     const mode = isPK ? 'symbol' : data.exportMode;
+    const { boldGridlines = true } = options;
 
     const cellSize = isPrintable ? (25.4 / fabricCount) : 3.5;
     const tileW = isPrintable ? dmcGrid[0].length : 50;
@@ -242,7 +245,7 @@ function drawPatternPages(doc, data, isPrintable, isPK) {
                     }
                 }
             }
-            drawGrid(doc, x0, y0, actualTileW, actualTileH, cellSize);
+            drawGrid(doc, x0, y0, actualTileW, actualTileH, cellSize, boldGridlines);
 
             // Draw backstitches if available
             if (backstitchLines && backstitchLines.length > 0) {

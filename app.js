@@ -3166,6 +3166,7 @@ function setupExportButtons() {
     const modeSelect = document.getElementById("exportModeSelect"); // crosses, symbol, filled
     const pdfTypeSelect = document.getElementById("pdfTypeSelect"); // Printable vs Standard
     const pkCheckbox = document.getElementById("addPatternKeeper");
+    const boldGridCheckbox = document.getElementById("boldGridlines");
     const stampedToggle = document.getElementById("stampedMode");
 
     // Enable/disable tent-symmetry based on grid dimensions
@@ -3253,10 +3254,11 @@ function setupExportButtons() {
                 data.palette = dataPalette.sort((a, b) => b.count - a.count);
 
                 const exportType = pdfTypeSelect ? pdfTypeSelect.value : 'PRINTABLE';
-                await exportPDF(data, exportType);
+                const exportOptions = { boldGridlines: !boldGridCheckbox || boldGridCheckbox.checked };
+                await exportPDF(data, exportType, exportOptions);
 
                 if (pkCheckbox && pkCheckbox.checked) {
-                    await exportPDF(data, 'PK');
+                    await exportPDF(data, 'PK', exportOptions);
                 }
             } catch (error) {
                 console.error("PDF Export failed:", error);
