@@ -71,8 +71,9 @@ export async function exportToSizeImage(data, options = {}) {
 
 // Browser canvas limits vary widely (Safari is the strictest). These caps keep
 // a large pattern at a high scale from producing a blank or crashed canvas.
-const CHART_MAX_SIDE = 8192;
-const CHART_MAX_AREA = 16777216; // 16 MP
+// 64 MP (~256 MB per canvas) is heavy, so very large patterns still cap down.
+const CHART_MAX_SIDE = 16384;
+const CHART_MAX_AREA = 67108864; // 64 MP
 
 /** Largest whole pixels-per-stitch that keeps the canvas inside the limits. */
 export function maxChartScale(width, height) {
@@ -87,13 +88,13 @@ export function maxChartScale(width, height) {
  * This fills a white background first so empty cells stay white.
  * @param {object} data  export payload from prepareChartExportData()
  * @param {object} [options]
- * @param {number} [options.scale=16]  requested pixels per stitch (auto-capped)
+ * @param {number} [options.scale=64]  requested pixels per stitch (auto-capped)
  * @param {boolean} [options.includeBackstitches=true]
  * @param {boolean} [options.showGrid=false]
  */
 export async function exportChartImage(data, options = {}) {
     const {
-        scale = 16,
+        scale = 64,
         includeBackstitches = true,
         showGrid = false
     } = options;

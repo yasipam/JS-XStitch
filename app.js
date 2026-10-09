@@ -3615,9 +3615,9 @@ function setupExportButtons() {
                 }
 
                 const data = prepareChartExportData();
-                const scale = chartScaleSelect ? parseInt(chartScaleSelect.value) : 16;
+                const scale = chartScaleSelect ? parseInt(chartScaleSelect.value) : 64;
                 await exportChartImage(data, {
-                    scale: scale || 16,
+                    scale: scale || 64,
                     includeBackstitches: true,
                     showGrid: showGridCheckbox ? showGridCheckbox.checked : false
                 });
