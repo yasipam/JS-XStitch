@@ -65,7 +65,8 @@ export async function exportToSizeImage(data, options = {}) {
 // SCALED CHART EXPORT
 // Renders the full chart exactly as the PDF chart does - the current stitch
 // rendering mode (symbols & colours, crosses, filled, etc.) - but at a chosen
-// number of pixels per stitch instead of physical size. Output is a single JPG.
+// number of pixels per stitch instead of physical size. Output is a single PNG
+// (lossless, so hard colour edges and symbols stay crisp).
 // -----------------------------------------------------------------------------
 
 // Browser canvas limits vary widely (Safari is the strictest). These caps keep
@@ -82,9 +83,8 @@ export function maxChartScale(width, height) {
 }
 
 /**
- * Download the whole chart as a scaled JPG.
- * Unlike the to-size export this fills a white background first: JPEG has no
- * alpha channel, so anything transparent would otherwise encode as black.
+ * Download the whole chart as a scaled PNG.
+ * This fills a white background first so empty cells stay white.
  * @param {object} data  export payload from prepareChartExportData()
  * @param {object} [options]
  * @param {number} [options.scale=16]  requested pixels per stitch (auto-capped)
@@ -122,7 +122,7 @@ export async function exportChartImage(data, options = {}) {
     offscreenCanvas.height = canvasHeight;
     const ctx = offscreenCanvas.getContext('2d', { alpha: false });
 
-    // JPEG has no transparency: paint white first so empty cells stay white.
+    // Paint white first so empty cells stay white rather than transparent.
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
@@ -148,12 +148,12 @@ export async function exportChartImage(data, options = {}) {
     }
 
     // toBlob keeps peak memory lower than toDataURL for large canvases.
-    const blob = await new Promise(resolve => offscreenCanvas.toBlob(resolve, 'image/jpeg', 0.92));
-    if (!blob) throw new Error('Canvas too large to encode as JPEG');
+    const blob = await new Promise(resolve => offscreenCanvas.toBlob(resolve, 'image/png'));
+    if (!blob) throw new Error('Canvas too large to encode as PNG');
 
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.download = 'pattern_chart.jpg';
+    link.download = 'pattern_chart.png';
     link.href = url;
     link.click();
     URL.revokeObjectURL(url);

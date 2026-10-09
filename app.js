@@ -3400,7 +3400,7 @@ function setupMappingControls() {
 
 /**
  * Build the export payload shared by every chart export (PDF, to-size image,
- * scaled chart JPG). Captures live canvas edits, applies stamped colours, and
+ * scaled chart PNG). Captures live canvas edits, applies stamped colours, and
  * keys the symbol map to the grid actually being drawn so the export matches
  * the Threads panel. Returns a fully populated `data` object.
  */
@@ -3602,12 +3602,12 @@ function setupExportButtons() {
         };
     }
 
-    // --- SCALED CHART JPG EXPORT ---
-    const exportChartJpgBtn = document.getElementById("exportChartJpgBtn");
+    // --- SCALED CHART PNG EXPORT ---
+    const exportChartPngBtn = document.getElementById("exportChartPngBtn");
     const chartScaleSelect = document.getElementById("chartScaleSelect");
 
-    if (exportChartJpgBtn) {
-        exportChartJpgBtn.onclick = async () => {
+    if (exportChartPngBtn) {
+        exportChartPngBtn.onclick = async () => {
             try {
                 if (!state.mappedDmcGrid) {
                     console.error("No grid data available to export.");
@@ -3622,7 +3622,7 @@ function setupExportButtons() {
                     showGrid: showGridCheckbox ? showGridCheckbox.checked : false
                 });
             } catch (error) {
-                console.error("Chart JPG Export failed:", error);
+                console.error("Chart PNG Export failed:", error);
             }
         };
     }
