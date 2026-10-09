@@ -19,6 +19,7 @@ import { parseOxsFileFromFile } from "./import/importOXS.js";
 import { buildExportData } from "./export/buildExportData.js";
 import { exportPDF } from "./export/exportPDF.js";
 import { exportToSizeImage, exportChartImage } from "./export/exportImage.js";
+import { exportPaletteCSV } from "./export/exportCSV.js";
 import { buildSymbolMap } from "./mapping/symbols.js";
 import { DEJAVU_FONT_BASE64 } from "./export/fontData.js";
 
@@ -3574,6 +3575,23 @@ function setupExportButtons() {
                 false,
                 mappingConfig.exportRgbLabels
             );
+        };
+    }
+
+    // --- PALETTE CSV EXPORT ---
+    const exportPaletteCsvBtn = document.getElementById("exportPaletteCsvBtn");
+    if (exportPaletteCsvBtn) {
+        exportPaletteCsvBtn.onclick = () => {
+            try {
+                if (!state.mappedDmcGrid) {
+                    console.error("[CSV Export] No grid data available to export.");
+                    return;
+                }
+                exportPaletteCSV(prepareChartExportData(), "pattern_palette.csv");
+            } catch (error) {
+                console.error("[CSV Export] Failed:", error);
+                alert("Palette CSV export failed. See console for details.");
+            }
         };
     }
 
