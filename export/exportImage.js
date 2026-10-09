@@ -61,6 +61,104 @@ export async function exportToSizeImage(data, options = {}) {
     link.click();
 }
 
+// -----------------------------------------------------------------------------
+// SCALED CHART EXPORT
+// Renders the full chart exactly as the PDF chart does - the current stitch
+// rendering mode (symbols & colours, crosses, filled, etc.) - but at a chosen
+// number of pixels per stitch instead of physical size. Output is a single JPG.
+// -----------------------------------------------------------------------------
+
+// Browser canvas limits vary widely (Safari is the strictest). These caps keep
+// a large pattern at a high scale from producing a blank or crashed canvas.
+const CHART_MAX_SIDE = 8192;
+const CHART_MAX_AREA = 16777216; // 16 MP
+
+/** Largest whole pixels-per-stitch that keeps the canvas inside the limits. */
+export function maxChartScale(width, height) {
+    if (!width || !height) return 1;
+    const bySide = CHART_MAX_SIDE / Math.max(width, height);
+    const byArea = Math.sqrt(CHART_MAX_AREA / (width * height));
+    return Math.max(1, Math.floor(Math.min(bySide, byArea)));
+}
+
+/**
+ * Download the whole chart as a scaled JPG.
+ * Unlike the to-size export this fills a white background first: JPEG has no
+ * alpha channel, so anything transparent would otherwise encode as black.
+ * @param {object} data  export payload from prepareChartExportData()
+ * @param {object} [options]
+ * @param {number} [options.scale=16]  requested pixels per stitch (auto-capped)
+ * @param {boolean} [options.includeBackstitches=true]
+ * @param {boolean} [options.showGrid=false]
+ */
+export async function exportChartImage(data, options = {}) {
+    const {
+        scale = 16,
+        includeBackstitches = true,
+        showGrid = false
+    } = options;
+
+    const { dmcGrid, rgbGrid, symbolMap, backstitchLines } = data;
+    const mode = data.exportMode || 'filled';
+
+    const width = dmcGrid[0].length;
+    const height = dmcGrid.length;
+
+    // Cap the requested scale so the canvas stays within browser limits. This is
+    // silent by design: the export still succeeds, just at the largest safe size.
+    const effectiveScale = Math.min(scale, maxChartScale(width, height));
+
+    // Symbols are drawn with the same embedded DejaVu build the PDF uses, so every
+    // glyph in the symbol picker renders. Wait for the face if it is still loading.
+    if (mode === 'symbol' && typeof document !== 'undefined' && document.fonts) {
+        try { await document.fonts.load('12px "XStitchSymbols"'); } catch (e) { /* fall back to sans-serif */ }
+    }
+
+    const canvasWidth = width * effectiveScale;
+    const canvasHeight = height * effectiveScale;
+
+    const offscreenCanvas = document.createElement('canvas');
+    offscreenCanvas.width = canvasWidth;
+    offscreenCanvas.height = canvasHeight;
+    const ctx = offscreenCanvas.getContext('2d', { alpha: false });
+
+    // JPEG has no transparency: paint white first so empty cells stay white.
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const code = String(dmcGrid[y][x]);
+            if (code === "0") continue;
+
+            const cx = x * effectiveScale;
+            const cy = y * effectiveScale;
+            const displayRgb = rgbGrid[y][x];
+
+            renderStitch(ctx, mode, displayRgb, cx, cy, effectiveScale, code, symbolMap, width, height);
+        }
+    }
+
+    if (includeBackstitches && backstitchLines && backstitchLines.length > 0) {
+        renderBackstitches(ctx, backstitchLines, effectiveScale);
+    }
+
+    if (showGrid) {
+        drawCanvasGrid(ctx, width, height, effectiveScale);
+    }
+
+    // toBlob keeps peak memory lower than toDataURL for large canvases.
+    const blob = await new Promise(resolve => offscreenCanvas.toBlob(resolve, 'image/jpeg', 0.92));
+    if (!blob) throw new Error('Canvas too large to encode as JPEG');
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.download = 'pattern_chart.jpg';
+    link.href = url;
+    link.click();
+    URL.revokeObjectURL(url);
+}
+
 function renderStitch(ctx, mode, rgb, x, y, cellSize, code, symbolMap, gridWidth, gridHeight) {
     switch (mode) {
         case 'filled':
@@ -146,7 +244,7 @@ function renderStitch(ctx, mode, rgb, x, y, cellSize, code, symbolMap, gridWidth
             const sym = symbolMap[code] || '?';
             const luminance = 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2];
             ctx.fillStyle = luminance < 128 ? 'white' : 'black';
-            ctx.font = `bold ${cellSize * 0.7}px sans-serif`;
+            ctx.font = `bold ${cellSize * 0.7}px "XStitchSymbols", sans-serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(sym, x + cellSize / 2, y + cellSize / 2);
@@ -191,18 +289,22 @@ function renderBackstitches(ctx, lines, cellPixelSize) {
 
 function drawCanvasGrid(ctx, cols, rows, cellSize) {
     ctx.strokeStyle = 'rgba(10, 10, 10, 0.5)';
+    // Scale the line weights with the cell so they stay visible when the chart is
+    // blown up (a fixed 1/3px hairline all but disappears at 32px per stitch).
+    const minorWidth = Math.max(1, cellSize * 0.03);
+    const majorWidth = Math.max(2, cellSize * 0.08);
     ctx.beginPath();
 
     for (let i = 0; i <= cols; i++) {
         const x = i * cellSize;
-        ctx.lineWidth = i % 10 === 0 ? 3 : 1;
+        ctx.lineWidth = i % 10 === 0 ? majorWidth : minorWidth;
         ctx.moveTo(x, 0);
         ctx.lineTo(x, rows * cellSize);
     }
 
     for (let j = 0; j <= rows; j++) {
         const y = j * cellSize;
-        ctx.lineWidth = j % 10 === 0 ? 3 : 1;
+        ctx.lineWidth = j % 10 === 0 ? majorWidth : minorWidth;
         ctx.moveTo(0, y);
         ctx.lineTo(cols * cellSize, y);
     }

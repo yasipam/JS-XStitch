@@ -18,7 +18,7 @@ import { parseOxsFileFromFile } from "./import/importOXS.js";
 // Export Logic
 import { buildExportData } from "./export/buildExportData.js";
 import { exportPDF } from "./export/exportPDF.js";
-import { exportToSizeImage } from "./export/exportImage.js";
+import { exportToSizeImage, exportChartImage } from "./export/exportImage.js";
 import { buildSymbolMap } from "./mapping/symbols.js";
 import { DEJAVU_FONT_BASE64 } from "./export/fontData.js";
 
@@ -3394,6 +3394,77 @@ function setupMappingControls() {
     }
 } // <--- Properly closing setupMappingControls here
 
+/**
+ * Build the export payload shared by every chart export (PDF, to-size image,
+ * scaled chart JPG). Captures live canvas edits, applies stamped colours, and
+ * keys the symbol map to the grid actually being drawn so the export matches
+ * the Threads panel. Returns a fully populated `data` object.
+ */
+function prepareChartExportData() {
+    const fabricSelect = document.getElementById("fabricCountSelect");
+    const modeSelect = document.getElementById("exportModeSelect");
+
+    let exportDmcGrid = state.mappedDmcGrid;
+    let exportRgbGrid = state.mappedRgbGrid;
+
+    // Always get the live grid from the canvas to capture user edits (including eraser)
+    if (state.mappedRgbGrid) {
+        const convertedGrid = getLiveDmcGridFromRgb(state.mappedRgbGrid);
+        if (convertedGrid) {
+            exportDmcGrid = convertedGrid;
+            exportRgbGrid = state.mappedRgbGrid;
+        }
+    }
+
+    // For OXS or empty canvas with stamped mode: build stamped grid and lookup
+    let stampedLookup = {};
+    let exportVisualGrid = exportRgbGrid;
+    if (mappingConfig.stampedMode && exportDmcGrid) {
+        const stampedResult = buildStampedGrid(exportDmcGrid, { hueShift: mappingConfig.stampedHue });
+        exportVisualGrid = stampedResult.grid;
+        stampedLookup = stampedResult.lookup;
+    }
+
+    const data = buildExportData(state, mappingConfig, {
+        fabricCount: fabricSelect ? fabricSelect.value : mappingConfig.exportFabricCount,
+        mode: modeSelect ? modeSelect.value : mappingConfig.exportMode
+    });
+
+    // Override grids with live data to capture user edits (including eraser)
+    data.dmcGrid = exportDmcGrid;
+    data.rgbGrid = exportVisualGrid;
+
+    // Symbols must cover the grid actually being drawn, not the mapped baseline
+    // buildExportData saw. Reuse the live map so the chart shows the same symbols
+    // as the Threads panel; it only rebuilds if the edits introduced a new colour.
+    data.symbolMap = symbolMapForGrid(exportDmcGrid);
+
+    // Rebuild palette with live data. OXS uses loadedOxsPalette; otherwise DMC_RGB.
+    const usedCodes = new Set(exportDmcGrid.flat().map(String));
+    let dataPalette = [];
+    if (isOxsLoaded) {
+        dataPalette = Object.entries(loadedOxsPalette)
+            .filter(([code]) => usedCodes.has(code))
+            .map(([code, entry]) => ({
+                code: code,
+                name: entry.name,
+                rgb: entry.rgb,
+                stampedRgb: mappingConfig.stampedMode ? (stampedLookup[code] || null) : null,
+                count: exportDmcGrid.flat().filter(c => String(c) === code).length
+            }));
+    } else {
+        dataPalette = DMC_RGB.filter(d => usedCodes.has(String(d[0]))).map(d => ({
+            code: String(d[0]),
+            name: d[1],
+            rgb: d[2],
+            stampedRgb: mappingConfig.stampedMode ? (stampedLookup[String(d[0])] || null) : null,
+            count: exportDmcGrid.flat().filter(c => String(c) === String(d[0])).length
+        }));
+    }
+    data.palette = dataPalette.sort((a, b) => b.count - a.count);
+    return data;
+}
+
 function setupExportButtons() {
     const exportPdfBtn = document.getElementById("exportPDFBtn");
     const exportPngBtn = document.getElementById("exportPngBtn");
@@ -3425,77 +3496,7 @@ function setupExportButtons() {
                 console.log('[PDF Export] state.mappedRgbGrid exists:', !!state.mappedRgbGrid);
                 console.log('[PDF Export] state.mappedDmcGrid exists:', !!state.mappedDmcGrid);
 
-                let exportDmcGrid = state.mappedDmcGrid;
-                let exportRgbGrid = state.mappedRgbGrid;
-
-                // Always get live grid from canvas to capture user edits (including eraser)
-                if (state.mappedRgbGrid) {
-                    const convertedGrid = getLiveDmcGridFromRgb(state.mappedRgbGrid);
-                    console.log('[PDF Export] getLiveDmcGridFromRgb result:', convertedGrid ? 'valid' : 'null');
-                    if (convertedGrid) {
-                        // Debug: count "0" codes in converted grid
-                        let zeroCount = 0;
-                        for (let y = 0; y < Math.min(5, convertedGrid.length); y++) {
-                            for (let x = 0; x < Math.min(5, convertedGrid[0].length); x++) {
-                                if (convertedGrid[y][x] === "0") zeroCount++;
-                            }
-                        }
-                        console.log('[PDF Export] First 5x5 has', zeroCount, '"0" codes');
-                    }
-                    exportDmcGrid = convertedGrid || exportDmcGrid;
-                    exportRgbGrid = state.mappedRgbGrid;
-                }
-
-                // For OXS or empty canvas with stamped mode: build stamped grid and lookup
-                let stampedLookup = {};
-                let exportVisualGrid = exportRgbGrid;
-                if (mappingConfig.stampedMode && exportDmcGrid) {
-                    const stampedResult = buildStampedGrid(exportDmcGrid, { hueShift: mappingConfig.stampedHue });
-                    exportVisualGrid = stampedResult.grid;
-                    stampedLookup = stampedResult.lookup;
-                }
-
-                const data = buildExportData(state, mappingConfig, {
-                    fabricCount: fabricSelect.value,
-                    mode: modeSelect.value
-                });
-
-                // Always override grids with live data to capture user edits (including eraser)
-                data.dmcGrid = exportDmcGrid;
-                data.rgbGrid = exportVisualGrid;
-
-                // Symbols must cover the grid actually being drawn, not the mapped
-                // baseline buildExportData saw. Reuse the live map so the chart shows
-                // the same symbols as the Threads panel; it only rebuilds if the
-                // edits introduced a colour that has none yet.
-                data.symbolMap = symbolMapForGrid(exportDmcGrid);
-
-                // Rebuild palette with live data
-                const usedCodes = new Set(exportDmcGrid.flat().map(String));
-
-                // For OXS, use loadedOxsPalette; for empty canvas or image, use DMC_RGB
-                let dataPalette = [];
-                if (isOxsLoaded) {
-                    dataPalette = Object.entries(loadedOxsPalette)
-                        .filter(([code]) => usedCodes.has(code))
-                        .map(([code, entry]) => ({
-                            code: code,
-                            name: entry.name,
-                            rgb: entry.rgb,
-                            stampedRgb: mappingConfig.stampedMode ? (stampedLookup[code] || null) : null,
-                            count: exportDmcGrid.flat().filter(c => String(c) === code).length
-                        }));
-                } else {
-                    // Empty canvas or image mode - use DMC_RGB
-                    dataPalette = DMC_RGB.filter(d => usedCodes.has(String(d[0]))).map(d => ({
-                        code: String(d[0]),
-                        name: d[1],
-                        rgb: d[2],
-                        stampedRgb: mappingConfig.stampedMode ? (stampedLookup[String(d[0])] || null) : null,
-                        count: exportDmcGrid.flat().filter(c => String(c) === String(d[0])).length
-                    }));
-                }
-                data.palette = dataPalette.sort((a, b) => b.count - a.count);
+                const data = prepareChartExportData();
 
                 const exportType = pdfTypeSelect ? pdfTypeSelect.value : 'PRINTABLE';
                 const exportOptions = { boldGridlines: !boldGridCheckbox || boldGridCheckbox.checked };
@@ -3574,62 +3575,38 @@ function setupExportButtons() {
                     return;
                 }
 
-                let exportDmcGrid = state.mappedDmcGrid;
-                let exportRgbGrid = state.mappedRgbGrid;
-
-                if (state.mappedRgbGrid) {
-                    const convertedGrid = getLiveDmcGridFromRgb(state.mappedRgbGrid);
-                    if (convertedGrid) {
-                        exportDmcGrid = convertedGrid;
-                        exportRgbGrid = state.mappedRgbGrid;
-                    }
-                }
-
-                let stampedLookup = {};
-                let exportVisualGrid = exportRgbGrid;
-                if (mappingConfig.stampedMode && exportDmcGrid) {
-                    const stampedResult = buildStampedGrid(exportDmcGrid, { hueShift: mappingConfig.stampedHue });
-                    exportVisualGrid = stampedResult.grid;
-                    stampedLookup = stampedResult.lookup;
-                }
-
-                const data = buildExportData(state, mappingConfig, {
-                    fabricCount: fabricSelect.value,
-                    mode: modeSelect.value
-                });
-
-                data.dmcGrid = exportDmcGrid;
-                data.rgbGrid = exportVisualGrid;
-                data.symbolMap = symbolMapForGrid(exportDmcGrid);
-
-                const usedCodes = new Set(exportDmcGrid.flat().map(String));
-                let dataPalette = [];
-                if (isOxsLoaded) {
-                    dataPalette = Object.entries(loadedOxsPalette)
-                        .filter(([code]) => usedCodes.has(code))
-                        .map(([code, entry]) => ({
-                            code: code,
-                            name: entry.name,
-                            rgb: entry.rgb,
-                            stampedRgb: mappingConfig.stampedMode ? (stampedLookup[code] || null) : null,
-                            count: exportDmcGrid.flat().filter(c => String(c) === code).length
-                        }));
-                } else {
-                    dataPalette = DMC_RGB.filter(d => usedCodes.has(String(d[0]))).map(d => ({
-                        code: String(d[0]),
-                        name: d[1],
-                        rgb: d[2],
-                        stampedRgb: mappingConfig.stampedMode ? (stampedLookup[String(d[0])] || null) : null,
-                        count: exportDmcGrid.flat().filter(c => String(c) === String(d[0])).length
-                    }));
-                }
-                data.palette = dataPalette.sort((a, b) => b.count - a.count);
+                const data = prepareChartExportData();
 
                 const format = imageFormatSelect ? imageFormatSelect.value : 'png';
                 const dpi = imageDpiSelect ? parseInt(imageDpiSelect.value) : 96;
                 await exportToSizeImage(data, { format, dpi, includeBackstitches: true, showGrid: showGridCheckbox.checked });
             } catch (error) {
                 console.error("Image Export failed:", error);
+            }
+        };
+    }
+
+    // --- SCALED CHART JPG EXPORT ---
+    const exportChartJpgBtn = document.getElementById("exportChartJpgBtn");
+    const chartScaleSelect = document.getElementById("chartScaleSelect");
+
+    if (exportChartJpgBtn) {
+        exportChartJpgBtn.onclick = async () => {
+            try {
+                if (!state.mappedDmcGrid) {
+                    console.error("No grid data available to export.");
+                    return;
+                }
+
+                const data = prepareChartExportData();
+                const scale = chartScaleSelect ? parseInt(chartScaleSelect.value) : 16;
+                await exportChartImage(data, {
+                    scale: scale || 16,
+                    includeBackstitches: true,
+                    showGrid: showGridCheckbox ? showGridCheckbox.checked : false
+                });
+            } catch (error) {
+                console.error("Chart JPG Export failed:", error);
             }
         };
     }
