@@ -170,6 +170,11 @@ function renderStitch(ctx, mode, rgb, x, y, cellSize, code, symbolMap, gridWidth
             ctx.fill();
             break;
 
+        case 'color':
+            ctx.fillStyle = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+            ctx.fillRect(x, y, cellSize, cellSize);
+            break;
+
         case 'cross':
             ctx.strokeStyle = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
             ctx.lineWidth = Math.max(1, cellSize * 0.40);

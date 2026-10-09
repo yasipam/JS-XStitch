@@ -26,7 +26,7 @@ export async function exportPDF(data, exportType = 'PRINTABLE', options = {}) {
         drawPatternPages(doc, data, false, true, options);
     }
 
-    drawLegendPage(doc, data, exportType === 'PK');
+    drawLegendPage(doc, data, exportType === 'PK', !!options.rgbLabels);
     doc.save(`KrissKross_${exportType.toLowerCase()}.pdf`);
 }
 
@@ -193,6 +193,11 @@ function drawPatternPages(doc, data, isPrintable, isPK, options = {}) {
                             doc.circle(cx, cy, cellSize * 0.3, 'F');
                             break;
 
+                        case 'color':
+                            doc.setFillColor(displayRgb[0], displayRgb[1], displayRgb[2]);
+                            doc.rect(cx, cy, cellSize, cellSize, 'F');
+                            break;
+
                         case 'cross':
                             doc.setDrawColor(displayRgb[0], displayRgb[1], displayRgb[2]);
                             doc.setLineWidth(0.5);
@@ -297,9 +302,20 @@ function drawBackstitchesOnPage(doc, lines, x0, y0, cellSize, xOff, yOff, tileW,
 }
 
 /**
+ * Returns an uppercase "#RRGGBB" string for an [r,g,b] colour.
+ */
+function rgbHex(rgb) {
+    if (!rgb || rgb.length < 3) return "#000000";
+    const hex = [rgb[0], rgb[1], rgb[2]]
+        .map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0"))
+        .join("");
+    return `#${hex.toUpperCase()}`;
+}
+
+/**
  * Legend Generation - Fixed text color leak and dual-column rendering.
  */
-function drawLegendPage(doc, data, isPK) {
+function drawLegendPage(doc, data, isPK, rgbLabels = false) {
     doc.addPage();
 
     // CRITICAL: Explicitly set text color to black (0) to prevent "white text" leak
@@ -314,8 +330,12 @@ function drawLegendPage(doc, data, isPK) {
 
     // Headers
     doc.text("Symbol", 20, 32);
-    doc.text("DMC", 40, 32);
-    doc.text("Name", 60, 32);
+    if (rgbLabels) {
+        doc.text("RGB", 40, 32);
+    } else {
+        doc.text("DMC", 40, 32);
+        doc.text("Name", 60, 32);
+    }
     doc.text("Stitches", 130, 32);
 
     if (data.stampedMode && !isPK) {
@@ -341,8 +361,12 @@ function drawLegendPage(doc, data, isPK) {
         doc.text(sym, 22, y);
         // Text: always size 10 to match Backstitch Key
         doc.setFontSize(10);
-        doc.text(p.code, 40, y);
-        doc.text(name.substring(0, 30), 60, y);
+        if (rgbLabels) {
+            doc.text(rgbHex(p.rgb), 40, y);
+        } else {
+            doc.text(p.code, 40, y);
+            doc.text(name.substring(0, 30), 60, y);
+        }
         doc.text(count, 135, y);
 
         if (!isPK) {
@@ -370,8 +394,12 @@ function drawLegendPage(doc, data, isPK) {
             doc.setTextColor(0); // Reset color on new page too
             doc.setFont("DejaVu", "bold");
             doc.text("Symbol", 20, 20);
-            doc.text("DMC", 40, 20);
-            doc.text("Name", 60, 20);
+            if (rgbLabels) {
+                doc.text("RGB", 40, 20);
+            } else {
+                doc.text("DMC", 40, 20);
+                doc.text("Name", 60, 20);
+            }
             doc.text("Stitches", 130, 20);
             doc.text(data.stampedMode ? "Original / Stamped" : "Swatch", 175, 20);
             doc.setFont(activeFont, "normal");
@@ -393,8 +421,12 @@ function drawLegendPage(doc, data, isPK) {
         y += 10;
 
         doc.setFontSize(10);
-        doc.text("DMC", 20, y);
-        doc.text("Name", 60, y);
+        if (rgbLabels) {
+            doc.text("RGB", 20, y);
+        } else {
+            doc.text("DMC", 20, y);
+            doc.text("Name", 60, y);
+        }
         doc.text("Stitches", 130, y);
         doc.text("Swatch", 175, y);
         y += 8;
@@ -432,8 +464,12 @@ function drawLegendPage(doc, data, isPK) {
         doc.setFont(activeFont, "normal");
         Object.values(bsColorMap).forEach(bs => {
             const [r, g, b] = bs.color;
-            doc.text(bs.code, 20, y);
-            doc.text(bs.name.substring(0, 30), 60, y);
+            if (rgbLabels) {
+                doc.text(rgbHex(bs.color), 20, y);
+            } else {
+                doc.text(bs.code, 20, y);
+                doc.text(bs.name.substring(0, 30), 60, y);
+            }
             doc.text(String(bs.count), 130, y);
             doc.setFillColor(r, g, b);
             doc.rect(175, y - 4, 10, 5, 'F');

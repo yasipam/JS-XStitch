@@ -111,7 +111,9 @@ export function parseOxsFile(xmlString) {
             return;
         }
 
-        const dmcCode = getDmcCodeFromNumber(number);
+        // RGB-labelled exports carry "#RRGGBB" in number; recover the real DMC
+        // code from the hidden misc1 attribute when present.
+        const dmcCode = getDmcCodeFromNumber(number) || getDmcCodeFromNumber(item.getAttribute("misc1"));
         const rgb = hexToRgb(color);
 
         paletteMap[index] = {

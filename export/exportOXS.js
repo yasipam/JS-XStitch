@@ -14,8 +14,11 @@ function rgbToHex(rgb) {
 /**
  * Valid OXS Export: Captures live edits and matches Streamlit schema.
  * If returnOnly is true, returns the XML string without triggering download.
+ * When rgbLabels is true, palette colours are labelled by RGB (#RRGGBB) in the
+ * number/name attributes, and the real DMC code is stashed in the otherwise
+ * unused misc1 attribute so our own importers can still recover it.
  */
-export function exportOXS(liveGrid, palette, filename = "pattern.oxs", stampedRgbGrid = null, backstitchGrid = null, referenceImageData = null, returnOnly = false) {
+export function exportOXS(liveGrid, palette, filename = "pattern.oxs", stampedRgbGrid = null, backstitchGrid = null, referenceImageData = null, returnOnly = false, rgbLabels = false) {
     const h = liveGrid.length;
     const w = liveGrid[0].length;
     const title = filename.replace(/\.[^.]+$/, "");
@@ -113,7 +116,21 @@ export function exportOXS(liveGrid, palette, filename = "pattern.oxs", stampedRg
         }
 
         const symbol = SYMBOLS[i % SYMBOLS.length];
-        xml += `\n<palette_item index="${idx}" number="${info.source === 'dmc' ? 'DMC ' + info.code : 'BS ' + idx}" name="${name}" color="${displayHex}" printcolor="${displayHex}" blendcolor="nil" comments="" strands="2" symbol="${symbol}" dashpattern="" misc1="" bsstrands="1" bscolor="${displayHex}" />`;
+        const isDmc = info.source === 'dmc' && info.code;
+        const dmcNumber = isDmc ? `DMC ${info.code}` : `BS ${idx}`;
+
+        let numberAttr = dmcNumber;
+        let nameAttr = name;
+        let misc1Attr = "";
+        if (rgbLabels) {
+            // Show only the RGB value; hide the DMC code for our own importers.
+            const rgbLabel = `#${displayHex}`;
+            numberAttr = rgbLabel;
+            nameAttr = rgbLabel;
+            misc1Attr = isDmc ? `DMC ${info.code}` : "";
+        }
+
+        xml += `\n<palette_item index="${idx}" number="${numberAttr}" name="${nameAttr}" color="${displayHex}" printcolor="${displayHex}" blendcolor="nil" comments="" strands="2" symbol="${symbol}" dashpattern="" misc1="${misc1Attr}" bsstrands="1" bscolor="${displayHex}" />`;
     });
     xml += `\n</palette>`;
 

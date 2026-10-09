@@ -507,6 +507,10 @@ const mappingConfig = {
     ditherStrength: 0,
     exportFabricCount: 14,
     exportMode: "filled",
+    // When true, text exports (PDF legend) label colours by RGB hex rather
+    // than DMC code/name. Synced from #rgbLabelsToggle. Also honoured by OXS
+    // exports, which hide the real DMC code in the misc1 attribute.
+    exportRgbLabels: false,
     // Hand-picked symbols, mirrored from app.js symbolOverrides so any export
     // path that builds its own map still honours the user's picks. Kept in sync
     // by rerandomizeSymbols()/resetSymbolAssignments().
@@ -3477,6 +3481,16 @@ function setupExportButtons() {
     const pkCheckbox = document.getElementById("addPatternKeeper");
     const boldGridCheckbox = document.getElementById("boldGridlines");
     const stampedToggle = document.getElementById("stampedMode");
+    const rgbLabelsToggle = document.getElementById("rgbLabelsToggle");
+
+    // Keep the RGB-label preference in sync with the checkbox so every export
+    // path (including save slots) sees the same value.
+    if (rgbLabelsToggle) {
+        mappingConfig.exportRgbLabels = rgbLabelsToggle.checked;
+        rgbLabelsToggle.onchange = () => {
+            mappingConfig.exportRgbLabels = rgbLabelsToggle.checked;
+        };
+    }
 
     // Enable/disable tent-symmetry based on grid dimensions
     if (modeSelect && state.mappedDmcGrid) {
@@ -3499,7 +3513,7 @@ function setupExportButtons() {
                 const data = prepareChartExportData();
 
                 const exportType = pdfTypeSelect ? pdfTypeSelect.value : 'PRINTABLE';
-                const exportOptions = { boldGridlines: !boldGridCheckbox || boldGridCheckbox.checked };
+                const exportOptions = { boldGridlines: !boldGridCheckbox || boldGridCheckbox.checked, rgbLabels: !!data.rgbLabels };
                 await exportPDF(data, exportType, exportOptions);
 
                 if (pkCheckbox && pkCheckbox.checked) {
@@ -3556,7 +3570,9 @@ function setupExportButtons() {
                 "kriss_kross_pattern.oxs",
                 stampedRgbGrid,
                 state.backstitchGrid,
-                overlayImage
+                overlayImage,
+                false,
+                mappingConfig.exportRgbLabels
             );
         };
     }
@@ -4060,7 +4076,8 @@ async function saveCurrentProject(name) {
         stampedRgbGrid,
         state.backstitchGrid,
         overlayImage,
-        true
+        true,
+        mappingConfig.exportRgbLabels
     );
 
     const metadata = {
@@ -4105,9 +4122,14 @@ async function loadProjectFromSlot(slotId) {
             const num = item.getAttribute('number');
             const name = item.getAttribute('name');
             const color = item.getAttribute('color');
+            // RGB-labelled exports put "#RRGGBB" in number, so recover the DMC
+            // code from the hidden misc1 attribute when present.
+            const misc1 = item.getAttribute('misc1');
+            const dmcSource = (misc1 && misc1.startsWith('DMC ')) ? misc1
+                : (num && num.startsWith('DMC ')) ? num : null;
 
-            if (num && num.startsWith('DMC ')) {
-                const code = num.replace('DMC ', '');
+            if (dmcSource) {
+                const code = dmcSource.replace('DMC ', '');
                 const rgb = [
                     parseInt(color.substring(0, 2), 16),
                     parseInt(color.substring(2, 4), 16),
@@ -4131,8 +4153,11 @@ async function loadProjectFromSlot(slotId) {
                     const palItem = paletteItems[palindex];
                     if (palItem) {
                         const num = palItem.getAttribute('number');
-                        if (num && num.startsWith('DMC ')) {
-                            code = num.replace('DMC ', '');
+                        const misc1 = palItem.getAttribute('misc1');
+                        const dmcSource = (misc1 && misc1.startsWith('DMC ')) ? misc1
+                            : (num && num.startsWith('DMC ')) ? num : null;
+                        if (dmcSource) {
+                            code = dmcSource.replace('DMC ', '');
                         }
                     }
                 }

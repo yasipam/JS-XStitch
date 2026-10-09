@@ -87,6 +87,9 @@ export function buildExportData(state, mappingConfig, options = {}) {
         canvasSize: { w: width, h: height },
         fabricCount: parseInt(options.fabricCount) || 14,
         exportMode: options.mode || mappingConfig.exportMode || "filled",
+        // When true, text exports label colours by their RGB value (#RRGGBB)
+        // instead of the DMC code/name.
+        rgbLabels: !!mappingConfig.exportRgbLabels,
         stampedMode: isStamped,
         originalImage: state.originalImageURL,
         backstitchGrid: state.backstitchGrid,
